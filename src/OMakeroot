@@ -1,0 +1,9 @@
+# Include the standard configuration for C applications
+open build/C
+    
+# Process the command-line vars
+DefineCommandVars()
+    
+# Include the OMakefile in this directory.
+.SUBDIRS: .
+

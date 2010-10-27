@@ -1,0 +1,11 @@
+florb
+depend
+*.o
+build/*.cpp
+build/*.hpp
+.depend
+*.omc
+*.lock
+*/fluid/*.cpp
+*/fluid/*.hpp
+*.omakedb
