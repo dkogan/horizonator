@@ -22,7 +22,9 @@ static int demfileW = 118;
 
 static const double Rearth = 6371000.0;
 
-#define WDEM 1201
+#define WDEM  1201
+#define gridW 800
+#define gridH 800
 
 static void getLatLonPos(GLdouble* vertices, double lat, double lon, double height)
 {
@@ -86,7 +88,6 @@ static void loadGeometry(void)
   assert(  WDEM*WDEM*2 == sb.st_size );
 
 
-  int gridW = 800, gridH = 800;
   Nvertices = (gridW + 1) * (gridH + 1);
   Ntriangles = gridW*gridH*2;
 
