@@ -193,11 +193,13 @@ static void loadGeometry(void)
     char msg[1024];
     int len;
     glGetShaderInfoLog( vertexShader, sizeof(msg), &len, msg );
-    printf("vertex msg: %s\n", msg);
+    if( strlen(msg) )
+      printf("vertex msg: %s\n", msg);
 
     glCompileShader(fragmentShader); assert( glGetError() == GL_NO_ERROR );
     glGetShaderInfoLog( fragmentShader, sizeof(msg), &len, msg );
-    printf("fragment msg: %s\n", msg);
+    if( strlen(msg) )
+      printf("fragment msg: %s\n", msg);
 
     GLuint program = glCreateProgram();      assert( glGetError() == GL_NO_ERROR );
     glAttachShader(program, vertexShader);   assert( glGetError() == GL_NO_ERROR );
