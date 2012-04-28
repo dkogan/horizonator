@@ -203,46 +203,40 @@ static void display(void)
 
   glPushMatrix();
 
-#if 0
-
-  // overhead view
-  double lat    = 34.5;
-  double lon    = -117.5;
-  double height = 100000.0;
-
-
-  GLdouble up[3];
-  getUpVector(up, lat, lon);
 
   GLdouble eye[3];
-  getLatLonPos(eye, lat, lon, height);
-
-  GLdouble view[3] = {eye[0] - up[0],
-                      eye[1] - up[1],
-                      eye[2] - up[2]};
-  getNorthVector(up, lat, lon);
-
-#else
-
-  double lat    = 34.1;
-  double lon    = -117.7;
-  double height = 1000.0;
-
-
+  GLdouble up[3];
   GLdouble north[3];
-  getNorthVector(north, lat, lon);
+  GLdouble view[3];
 
-  GLdouble eye[3];
-  getLatLonPos(eye, lat, lon, height);
+  if( getenv("OVERHEAD") )
+  {
+    // overhead view
+    double lat    = 34.5;
+    double lon    = -117.5;
+    double height = 100000.0;
 
-  GLdouble view[3] = {eye[0] + north[0],
-                      eye[1] + north[1],
-                      eye[2] + north[2]};
+    getUpVector(up, lat, lon);
+    getLatLonPos(eye, lat, lon, height);
 
-  GLdouble up[3];
-  getUpVector(up, lat, lon);
+    for(int i=0; i<3; i++)
+      view[i] = eye[i] - up[i];
+    getNorthVector(up, lat, lon);
+  }
+  else
+  {
+    double lat    = 34.1;
+    double lon    = -117.7;
+    double height = 1000.0;
 
-#endif
+    getNorthVector(north, lat, lon);
+    getLatLonPos(eye, lat, lon, height);
+
+    for(int i=0; i<3; i++)
+      view[i] = eye[i] + north[i];
+
+    getUpVector(up, lat, lon);
+  }
 
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
