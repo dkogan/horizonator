@@ -315,7 +315,29 @@ static void DoFeatureChecks(void)
   }
 }
 
+static void keyPressed(unsigned char key, int x, int y)
+{
+  static GLenum winding = GL_CCW;
 
+  switch (key)
+  {
+  case 'w':
+    WireFrame = !WireFrame;
+    break;
+
+   case 'r':
+      if (winding == GL_CCW) winding = GL_CW;
+      else                   winding = GL_CCW;
+      glFrontFace(winding);
+      break;
+
+  case 'q':
+  case 27:
+    exit(0);
+  }
+
+  glutPostRedisplay();
+}
 int main(int argc, char** argv)
 {
   glutInit(&argc, argv);
@@ -325,6 +347,7 @@ int main(int argc, char** argv)
   glewInit();
 
   DoFeatureChecks();
+  glutKeyboardFunc(keyPressed);
 
   glutReshapeFunc(reshape);
   glutDisplayFunc(display);
