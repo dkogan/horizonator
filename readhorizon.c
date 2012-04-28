@@ -22,6 +22,8 @@ static int demfileW = 118;
 
 static const double Rearth = 6371000.0;
 
+static int doOverhead = 0;
+
 #define WDEM  1201
 #define gridW 800
 #define gridH 800
@@ -209,7 +211,7 @@ static void display(void)
   GLdouble north[3];
   GLdouble view[3];
 
-  if( getenv("OVERHEAD") )
+  if( doOverhead )
   {
     // overhead view
     double lat    = 34.5;
@@ -321,6 +323,10 @@ static void keyPressed(unsigned char key, int x, int y)
 int main(int argc, char** argv)
 {
   int one = 1;
+
+  if(argc > 1)
+    doOverhead = 1;
+
   glutInit(&one, argv);
   glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
   glutCreateWindow("objview");
