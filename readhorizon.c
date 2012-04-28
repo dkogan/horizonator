@@ -10,7 +10,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
+#include <string.h>
 
 static GLboolean Cull = GL_TRUE;
 static GLboolean WireFrame = GL_FALSE;
