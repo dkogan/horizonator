@@ -320,7 +320,8 @@ static void keyPressed(unsigned char key, int x, int y)
 }
 int main(int argc, char** argv)
 {
-  glutInit(&argc, argv);
+  int one = 1;
+  glutInit(&one, argv);
   glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
   glutCreateWindow("objview");
 
