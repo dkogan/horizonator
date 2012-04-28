@@ -130,13 +130,13 @@ static void loadGeometry(void)
     {
       for( int i=0; i<gridW; i++ )
       {
-        indices[idx++] = (i + 0)*(gridH+1) + (j + 0);
-        indices[idx++] = (i + 1)*(gridH+1) + (j + 0);
-        indices[idx++] = (i + 1)*(gridH+1) + (j + 1);
+        indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
+        indices[idx++] = (j + 1)*(gridW+1) + (i + 0);
+        indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
 
-        indices[idx++] = (i + 0)*(gridH+1) + (j + 0);
-        indices[idx++] = (i + 1)*(gridH+1) + (j + 1);
-        indices[idx++] = (i + 0)*(gridH+1) + (j + 1);
+        indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
+        indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
+        indices[idx++] = (j + 0)*(gridW+1) + (i + 1);
       }
     }
     assert( glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER) == GL_TRUE );
