@@ -17,8 +17,9 @@ static GLboolean WireFrame = GL_FALSE;
 static int Ntriangles;
 static int Nvertices;
 
-static int demfileN = 34;
-static int demfileW = 118;
+static int            demfileN = 34;
+static int            demfileW = 118;
+static unsigned char* dem;
 
 static const double Rearth = 6371000.0;
 
@@ -58,7 +59,30 @@ static void getNorthVector(GLdouble* vertices, double lat, double lon)
   vertices[2] = cos(lat)          ;
 }
 
-static void getXYZ(GLfloat* vertices, int i, int j, const unsigned char* dem)
+static short getDemAt(int i, int j)
+{
+  int p = i + j*WDEM;
+  short z = (short) ((dem[2*p] << 8) | dem[2*p + 1]);
+  if(z < 0)
+    z = 0;
+  return z;
+}
+
+static double getHeight(double lat, double lon)
+{
+  // grid starts at the NW corner, and traverses along the latitude first.
+  // coordinate system has +x aimed at lon=0, +y at lon=+90, +z north
+  // DEM tile is named from the SW point
+  int j = floor(0.5 + ((double)demfileN + 1.0 - lat) * (double)(WDEM-1));
+  int i = floor(0.5 + ((double)demfileW       + lon) * (double)(WDEM-1));
+
+  if( i < 0 || i >= WDEM || j < 0 || j >= WDEM )
+    return -1e20;
+
+  return (double) getDemAt(i,j);
+}
+
+static void getXYZ(GLfloat* vertices, int i, int j)
 {
   // grid starts at the NW corner, and traverses along the latitude first.
   // coordinate system has +x aimed at lon=0, +y at lon=+90, +z north
@@ -66,10 +90,7 @@ static void getXYZ(GLfloat* vertices, int i, int j, const unsigned char* dem)
   float lat = ( (float) demfileN + 1.0f - (float)j/(float)(WDEM-1) ) * M_PI/180.0f;
   float lon = ( (float)-demfileW        + (float)i/(float)(WDEM-1) ) * M_PI/180.0f;
 
-  int p = i + j*WDEM;
-  float z = (float) (short) ((dem[2*p] << 8) | dem[2*p + 1]);
-  if(z < 0.0f)
-    z = 0.0f;
+  float z = (float)getDemAt(i,j);
 
   vertices[0] = cosf(lon)*cosf(lat)*(Rearth + z);
   vertices[1] = sinf(lon)*cosf(lat)*(Rearth + z);
@@ -85,7 +106,7 @@ static void loadGeometry(void)
   int fd = open( filename, O_RDONLY );
   assert(fd > 0);
   assert( fstat(fd, &sb) == 0 );
-  const char* dem = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  dem = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
   assert( dem != MAP_FAILED );
   assert(  WDEM*WDEM*2 == sb.st_size );
 
@@ -109,7 +130,7 @@ static void loadGeometry(void)
     {
       for( int i=0; i<=gridW; i++ )
       {
-        getXYZ(&vertices[idx], i, j, dem);
+        getXYZ(&vertices[idx], i, j);
         idx += 3;
       }
     }
