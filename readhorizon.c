@@ -93,8 +93,6 @@ static void loadGeometry(void)
 
 
 
-  float minx = 1e20, miny = 1e20, minz = 1e20;
-  float maxx = -1e20, maxy = -1e20, maxz = -1e20;
   // vertices
   {
     GLuint vertexBufID;
@@ -110,15 +108,6 @@ static void loadGeometry(void)
       for( int i=0; i<=gridW; i++ )
       {
         getXYZ(&vertices[idx], i, j, dem);
-
-
-        minx = fminf(minx, vertices[idx]);
-        miny = fminf(miny, vertices[idx+1]);
-        minz = fminf(minz, vertices[idx+2]);
-        maxx = fmaxf(maxx, vertices[idx]);
-        maxy = fmaxf(maxy, vertices[idx+1]);
-        maxz = fmaxf(maxz, vertices[idx+2]);
-
         idx += 3;
       }
     }
@@ -126,10 +115,6 @@ static void loadGeometry(void)
     assert( idx == Nvertices*3 );
   }
   close(fd);
-
-  printf("x: [%f, %f] delta: %f mean: %f\n", minx, maxx, maxx - minx, (maxx + minx) / 2);
-  printf("y: [%f, %f] delta: %f mean: %f\n", miny, maxy, maxy - miny, (maxy + miny) / 2);
-  printf("z: [%f, %f] delta: %f mean: %f\n", minz, maxz, maxz - minz, (maxz + minz) / 2);
 
 
   // indices
