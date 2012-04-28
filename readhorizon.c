@@ -25,8 +25,8 @@ static const double Rearth = 6371000.0;
 static int doOverhead = 0;
 
 #define WDEM  1201
-#define gridW 800
-#define gridH 800
+#define gridW 600
+#define gridH 1200
 
 static void getLatLonPos(GLdouble* vertices, double lat, double lon, double height)
 {
