@@ -250,7 +250,8 @@ static void display(void)
   {
     double lat    = 34.1;
     double lon    = -117.7;
-    double height = 1000.0;
+    double height = getHeight(lat, lon) + 2.0;
+    assert(height > -1e3);
 
     getNorthVector(north, lat, lon);
     getLatLonPos(eye, lat, lon, height);
