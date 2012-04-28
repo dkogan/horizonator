@@ -1,0 +1,342 @@
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
+#include <stdarg.h>
+#include <GL/glew.h>
+#include <GL/glut.h>
+#include <sys/fcntl.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+
+static GLboolean Cull = GL_TRUE;
+static GLboolean WireFrame = GL_FALSE;
+static int Ntriangles;
+static int Nvertices;
+
+static int demfileN = 34;
+static int demfileW = 118;
+
+static const double Rearth = 6371000.0;
+
+#define WDEM 1201
+
+static void getLatLonPos(GLdouble* vertices, double lat, double lon, double height)
+{
+  lat *= M_PI/180.0;
+  lon *= M_PI/180.0;
+
+  vertices[0] = cos(lon)*cos(lat)*(Rearth + height);
+  vertices[1] = sin(lon)*cos(lat)*(Rearth + height);
+  vertices[2] = sin(lat)         *(Rearth + height);
+}
+
+static void getUpVector(GLdouble* vertices, double lat, double lon)
+{
+  lat *= M_PI/180.0;
+  lon *= M_PI/180.0;
+
+  vertices[0] = cos(lon)*cos(lat);
+  vertices[1] = sin(lon)*cos(lat);
+  vertices[2] = sin(lat)         ;
+}
+
+static void getNorthVector(GLdouble* vertices, double lat, double lon)
+{
+  lat *= M_PI/180.0;
+  lon *= M_PI/180.0;
+
+  vertices[0] = -cos(lon)*sin(lat);
+  vertices[1] = -sin(lon)*sin(lat);
+  vertices[2] = cos(lat)          ;
+}
+
+static void getXYZ(GLfloat* vertices, int i, int j, const unsigned char* dem)
+{
+  // grid starts at the NW corner, and traverses along the latitude first.
+  // coordinate system has +x aimed at lon=0, +y at lon=+90, +z north
+  // DEM tile is named from the SW point
+  float lat = ( (float) demfileN + 1.0f - (float)j/(float)(WDEM-1) ) * M_PI/180.0f;
+  float lon = ( (float)-demfileW        + (float)i/(float)(WDEM-1) ) * M_PI/180.0f;
+
+  int p = i + j*WDEM;
+  float z = (float) (short) ((dem[2*p] << 8) | dem[2*p + 1]);
+  if(z < 0.0f)
+    z = 0.0f;
+
+  vertices[0] = cosf(lon)*cosf(lat)*(Rearth + z);
+  vertices[1] = sinf(lon)*cosf(lat)*(Rearth + z);
+  vertices[2] = sinf(lat)          *(Rearth + z);
+}
+
+static void loadGeometry(void)
+{
+  char filename[1024];
+  snprintf(filename, sizeof(filename), "../N%dW%d.srtm3.hgt", demfileN, demfileW);
+
+  struct stat sb;
+  int fd = open( filename, O_RDONLY );
+  assert(fd > 0);
+  assert( fstat(fd, &sb) == 0 );
+  const char* dem = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  assert( dem != MAP_FAILED );
+  assert(  WDEM*WDEM*2 == sb.st_size );
+
+
+  int gridW = 800, gridH = 800;
+  Nvertices = (gridW + 1) * (gridH + 1);
+  Ntriangles = gridW*gridH*2;
+
+
+
+  float minx = 1e20, miny = 1e20, minz = 1e20;
+  float maxx = -1e20, maxy = -1e20, maxz = -1e20;
+  // vertices
+  {
+    GLuint vertexBufID;
+    glGenBuffers(1, &vertexBufID);
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBufID);
+    glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+    glVertexPointer(3, GL_FLOAT, 0, NULL);
+
+    GLfloat* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+    int idx = 0;
+    for( int j=0; j<=gridH; j++ )
+    {
+      for( int i=0; i<=gridW; i++ )
+      {
+        getXYZ(&vertices[idx], i, j, dem);
+
+
+        minx = fminf(minx, vertices[idx]);
+        miny = fminf(miny, vertices[idx+1]);
+        minz = fminf(minz, vertices[idx+2]);
+        maxx = fmaxf(maxx, vertices[idx]);
+        maxy = fmaxf(maxy, vertices[idx+1]);
+        maxz = fmaxf(maxz, vertices[idx+2]);
+
+        idx += 3;
+      }
+    }
+    assert( glUnmapBuffer(GL_ARRAY_BUFFER) == GL_TRUE );
+    assert( idx == Nvertices*3 );
+  }
+  close(fd);
+
+  printf("x: [%f, %f] delta: %f mean: %f\n", minx, maxx, maxx - minx, (maxx + minx) / 2);
+  printf("y: [%f, %f] delta: %f mean: %f\n", miny, maxy, maxy - miny, (maxy + miny) / 2);
+  printf("z: [%f, %f] delta: %f mean: %f\n", minz, maxz, maxz - minz, (maxz + minz) / 2);
+
+
+  // indices
+  {
+    GLuint indexBufID;
+    glGenBuffers(1, &indexBufID);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufID);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, Ntriangles*3*sizeof(GLuint), NULL, GL_STATIC_DRAW);
+
+    GLuint* indices = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
+    int idx = 0;
+    for( int j=0; j<gridH; j++ )
+    {
+      for( int i=0; i<gridW; i++ )
+      {
+        indices[idx++] = (i + 0)*(gridH+1) + (j + 0);
+        indices[idx++] = (i + 1)*(gridH+1) + (j + 0);
+        indices[idx++] = (i + 1)*(gridH+1) + (j + 1);
+
+        indices[idx++] = (i + 0)*(gridH+1) + (j + 0);
+        indices[idx++] = (i + 1)*(gridH+1) + (j + 1);
+        indices[idx++] = (i + 0)*(gridH+1) + (j + 1);
+      }
+    }
+    assert( glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER) == GL_TRUE );
+    assert(idx == Ntriangles*3);
+  }
+
+  // color shader
+  {
+    const GLchar* vertexShaderSource =
+      "varying float z;\n"
+      "void main(void)\n"
+      "{\n"
+      "       gl_Position=gl_ModelViewProjectionMatrix * gl_Vertex;\n"
+      "       z = sqrt(gl_Vertex.x*gl_Vertex.x + gl_Vertex.y*gl_Vertex.y + gl_Vertex.z*gl_Vertex.z) - 6371000.0;\n"
+      "}\n";
+
+    const GLchar* fragmentShaderSource =
+      "varying float z;\n"
+      "void main(void)\n"
+      "{\n"
+      "       gl_FragColor.r = z/3000.0;\n"
+      "}\n";
+
+    GLuint vertexShader   = glCreateShader(GL_VERTEX_SHADER);   assert( glGetError() == GL_NO_ERROR );
+    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER); assert( glGetError() == GL_NO_ERROR );
+    glShaderSource(vertexShader,   1, (const GLchar**)&vertexShaderSource,   0); assert( glGetError() == GL_NO_ERROR );
+    glShaderSource(fragmentShader, 1, (const GLchar**)&fragmentShaderSource, 0); assert( glGetError() == GL_NO_ERROR );
+    glCompileShader(vertexShader);   assert( glGetError() == GL_NO_ERROR );
+
+
+    char msg[1024];
+    int len;
+    glGetShaderInfoLog( vertexShader, sizeof(msg), &len, msg );
+    printf("vertex msg: %s\n", msg);
+
+    glCompileShader(fragmentShader); assert( glGetError() == GL_NO_ERROR );
+    glGetShaderInfoLog( fragmentShader, sizeof(msg), &len, msg );
+    printf("fragment msg: %s\n", msg);
+
+    GLuint program = glCreateProgram();      assert( glGetError() == GL_NO_ERROR );
+    glAttachShader(program, vertexShader);   assert( glGetError() == GL_NO_ERROR );
+    glAttachShader(program, fragmentShader); assert( glGetError() == GL_NO_ERROR );
+    glLinkProgram(program); assert( glGetError() == GL_NO_ERROR );
+    glUseProgram(program);  assert( glGetError() == GL_NO_ERROR );
+  }
+}
+
+
+static void reshape(int width, int height)
+{
+  glViewport(0, 0, width, height);
+
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  gluPerspective(60.0, 1.0, 10.0, 200000.0);
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+}
+
+
+static void display(void)
+{
+  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  glPushMatrix();
+
+#if 0
+
+  // overhead view
+  double lat    = 34.5;
+  double lon    = -117.5;
+  double height = 100000.0;
+
+
+  GLdouble up[3];
+  getUpVector(up, lat, lon);
+
+  GLdouble eye[3];
+  getLatLonPos(eye, lat, lon, height);
+
+  GLdouble view[3] = {eye[0] - up[0],
+                      eye[1] - up[1],
+                      eye[2] - up[2]};
+  getNorthVector(up, lat, lon);
+
+#else
+
+  double lat    = 34.1;
+  double lon    = -117.7;
+  double height = 1000.0;
+
+
+  GLdouble north[3];
+  getNorthVector(north, lat, lon);
+
+  GLdouble eye[3];
+  getLatLonPos(eye, lat, lon, height);
+
+  GLdouble view[3] = {eye[0] + north[0],
+                      eye[1] + north[1],
+                      eye[2] + north[2]};
+
+  GLdouble up[3];
+  getUpVector(up, lat, lon);
+
+#endif
+
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+
+  gluLookAt( eye[0],  eye[1],  eye[2],
+             view[0], view[1], view[2],
+             up[0],   up[1],   up[2] );
+
+  if (WireFrame)
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+  else
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+  if (Cull)
+    glEnable(GL_CULL_FACE);
+  else
+    glDisable(GL_CULL_FACE);
+
+
+  // draw
+  glEnableClientState(GL_VERTEX_ARRAY);
+  glEnableClientState(GL_INDEX_ARRAY);
+  glDrawElements(GL_TRIANGLES, Ntriangles*3, GL_UNSIGNED_INT, NULL);
+
+
+  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  glDisable(GL_CULL_FACE);
+
+  glPopMatrix();
+
+  glutSwapBuffers();
+}
+
+
+static void DoFeatureChecks(void)
+{
+  char *version = (char *) glGetString(GL_VERSION);
+  if (version[0] == '1') {
+    /* check for individual extensions */
+    if (!glutExtensionSupported("GL_ARB_texture_cube_map")) {
+      printf("Sorry, GL_ARB_texture_cube_map is required.\n");
+      exit(1);
+    }
+    if (!glutExtensionSupported("GL_ARB_vertex_shader")) {
+      printf("Sorry, GL_ARB_vertex_shader is required.\n");
+      exit(1);
+    }
+    if (!glutExtensionSupported("GL_ARB_fragment_shader")) {
+      printf("Sorry, GL_ARB_fragment_shader is required.\n");
+      exit(1);
+    }
+    if (!glutExtensionSupported("GL_ARB_vertex_buffer_object")) {
+      printf("Sorry, GL_ARB_vertex_buffer_object is required.\n");
+      exit(1);
+    }
+  }
+}
+
+
+int main(int argc, char** argv)
+{
+  glutInit(&argc, argv);
+  glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
+  glutCreateWindow("objview");
+
+  glewInit();
+
+  DoFeatureChecks();
+
+  glutReshapeFunc(reshape);
+  glutDisplayFunc(display);
+
+  loadGeometry();
+
+  glEnable(GL_DEPTH_TEST);
+  glEnable(GL_CULL_FACE);
+  glEnable(GL_NORMALIZE);
+  glClearColor(0.3, 0.3, 0.9, 0.0);
+
+  glutMainLoop();
+
+  return 0;
+}
