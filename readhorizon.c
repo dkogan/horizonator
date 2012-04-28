@@ -305,11 +305,11 @@ static void keyPressed(unsigned char key, int x, int y)
     WireFrame = !WireFrame;
     break;
 
-   case 'r':
-      if (winding == GL_CCW) winding = GL_CW;
-      else                   winding = GL_CCW;
-      glFrontFace(winding);
-      break;
+  case 'r':
+    if (winding == GL_CCW) winding = GL_CW;
+    else                   winding = GL_CCW;
+    glFrontFace(winding);
+    break;
 
   case 'q':
   case 27:
