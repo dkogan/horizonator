@@ -56,7 +56,37 @@ static void getNorthVector(GLdouble* vertices, double lat, double lon)
 
   vertices[0] = -cos(lon)*sin(lat);
   vertices[1] = -sin(lon)*sin(lat);
-  vertices[2] = cos(lat)          ;
+  vertices[2] =  cos(lat)         ;
+}
+
+static void getSouthVector(GLdouble* vertices, double lat, double lon)
+{
+  lat *= M_PI/180.0;
+  lon *= M_PI/180.0;
+
+  vertices[0] =  cos(lon)*sin(lat);
+  vertices[1] =  sin(lon)*sin(lat);
+  vertices[2] = -cos(lat)         ;
+}
+
+static void getEastVector(GLdouble* vertices, double lat, double lon)
+{
+  lat *= M_PI/180.0;
+  lon *= M_PI/180.0;
+
+  vertices[0] = -sin(lon)*cos(lat);
+  vertices[1] =  cos(lon)*cos(lat);
+  vertices[2] = 0;
+}
+
+static void getWestVector(GLdouble* vertices, double lat, double lon)
+{
+  lat *= M_PI/180.0;
+  lon *= M_PI/180.0;
+
+  vertices[0] =  sin(lon)*cos(lat);
+  vertices[1] = -cos(lon)*cos(lat);
+  vertices[2] = 0;
 }
 
 static short getDemAt(int i, int j)
