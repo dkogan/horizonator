@@ -23,11 +23,15 @@ static unsigned char* dem;
 
 static const double Rearth = 6371000.0;
 
-static int doOverhead = 0;
+static int doOverhead  = 0;
+static int doOffscreen = 0;
 
 #define WDEM  1201
 #define gridW 600
 #define gridH 1200
+
+#define OFFSCREEN_W 1024
+#define OFFSCREEN_H 1024
 
 static void getLatLonPos(GLdouble* vertices, double lat, double lon, double height)
 {
@@ -353,6 +357,41 @@ static void DoFeatureChecks(void)
   }
 }
 
+static void createOffscreenTargets(void)
+{
+  // create a renderbuffer object to store depth info
+  GLuint renderBufID;
+  glGenRenderbuffers(1, &renderBufID);
+  glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, OFFSCREEN_W, OFFSCREEN_W);
+
+  GLuint frameBufID;
+  glGenFramebuffers(1, &frameBufID);
+  glBindFramebuffer(GL_FRAMEBUFFER, frameBufID);
+
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                            GL_RENDERBUFFER, renderBufID);
+
+  assert( glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE );
+}
+
+static void readOffscreenPixels(void)
+{
+  FILE* fp = fopen("out.ppm", "w+");
+  assert(fp);
+  fprintf(fp, "P6\n%d %d\n255\n", OFFSCREEN_W, OFFSCREEN_H);
+
+  // instead of allocating memory, I'd like to glMapBuffer(). This doesn't work
+  // for unclear reasons, so I do this instead
+  GLubyte* rgb = malloc(3*OFFSCREEN_W*OFFSCREEN_H);
+  glReadPixels(0,0, OFFSCREEN_W, OFFSCREEN_H,
+               GL_RGB, GL_UNSIGNED_BYTE, rgb);
+  assert(rgb);
+  fwrite(rgb, 3, OFFSCREEN_W*OFFSCREEN_H, fp);
+  fclose(fp);
+  free(rgb);
+}
+
 static void keyPressed(unsigned char key, int x, int y)
 {
   static GLenum winding = GL_CCW;
@@ -376,33 +415,54 @@ static void keyPressed(unsigned char key, int x, int y)
 
   glutPostRedisplay();
 }
+
 int main(int argc, char** argv)
 {
-  int one = 1;
-
-  if(argc > 1)
-    doOverhead = 1;
-
-  glutInit(&one, argv);
+  glutInit(&(int){1}, argv);
   glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
   glutCreateWindow("objview");
-
   glewInit();
-
   DoFeatureChecks();
-  glutKeyboardFunc(keyPressed);
 
-  glutReshapeFunc(reshape);
-  glutDisplayFunc(display);
+  if(argc > 1)
+  {
+    doOverhead  = !strcmp(argv[1], "overhead");
+    doOffscreen = !strcmp(argv[1], "offscreen");
+  }
 
-  loadGeometry();
+  if( doOffscreen )
+  {
+    // when offscreen, I really don't want to glutCreateWindow(), but for some
+    // reason not doing this causes glewInit() to segfault...
+    createOffscreenTargets();
+    loadGeometry();
 
-  glEnable(GL_DEPTH_TEST);
-  glEnable(GL_CULL_FACE);
-  glEnable(GL_NORMALIZE);
-  glClearColor(0.3, 0.3, 0.9, 0.0);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_NORMALIZE);
+    glClearColor(0.3, 0.3, 0.9, 0.0);
 
-  glutMainLoop();
+    reshape(OFFSCREEN_W, OFFSCREEN_H);
+    display();
+
+    readOffscreenPixels();
+  }
+  else
+  {
+    glutKeyboardFunc(keyPressed);
+
+    glutReshapeFunc(reshape);
+    glutDisplayFunc(display);
+
+    loadGeometry();
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_NORMALIZE);
+    glClearColor(0.3, 0.3, 0.9, 0.0);
+
+    glutMainLoop();
+  }
 
   return 0;
 }
