@@ -13,7 +13,7 @@
 #include <string.h>
 
 static GLboolean Cull = GL_TRUE;
-static GLboolean WireFrame = GL_FALSE;
+static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
 static int Nvertices;
 
@@ -314,10 +314,9 @@ static void display(void)
              view[0], view[1], view[2],
              up[0],   up[1],   up[2] );
 
-  if (WireFrame)
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  else
-    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+  static const GLenum pmMap[] = {GL_FILL, GL_LINE, GL_POINT};
+  glPolygonMode(GL_FRONT, pmMap[ PolygonMode ] );
+  glPolygonMode(GL_BACK,  GL_POINT );
 
   if (Cull)
     glEnable(GL_CULL_FACE);
@@ -406,7 +405,8 @@ static void keyPressed(unsigned char key, int x, int y)
   switch (key)
   {
   case 'w':
-    WireFrame = !WireFrame;
+    if(++PolygonMode == PM_NUM)
+      PolygonMode = 0;
     break;
 
   case 'r':
