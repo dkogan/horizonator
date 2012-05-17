@@ -26,6 +26,10 @@ static const double Rearth = 6371000.0;
 static int doOverhead  = 0;
 static int doOffscreen = 0;
 
+
+static double extraHeight = 0.0;
+
+
 #define WDEM  1201
 #define gridW 600
 #define gridH 1200
@@ -296,7 +300,7 @@ static void display(void)
 
     double lat    = 34.2883;
     double lon    = -117.7128;
-    double height = getHeight(lat, lon);
+    double height = getHeight(lat, lon) + extraHeight;
     assert(height > -1e3);
 
     getUpVector(up, lat, lon);
@@ -305,7 +309,7 @@ static void display(void)
     getLatLonPos(eye, lat, lon, height);
 
     for(int i=0; i<3; i++)
-      view[i] = eye[i] + viewdir[i];
+      view[i] = eye[i] + viewdir[i] - extraHeight/10000.0f*up[i];
 
   }
 
@@ -415,6 +419,10 @@ static void keyPressed(unsigned char key, int x, int y)
     if (winding == GL_CCW) winding = GL_CW;
     else                   winding = GL_CCW;
     glFrontFace(winding);
+    break;
+
+  case 'i':
+    extraHeight += 1000.0;
     break;
 
   case 'q':
