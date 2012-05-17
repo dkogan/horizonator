@@ -293,9 +293,9 @@ static void display(void)
   }
   else
   {
-    double lat    = 34.1;
-    double lon    = -117.7;
-    double height = getHeight(lat, lon) + 2.0;
+    double lat    = 34.2883;
+    double lon    = -117.7128;
+    double height = getHeight(lat, lon);
     assert(height > -1e3);
 
     getNorthVector(north, lat, lon);
