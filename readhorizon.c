@@ -274,7 +274,6 @@ static void display(void)
 
   GLdouble eye[3];
   GLdouble up[3];
-  GLdouble north[3];
   GLdouble view[3];
 
   if( doOverhead )
@@ -293,18 +292,21 @@ static void display(void)
   }
   else
   {
+    GLdouble viewdir[3];
+
     double lat    = 34.2883;
     double lon    = -117.7128;
     double height = getHeight(lat, lon);
     assert(height > -1e3);
 
-    getNorthVector(north, lat, lon);
+    getUpVector(up, lat, lon);
+
+    getNorthVector(viewdir, lat, lon);
     getLatLonPos(eye, lat, lon, height);
 
     for(int i=0; i<3; i++)
-      view[i] = eye[i] + north[i];
+      view[i] = eye[i] + viewdir[i];
 
-    getUpVector(up, lat, lon);
   }
 
   glMatrixMode(GL_MODELVIEW);
