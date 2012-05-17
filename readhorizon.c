@@ -12,7 +12,6 @@
 #include <unistd.h>
 #include <string.h>
 
-static GLboolean Cull = GL_TRUE;
 static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
 static int Nvertices;
@@ -324,11 +323,7 @@ static void display(void)
   glPolygonMode(GL_FRONT, pmMap[ PolygonMode ] );
   glPolygonMode(GL_BACK,  GL_POINT );
 
-  if (Cull)
-    glEnable(GL_CULL_FACE);
-  else
-    glDisable(GL_CULL_FACE);
-
+  glEnable(GL_CULL_FACE);
 
   // draw
   glEnableClientState(GL_VERTEX_ARRAY);
