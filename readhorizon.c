@@ -107,13 +107,20 @@ static double getHeight(double lat, double lon)
   // grid starts at the NW corner, and traverses along the latitude first.
   // coordinate system has +x aimed at lon=0, +y at lon=+90, +z north
   // DEM tile is named from the SW point
-  int j = floor(0.5 + ((double)demfileN + 1.0 - lat) * (double)(WDEM-1));
-  int i = floor(0.5 + ((double)demfileW       + lon) * (double)(WDEM-1));
+  int j = floor( ((double)demfileN + 1.0 - lat) * (double)(WDEM-1) );
+  int i = floor( ((double)demfileW       + lon) * (double)(WDEM-1) );
 
-  if( i < 0 || i >= WDEM || j < 0 || j >= WDEM )
-    return -1e20;
+  // return the largest height in the 4 neighboring cells
+  double z = -1e20;
+#define inrange(i, j) ( (i) >= 0 && (i) < WDEM && (j) >= 0 && (j) < WDEM )
 
-  return (double) getDemAt(i,j);
+  if( inrange(i,  j  ) ) z = fmax(z, (double) getDemAt(i,  j  ) );
+  if( inrange(i+1,j  ) ) z = fmax(z, (double) getDemAt(i+1,j  ) );
+  if( inrange(i,  j+1) ) z = fmax(z, (double) getDemAt(i,  j+1) );
+  if( inrange(i+1,j+1) ) z = fmax(z, (double) getDemAt(i+1,j+1) );
+
+#undef inrange
+  return z;
 }
 
 static void getXYZ(GLfloat* vertices, int i, int j)
