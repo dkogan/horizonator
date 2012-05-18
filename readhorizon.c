@@ -395,7 +395,7 @@ static void createOffscreenTargets(void)
   GLuint renderBufID;
   glGenRenderbuffers(1, &renderBufID);
   glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, OFFSCREEN_W, OFFSCREEN_W);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, OFFSCREEN_W, OFFSCREEN_H);
 
   GLuint frameBufID;
   glGenFramebuffers(1, &frameBufID);
