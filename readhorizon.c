@@ -28,6 +28,7 @@ static int doOffscreen = 0;
 
 static double extraHeight = 0.0;
 
+static GLint aspectUniformLocation;
 
 #define WDEM  1201
 #define gridW 600
@@ -210,22 +211,42 @@ static void loadGeometry(void)
     assert(idx == Ntriangles*3);
   }
 
-  // color shader
+  // shaders
   {
     const GLchar* vertexShaderSource =
-      "varying float z;\n"
-      "void main(void)\n"
-      "{\n"
-      "       gl_Position=gl_ModelViewProjectionMatrix * gl_Vertex;\n"
-      "       z = sqrt(gl_Vertex.x*gl_Vertex.x + gl_Vertex.y*gl_Vertex.y + gl_Vertex.z*gl_Vertex.z) - 6371000.0;\n"
-      "}\n";
+      "uniform float aspect;"
+      "varying float z;"
+      "void main(void)"
+      "{"
+      "       vec4 v = gl_ModelViewMatrix * gl_Vertex;"
+#if 0
+      "       gl_Position = gl_ProjectionMatrix * v;"
+#else
+      "       const float znear = 10.0, zfar = 200000.0;"
+      "       const float pi = 3.14159265358979;"
+      "       float zeff  = length(vec2(v.x, v.z));"
+      "       float angle = atan(v.x, -v.z) / pi;"
+
+      // throw out the seam to ignore the wraparound triangles
+      "       if( abs(angle) > 0.999 ) zeff = -100.0;"
+      "       float A = (zfar + znear) / (zfar - znear);"
+      "       float B = zfar * (1.0 - A);"
+      "       gl_Position = vec4( angle * zeff,"
+      "                           v.y / pi * aspect,"
+      "                           zeff * A + B,"
+      "                           zeff );"
+
+#endif
+
+      "       z = length( gl_Vertex ) - 6371000.0;"
+      "}";
 
     const GLchar* fragmentShaderSource =
-      "varying float z;\n"
-      "void main(void)\n"
-      "{\n"
-      "       gl_FragColor.r = z/3000.0;\n"
-      "}\n";
+      "varying float z;"
+      "void main(void)"
+      "{"
+      "       gl_FragColor.r = z/3000.0;"
+      "}";
 
     GLuint vertexShader   = glCreateShader(GL_VERTEX_SHADER);   assert( glGetError() == GL_NO_ERROR );
     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER); assert( glGetError() == GL_NO_ERROR );
@@ -250,6 +271,8 @@ static void loadGeometry(void)
     glAttachShader(program, fragmentShader); assert( glGetError() == GL_NO_ERROR );
     glLinkProgram(program); assert( glGetError() == GL_NO_ERROR );
     glUseProgram(program);  assert( glGetError() == GL_NO_ERROR );
+
+    aspectUniformLocation = glGetUniformLocation(program, "aspect"); assert( glGetError() == GL_NO_ERROR );
   }
 }
 
@@ -265,6 +288,8 @@ static void reshape(int width, int height)
   gluPerspective(72.2/aspect, aspect, 10.0, 200000.0);
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
+
+  glUniform1f(aspectUniformLocation, aspect);
 }
 
 
