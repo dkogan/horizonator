@@ -1,10 +1,10 @@
 LDLIBS += -lGL -lGLEW -lglut
 CFLAGS = -std=gnu99
 
-objview: objview.o
+readhorizon: readhorizon.o
 
 clean:
-	rm -rf render *.o
+	rm -rf readhorizon *.o
 
 .PHONY: clean
 
