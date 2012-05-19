@@ -24,8 +24,9 @@ static unsigned char* dem;
 
 static const double Rearth = 6371000.0;
 
-static int doOverhead  = 0;
-static int doOffscreen = 0;
+static int doOverhead   = 0;
+static int doOffscreen  = 0;
+static int doNoMercator = 0;
 
 
 static double extraHeight = 0.0;
@@ -215,15 +216,17 @@ static void loadGeometry(void)
 
   // shaders
   {
-    const GLchar* vertexShaderSource =
+    const GLchar* vertexShaderSource_header =
       "uniform float aspect;"
       "varying float z;"
       "void main(void)"
       "{"
       "       vec4 v = gl_ModelViewMatrix * gl_Vertex;"
-#if 0
+      "       z = length( gl_Vertex ) - 6371000.0;";
+    const GLchar* vertexShaderSource_body_projection =
       "       gl_Position = gl_ProjectionMatrix * v;"
-#else
+      "}";
+    const GLchar* vertexShaderSource_body_mercator =
       "       const float znear = 10.0, zfar = 200000.0;"
       "       const float pi = 3.14159265358979;"
       "       float zeff  = length(vec2(v.x, v.z));"
@@ -237,10 +240,6 @@ static void loadGeometry(void)
       "                           v.y / pi * aspect,"
       "                           zeff * A + B,"
       "                           zeff );"
-
-#endif
-
-      "       z = length( gl_Vertex ) - 6371000.0;"
       "}";
 
     const GLchar* fragmentShaderSource =
@@ -252,8 +251,27 @@ static void loadGeometry(void)
 
     GLuint vertexShader   = glCreateShader(GL_VERTEX_SHADER);   assert( glGetError() == GL_NO_ERROR );
     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER); assert( glGetError() == GL_NO_ERROR );
-    glShaderSource(vertexShader,   1, (const GLchar**)&vertexShaderSource,   0); assert( glGetError() == GL_NO_ERROR );
-    glShaderSource(fragmentShader, 1, (const GLchar**)&fragmentShaderSource, 0); assert( glGetError() == GL_NO_ERROR );
+
+
+    const GLchar* vertexShaderSource_body_pieces[] =
+      {
+        vertexShaderSource_header,
+        NULL
+      };
+    vertexShaderSource_body_pieces[1] =
+      doNoMercator ?
+        vertexShaderSource_body_projection :
+        vertexShaderSource_body_mercator;
+
+    glShaderSource(vertexShader,
+                   sizeof(vertexShaderSource_body_pieces)/sizeof(vertexShaderSource_body_pieces[0]),
+                   vertexShaderSource_body_pieces,
+                   NULL);
+    assert( glGetError() == GL_NO_ERROR );
+
+    glShaderSource(fragmentShader, 1, (const GLchar**)&fragmentShaderSource, NULL);
+    assert( glGetError() == GL_NO_ERROR );
+
     glCompileShader(vertexShader);   assert( glGetError() == GL_NO_ERROR );
 
 
@@ -459,8 +477,9 @@ int main(int argc, char** argv)
 
   static struct option long_options[] =
     {
-      {"overhead",  no_argument, &doOverhead,  1 },
-      {"offscreen", no_argument, &doOffscreen, 1 },
+      {"overhead",   no_argument, &doOverhead,   1 },
+      {"offscreen",  no_argument, &doOffscreen,  1 },
+      {"nomercator", no_argument, &doNoMercator, 1 },
       {0}
     };
   while( -1 != getopt_long(argc, argv, "", long_options, NULL) ) ;
