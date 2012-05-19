@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
+#include <getopt.h>
 #include <opencv2/highgui/highgui_c.h>
 
 static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
@@ -455,6 +456,16 @@ static void keyPressed(unsigned char key, int x, int y)
 int main(int argc, char** argv)
 {
   glutInit(&(int){1}, argv);
+
+  static struct option long_options[] =
+    {
+      {"overhead",  no_argument, &doOverhead,  1 },
+      {"offscreen", no_argument, &doOffscreen, 1 },
+      {0}
+    };
+  while( -1 != getopt_long(argc, argv, "", long_options, NULL) ) ;
+
+
   glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
   glutCreateWindow("objview");
   glewInit();
@@ -462,8 +473,6 @@ int main(int argc, char** argv)
 
   if(argc > 1)
   {
-    doOverhead  = !strcmp(argv[1], "overhead");
-    doOffscreen = !strcmp(argv[1], "offscreen");
   }
 
   if( doOffscreen )
