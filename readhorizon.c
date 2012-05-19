@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
+#include <opencv2/highgui/highgui_c.h>
 
 static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
@@ -409,19 +410,17 @@ static void createOffscreenTargets(void)
 
 static void readOffscreenPixels(void)
 {
-  FILE* fp = fopen("out.ppm", "w+");
-  assert(fp);
-  fprintf(fp, "P6\n%d %d\n255\n", OFFSCREEN_W, OFFSCREEN_H);
+  CvSize size = { .width  = OFFSCREEN_W,
+                  .height = OFFSCREEN_H };
 
-  // instead of allocating memory, I'd like to glMapBuffer(). This doesn't work
-  // for unclear reasons, so I do this instead
-  GLubyte* rgb = malloc(3*OFFSCREEN_W*OFFSCREEN_H);
+  IplImage* img = cvCreateImage(size, 8, 3);
+  assert( img );
+
   glReadPixels(0,0, OFFSCREEN_W, OFFSCREEN_H,
-               GL_RGB, GL_UNSIGNED_BYTE, rgb);
-  assert(rgb);
-  fwrite(rgb, 3, OFFSCREEN_W*OFFSCREEN_H, fp);
-  fclose(fp);
-  free(rgb);
+               GL_BGR, GL_UNSIGNED_BYTE, img->imageData);
+  cvFlip(img, NULL, 0);
+  cvSaveImage("out.png", img, (int[]){9,0}); // 9 == png quality, 0 == 'end of options'
+  cvReleaseImage(&img);
 }
 
 static void keyPressed(unsigned char key, int x, int y)
