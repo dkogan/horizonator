@@ -381,7 +381,8 @@ static void display(void)
 
   glPopMatrix();
 
-  glutSwapBuffers();
+  if( !doOffscreen )
+    glutSwapBuffers();
 }
 
 
