@@ -475,9 +475,19 @@ int main(int argc, char** argv)
       {"overhead",   no_argument, &doOverhead,   1 },
       {"offscreen",  no_argument, &doOffscreen,  1 },
       {"nomercator", no_argument, &doNoMercator, 1 },
-      {0}
+      {}
     };
-  while( -1 != getopt_long(argc, argv, "", long_options, NULL) ) ;
+
+  int getopt_res;
+  do
+  {
+    getopt_res = getopt_long(argc, argv, "", long_options, NULL);
+    if( getopt_res == '?' )
+    {
+      fprintf(stderr, "Unknown cmdline option encountered\n");
+      exit(1);
+    }
+  } while(getopt_res != -1);
 
 
   glutInit(&(int){1}, argv);
