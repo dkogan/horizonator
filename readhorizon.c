@@ -470,8 +470,6 @@ static void keyPressed(unsigned char key, int x, int y)
 
 int main(int argc, char** argv)
 {
-  glutInit(&(int){1}, argv);
-
   static struct option long_options[] =
     {
       {"overhead",   no_argument, &doOverhead,   1 },
@@ -482,6 +480,7 @@ int main(int argc, char** argv)
   while( -1 != getopt_long(argc, argv, "", long_options, NULL) ) ;
 
 
+  glutInit(&(int){1}, argv);
   glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
   glutCreateWindow("objview");
   glewInit();
