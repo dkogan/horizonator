@@ -403,6 +403,10 @@ static void DoFeatureChecks(void)
       printf("Sorry, GL_ARB_vertex_buffer_object is required.\n");
       exit(1);
     }
+    if (!glutExtensionSupported("GL_EXT_framebuffer_object")) {
+      printf("GL_EXT_framebuffer_object not found!\n");
+      exit(1);
+    }
   }
 }
 
