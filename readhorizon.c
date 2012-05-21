@@ -464,6 +464,7 @@ static void readOffscreenPixels(void)
   IplImage* img = cvCreateImage(size, 8, 3);
   assert( img );
 
+  glDrawBuffer(GL_COLOR_ATTACHMENT0);
   glReadPixels(0,0, OFFSCREEN_W, OFFSCREEN_H,
                GL_BGR, GL_UNSIGNED_BYTE, img->imageData);
   cvFlip(img, NULL, 0);
