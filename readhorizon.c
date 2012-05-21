@@ -415,15 +415,24 @@ static void createOffscreenTargets(void)
   // create a renderbuffer object to store depth info
   GLuint renderBufID;
   glGenRenderbuffers(1, &renderBufID);
+  assert( glGetError() == GL_NO_ERROR );
+
   glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
+  assert( glGetError() == GL_NO_ERROR );
+
   glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, OFFSCREEN_W, OFFSCREEN_H);
+  assert( glGetError() == GL_NO_ERROR );
 
   GLuint frameBufID;
   glGenFramebuffers(1, &frameBufID);
+  assert( glGetError() == GL_NO_ERROR );
+
   glBindFramebuffer(GL_FRAMEBUFFER, frameBufID);
+  assert( glGetError() == GL_NO_ERROR );
 
   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                             GL_RENDERBUFFER, renderBufID);
+  assert( glGetError() == GL_NO_ERROR );
 
   assert( glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE );
 }
