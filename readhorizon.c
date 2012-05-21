@@ -491,7 +491,7 @@ int main(int argc, char** argv)
 
 
   glutInit(&(int){1}, argv);
-  glutInitDisplayMode(GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE);
+  glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH | ( doOffscreen ? 0 : GLUT_DOUBLE ));
   glutCreateWindow("objview");
   glewInit();
   DoFeatureChecks();
