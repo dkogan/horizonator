@@ -496,10 +496,6 @@ int main(int argc, char** argv)
   glewInit();
   DoFeatureChecks();
 
-  if(argc > 1)
-  {
-  }
-
   if( doOffscreen )
   {
     // when offscreen, I really don't want to glutCreateWindow(), but for some
