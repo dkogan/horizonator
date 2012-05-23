@@ -35,10 +35,15 @@ int main(int argc, char* argv[])
     {
       mapy->data.fl[i + mapy->cols*j] = j;
 
-      float angle = 180.0f / M_PI *
-        atanf( ( (float)i - (float)(mapx->cols-1)/2.0f )/ (24.0f /35.0f * (float)mapx->cols ) );
-      mapx->data.fl[i + mapx->cols*j] =
-        (angle / IRON_ANGLE + 0.5f) * (float)(mapx->cols-1);
+      // I'm mapping the image from a perspective projection to a mercator one.
+      // Here 'i' represents an angle from a perspective projection.
+      float w         = (float)(mapx->cols - 1);
+      float pixel_mid = w / 2.0f;
+      float i_mid     = (float)i - pixel_mid;
+      float f         = w / 2.0f / tanf(IRON_ANGLE * M_PI / 180.0f / 2.0f);
+      float angle     = 180.0f / M_PI * atanf( i_mid / f );
+
+      mapx->data.fl[i + mapx->cols*j] = (angle / IRON_ANGLE + 0.5f) * w;
     }
   }
 
