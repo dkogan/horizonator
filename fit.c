@@ -6,7 +6,7 @@
 #include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/highgui/highgui_c.h>
 
-#define IRON_ANGLE      10.8373931367 /* angle of view for my iron mt photo */
+#define IRON_ANGLE 72.2 /* angle of view for my iron mt photo */
 
 int main(int argc, char* argv[])
 {
