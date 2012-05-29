@@ -222,7 +222,9 @@ static void loadGeometry(void)
       "void main(void)"
       "{"
       "       vec4 v = gl_ModelViewMatrix * gl_Vertex;"
-      "       z = length( gl_Vertex ) - 6371000.0;";
+      "       z = length( gl_Vertex ) - 6371000.0;"
+      "       z /= 3000.0;";
+
     const GLchar* vertexShaderSource_body_projection =
       "       gl_Position = gl_ProjectionMatrix * v;"
       "}";
@@ -246,7 +248,7 @@ static void loadGeometry(void)
       "varying float z;"
       "void main(void)"
       "{"
-      "       gl_FragColor.r = z/3000.0;"
+      "       gl_FragColor.r = z;"
       "}";
 
     GLuint vertexShader   = glCreateShader(GL_VERTEX_SHADER);   assert( glGetError() == GL_NO_ERROR );
