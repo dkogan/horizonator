@@ -213,6 +213,7 @@ static void loadGeometry(void)
   // shaders
   {
     const GLchar* vertexShaderSource_header =
+      "#version 110\n"
       "uniform float aspect;"
       "varying float z;"
       "void main(void)"
@@ -241,6 +242,7 @@ static void loadGeometry(void)
       "}";
 
     const GLchar* fragmentShaderSource =
+      "#version 110\n"
       "varying float z;"
       "void main(void)"
       "{"
