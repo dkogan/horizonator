@@ -244,7 +244,7 @@ static void loadGeometry(void)
       "varying float z;"
       "void main(void)"
       "{"
-      "       gl_FragColor.r = z;"
+      "       gl_FragColor = vec4(z, 0.0 ,0.0, 0.0);"
       "}";
 
     GLuint vertexShader   = glCreateShader(GL_VERTEX_SHADER);   assert( glGetError() == GL_NO_ERROR );
