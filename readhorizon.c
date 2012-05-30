@@ -18,11 +18,21 @@ static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
 static int Nvertices;
 
-static int            demfileN = 34;
-static int            demfileW = 118;
+static const float   demfileN = 34.0f;
+static const float   demfileW = 118.0f;
+static const float   view_lat = 34.2883f; // peak of Iron Mt
+static const float   view_lon = -117.7128f;
 static unsigned char* dem;
 
-static const double Rearth = 6371000.0;
+// grid starts at the NW corner, and traverses along the latitude first.
+// DEM tile is named from the SW point
+#define lat_from_idx(j)   (  demfileN + 1.0f - (float)(j)/(float)(WDEM-1) )
+#define lon_from_idx(i)   ( -demfileW        + (float)(i)/(float)(WDEM-1) )
+#define idx_from_lat(lat) ( (demfileN + 1.0f - (lat)) * (float)(WDEM-1) )
+#define idx_from_lon(lon) ( (demfileW        + (lon)) * (float)(WDEM-1) )
+
+
+static const float Rearth = 6371000.0f;
 
 static int doOverhead   = 0;
 static int doOffscreen  = 0;
@@ -40,64 +50,65 @@ static GLint aspectUniformLocation;
 #define OFFSCREEN_W 1024
 #define OFFSCREEN_H 1024
 
-static void getLatLonPos(GLdouble* vertices, double lat, double lon, double height)
+// coordinate system has +x aimed at latlon=(0,0), +y at latlon=(0,90), +z north
+static void getXYZ(GLfloat* v, float lat, float lon, float z)
 {
-  lat *= M_PI/180.0;
-  lon *= M_PI/180.0;
+  lat *= M_PI/180.0f;
+  lon *= M_PI/180.0f;
 
-  vertices[0] = cos(lon)*cos(lat)*(Rearth + height);
-  vertices[1] = sin(lon)*cos(lat)*(Rearth + height);
-  vertices[2] = sin(lat)         *(Rearth + height);
+  v[0] = cosf(lon)*cosf(lat)*(Rearth + z);
+  v[1] = sinf(lon)*cosf(lat)*(Rearth + z);
+  v[2] = sinf(lat)          *(Rearth + z);
 }
 
-static void getUpVector(GLdouble* vertices, double lat, double lon)
+static void getUpVector(GLfloat* vertices, float lat, float lon)
 {
-  lat *= M_PI/180.0;
-  lon *= M_PI/180.0;
+  lat *= M_PI/180.0f;
+  lon *= M_PI/180.0f;
 
-  vertices[0] = cos(lon)*cos(lat);
-  vertices[1] = sin(lon)*cos(lat);
-  vertices[2] = sin(lat)         ;
+  vertices[0] = cosf(lon)*cosf(lat);
+  vertices[1] = sinf(lon)*cosf(lat);
+  vertices[2] = sinf(lat)          ;
 }
 
-static void getNorthVector(GLdouble* vertices, double lat, double lon)
+static void getNorthVector(GLfloat* vertices, float lat, float lon)
 {
-  lat *= M_PI/180.0;
-  lon *= M_PI/180.0;
+  lat *= M_PI/180.0f;
+  lon *= M_PI/180.0f;
 
-  vertices[0] = -cos(lon)*sin(lat);
-  vertices[1] = -sin(lon)*sin(lat);
-  vertices[2] =  cos(lat)         ;
+  vertices[0] = -cosf(lon)*sinf(lat);
+  vertices[1] = -sinf(lon)*sinf(lat);
+  vertices[2] =  cosf(lat)          ;
 }
 
-static void getSouthVector(GLdouble* vertices, double lat, double lon)
+static void getSouthVector(GLfloat* vertices, float lat, float lon)
 {
-  lat *= M_PI/180.0;
-  lon *= M_PI/180.0;
+  lat *= M_PI/180.0f;
+  lon *= M_PI/180.0f;
 
-  vertices[0] =  cos(lon)*sin(lat);
-  vertices[1] =  sin(lon)*sin(lat);
-  vertices[2] = -cos(lat)         ;
+  vertices[0] =  cosf(lon)*sinf(lat);
+  vertices[1] =  sinf(lon)*sinf(lat);
+  vertices[2] = -cosf(lat)          ;
 }
 
-static void getEastVector(GLdouble* vertices, double lat, double lon)
+static void getEastVector(GLfloat* vertices, float lat, float lon)
 {
-  lat *= M_PI/180.0;
-  lon *= M_PI/180.0;
+  lat *= M_PI/180.0f;
+  lon *= M_PI/180.0f;
 
-  vertices[0] = -sin(lon)*cos(lat);
-  vertices[1] =  cos(lon)*cos(lat);
-  vertices[2] = 0;
+  vertices[0] = -sinf(lon)*cosf(lat);
+  vertices[1] =  cosf(lon)*cosf(lat);
+  vertices[2] = 0.0f;
 }
 
-static void getWestVector(GLdouble* vertices, double lat, double lon)
+static void getWestVector(GLfloat* vertices, float lat, float lon)
 {
-  lat *= M_PI/180.0;
-  lon *= M_PI/180.0;
+  lat *= M_PI/180.0f;
+  lon *= M_PI/180.0f;
 
-  vertices[0] =  sin(lon)*cos(lat);
-  vertices[1] = -cos(lon)*cos(lat);
-  vertices[2] = 0;
+  vertices[0] =  sinf(lon)*cosf(lat);
+  vertices[1] = -cosf(lon)*cosf(lat);
+  vertices[2] = 0.0f;
 }
 
 static short getDemAt(int i, int j)
@@ -109,46 +120,28 @@ static short getDemAt(int i, int j)
   return z;
 }
 
-static double getHeight(double lat, double lon)
+static float getHeight(float lat, float lon)
 {
-  // grid starts at the NW corner, and traverses along the latitude first.
-  // coordinate system has +x aimed at lon=0, +y at lon=+90, +z north
-  // DEM tile is named from the SW point
-  int j = floor( ((double)demfileN + 1.0 - lat) * (double)(WDEM-1) );
-  int i = floor( ((double)demfileW       + lon) * (double)(WDEM-1) );
+  int i = floorf( idx_from_lon(lon) );
+  int j = floorf( idx_from_lat(lat) );
 
   // return the largest height in the 4 neighboring cells
-  double z = -1e20;
+  float z = -1e20f;
 #define inrange(i, j) ( (i) >= 0 && (i) < WDEM && (j) >= 0 && (j) < WDEM )
 
-  if( inrange(i,  j  ) ) z = fmax(z, (double) getDemAt(i,  j  ) );
-  if( inrange(i+1,j  ) ) z = fmax(z, (double) getDemAt(i+1,j  ) );
-  if( inrange(i,  j+1) ) z = fmax(z, (double) getDemAt(i,  j+1) );
-  if( inrange(i+1,j+1) ) z = fmax(z, (double) getDemAt(i+1,j+1) );
+  if( inrange(i,  j  ) ) z = fmaxf(z, (float) getDemAt(i,  j  ) );
+  if( inrange(i+1,j  ) ) z = fmaxf(z, (float) getDemAt(i+1,j  ) );
+  if( inrange(i,  j+1) ) z = fmaxf(z, (float) getDemAt(i,  j+1) );
+  if( inrange(i+1,j+1) ) z = fmaxf(z, (float) getDemAt(i+1,j+1) );
 
 #undef inrange
   return z;
 }
 
-static void getXYZ(GLfloat* vertices, int i, int j)
-{
-  // grid starts at the NW corner, and traverses along the latitude first.
-  // coordinate system has +x aimed at lon=0, +y at lon=+90, +z north
-  // DEM tile is named from the SW point
-  float lat = ( (float) demfileN + 1.0f - (float)j/(float)(WDEM-1) ) * M_PI/180.0f;
-  float lon = ( (float)-demfileW        + (float)i/(float)(WDEM-1) ) * M_PI/180.0f;
-
-  float z = (float)getDemAt(i,j);
-
-  vertices[0] = cosf(lon)*cosf(lat)*(Rearth + z);
-  vertices[1] = sinf(lon)*cosf(lat)*(Rearth + z);
-  vertices[2] = sinf(lat)          *(Rearth + z);
-}
-
 static void loadGeometry(void)
 {
   char filename[1024];
-  snprintf(filename, sizeof(filename), "../N%dW%d.srtm3.hgt", demfileN, demfileW);
+  snprintf(filename, sizeof(filename), "../N%dW%d.srtm3.hgt", (int)demfileN, (int)demfileW);
 
   struct stat sb;
   int fd = open( filename, O_RDONLY );
@@ -178,7 +171,10 @@ static void loadGeometry(void)
     {
       for( int i=0; i<=gridW; i++ )
       {
-        getXYZ(&vertices[idx], i, j);
+        getXYZ(&vertices[idx],
+               lat_from_idx(j),
+               lon_from_idx(i),
+               (float)getDemAt(i,j) );
         idx += 3;
       }
     }
@@ -322,19 +318,19 @@ static void display(void)
   glPushMatrix();
 
 
-  GLdouble eye[3];
-  GLdouble up[3];
-  GLdouble view[3];
+  GLfloat eye[3];
+  GLfloat up[3];
+  GLfloat view[3];
 
   if( doOverhead )
   {
     // overhead view
-    double lat    = 34.5;
-    double lon    = -117.5;
-    double height = 100000.0;
+    float lat    = 34.5;
+    float lon    = -117.5;
+    float height = 100000.0;
 
     getUpVector(up, lat, lon);
-    getLatLonPos(eye, lat, lon, height);
+    getXYZ(eye, lat, lon, height);
 
     for(int i=0; i<3; i++)
       view[i] = eye[i] - up[i];
@@ -342,17 +338,15 @@ static void display(void)
   }
   else
   {
-    GLdouble viewdir[3];
+    GLfloat viewdir[3];
 
-    double lat    = 34.2883;
-    double lon    = -117.7128;
-    double height = getHeight(lat, lon) + extraHeight;
+    float height = getHeight(view_lat, view_lon) + extraHeight + 10.0f;
     assert(height > -1e3);
 
-    getUpVector(up, lat, lon);
+    getUpVector(up, view_lat, view_lon);
 
-    getNorthVector(viewdir, lat, lon);
-    getLatLonPos(eye, lat, lon, height);
+    getNorthVector(viewdir, view_lat, view_lon);
+    getXYZ(eye, view_lat, view_lon, height);
 
     for(int i=0; i<3; i++)
       view[i] = eye[i] + viewdir[i] - extraHeight/10000.0f*up[i];
