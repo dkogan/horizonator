@@ -18,18 +18,19 @@ static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
 static int Nvertices;
 
-static const float   demfileN = 34.0f;
-static const float   demfileW = 118.0f;
+static const int     demfileN = 34.0;
+static const int     demfileW = 118.0;
 static const float   view_lat = 34.2883f; // peak of Iron Mt
 static const float   view_lon = -117.7128f;
 static unsigned char* dem;
 
+
 // grid starts at the NW corner, and traverses along the latitude first.
 // DEM tile is named from the SW point
-#define lat_from_idx(j)   (  demfileN + 1.0f - (float)(j)/(float)(WDEM-1) )
-#define lon_from_idx(i)   ( -demfileW        + (float)(i)/(float)(WDEM-1) )
-#define idx_from_lat(lat) ( (demfileN + 1.0f - (lat)) * (float)(WDEM-1) )
-#define idx_from_lon(lon) ( (demfileW        + (lon)) * (float)(WDEM-1) )
+#define lat_from_idx(j)   (  (float)demfileN + 1.0f - (float)(j)/(float)(WDEM-1) )
+#define lon_from_idx(i)   ( -(float)demfileW        + (float)(i)/(float)(WDEM-1) )
+#define idx_from_lat(lat) ( ((float)demfileN + 1.0f - (lat)) * (float)(WDEM-1) )
+#define idx_from_lon(lon) ( ((float)demfileW        + (lon)) * (float)(WDEM-1) )
 
 
 static const float Rearth = 6371000.0f;
@@ -41,75 +42,26 @@ static int doNoMercator = 0;
 
 static double extraHeight = 0.0;
 
-static GLint aspectUniformLocation;
+static GLint uniform_view_z;
+static GLint uniform_demfileN, uniform_demfileW;
+static GLint uniform_WDEM;
+static GLint uniform_sin_view_lon;
+static GLint uniform_cos_view_lon;
+static GLint uniform_sin_view_lat;
+static GLint uniform_cos_view_lat;
+static GLint uniform_aspect;
 
-#define WDEM  1201
-#define gridW 600
-#define gridH 1200
+#define WDEM        1201
+#define gridW       600
+#define gridH       1200
 
-#define OFFSCREEN_W 1024
-#define OFFSCREEN_H 1024
+#define IRON_ANGLE      72.2 /* angle of view for my iron mt photo */
+#define IRON_WIDTH 3656
 
-// coordinate system has +x aimed at latlon=(0,0), +y at latlon=(0,90), +z north
-static void getXYZ(GLfloat* v, float lat, float lon, float z)
-{
-  lat *= M_PI/180.0f;
-  lon *= M_PI/180.0f;
+#define OFFSCREEN_W (int)( 1400.0/1050.0*300.0 /IRON_ANGLE * 360.0 + 0.5 )
+#define OFFSCREEN_H 300
 
-  v[0] = cosf(lon)*cosf(lat)*(Rearth + z);
-  v[1] = sinf(lon)*cosf(lat)*(Rearth + z);
-  v[2] = sinf(lat)          *(Rearth + z);
-}
 
-static void getUpVector(GLfloat* vertices, float lat, float lon)
-{
-  lat *= M_PI/180.0f;
-  lon *= M_PI/180.0f;
-
-  vertices[0] = cosf(lon)*cosf(lat);
-  vertices[1] = sinf(lon)*cosf(lat);
-  vertices[2] = sinf(lat)          ;
-}
-
-static void getNorthVector(GLfloat* vertices, float lat, float lon)
-{
-  lat *= M_PI/180.0f;
-  lon *= M_PI/180.0f;
-
-  vertices[0] = -cosf(lon)*sinf(lat);
-  vertices[1] = -sinf(lon)*sinf(lat);
-  vertices[2] =  cosf(lat)          ;
-}
-
-static void getSouthVector(GLfloat* vertices, float lat, float lon)
-{
-  lat *= M_PI/180.0f;
-  lon *= M_PI/180.0f;
-
-  vertices[0] =  cosf(lon)*sinf(lat);
-  vertices[1] =  sinf(lon)*sinf(lat);
-  vertices[2] = -cosf(lat)          ;
-}
-
-static void getEastVector(GLfloat* vertices, float lat, float lon)
-{
-  lat *= M_PI/180.0f;
-  lon *= M_PI/180.0f;
-
-  vertices[0] = -sinf(lon)*cosf(lat);
-  vertices[1] =  cosf(lon)*cosf(lat);
-  vertices[2] = 0.0f;
-}
-
-static void getWestVector(GLfloat* vertices, float lat, float lon)
-{
-  lat *= M_PI/180.0f;
-  lon *= M_PI/180.0f;
-
-  vertices[0] =  sinf(lon)*cosf(lat);
-  vertices[1] = -cosf(lon)*cosf(lat);
-  vertices[2] = 0.0f;
-}
 
 static short getDemAt(int i, int j)
 {
@@ -141,7 +93,7 @@ static float getHeight(float lat, float lon)
 static void loadGeometry(void)
 {
   char filename[1024];
-  snprintf(filename, sizeof(filename), "../N%dW%d.srtm3.hgt", (int)demfileN, (int)demfileW);
+  snprintf(filename, sizeof(filename), "../N%dW%d.srtm3.hgt", demfileN, demfileW);
 
   struct stat sb;
   int fd = open( filename, O_RDONLY );
@@ -155,34 +107,76 @@ static void loadGeometry(void)
   Nvertices = (gridW + 1) * (gridH + 1);
   Ntriangles = gridW*gridH*2;
 
+  int Lseam = 0;
+  int view_i, view_j;
+  if( !doNoMercator )
+  {
+    // if we're doing a mercator projection, we must take care of the seam. The
+    // camera always looks north, so the seam is behind us. Behind me are two
+    // rows of vertices, one on either side. With a mercator projection, these
+    // rows actually appear on opposite ends of the resulting image, and thus I
+    // do not want to simply add triangles into this gap. Instead, I double-up
+    // each of these rows, place the duplicated vertices off screen (angle < -pi
+    // for one row and angle > pi for the other), and render the seam twice,
+    // once for each side.
+    //
+    // Furthermore, I do not render the two triangles that span the cell that
+    // the camera is in
+    view_i = floorf( idx_from_lon(view_lon) );
+    view_j = floorf( idx_from_lat(view_lat) );
 
+    Lseam = gridH - view_j;
+
+    Nvertices  += Lseam*2;      // double-up the seam vertices
+    Ntriangles += (Lseam-1)*2;  // Seam rendered twice. This is the extra one
+    Ntriangles -= 2;            // Don't render the triangles AT the viewer
+  }
 
   // vertices
   {
     GLuint vertexBufID;
     glGenBuffers(1, &vertexBufID);
     glBindBuffer(GL_ARRAY_BUFFER, vertexBufID);
-    glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLfloat), NULL, GL_STATIC_DRAW);
-    glVertexPointer(3, GL_FLOAT, 0, NULL);
+    glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
+    glVertexPointer(3, GL_SHORT, 0, NULL);
 
-    GLfloat* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+    GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
     int idx = 0;
     for( int j=0; j<=gridH; j++ )
     {
       for( int i=0; i<=gridW; i++ )
       {
-        getXYZ(&vertices[idx],
-               lat_from_idx(j),
-               lon_from_idx(i),
-               (float)getDemAt(i,j) );
-        idx += 3;
+        vertices[idx++] = j;
+        vertices[idx++] = i;
+        vertices[idx++] = getDemAt(i,j);
       }
     }
+
+    // add the extra seam vertices
+    if( Lseam )
+    {
+      for( int j=view_j+1; j<=gridH; j++ )
+      {
+        // These duplicates have the same geometry as the originals, but the
+        // shader will project them differently, by moving the resulting angle
+        // by 2*pi
+
+        // left side
+        vertices[idx++] = j - WDEM; // negative to indicate that this is a duplicate for the seam
+        vertices[idx++] =  view_i;
+        vertices[idx++] = getDemAt(view_i,j);
+
+        // right side
+        vertices[idx++] = j - WDEM; // negative to indicate that this is a duplicate for the seam
+        vertices[idx++] =  view_i+1;
+        vertices[idx++] = getDemAt(view_i+1,j);
+      }
+    }
+
     assert( glUnmapBuffer(GL_ARRAY_BUFFER) == GL_TRUE );
     assert( idx == Nvertices*3 );
   }
   close(fd);
-
 
   // indices
   {
@@ -197,6 +191,40 @@ static void loadGeometry(void)
     {
       for( int i=0; i<gridW; i++ )
       {
+        if( !doNoMercator && i == view_i)
+        {
+          // do not render the triangles the camera is sitting on
+          if( j == view_j )
+            continue;
+
+          if( j >= view_j+1 )
+          {
+            // seam. I add two sets of triangles here; one for the left edge of
+            // the screen and one for the right
+            int jseam = j - (view_j + 1);
+
+            // left edge:
+            indices[idx++] = (gridH+1)*(gridW+1) +  jseam     *2;
+            indices[idx++] = (gridH+1)*(gridW+1) + (jseam + 1)*2;
+            indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
+
+            indices[idx++] = (gridH+1)*(gridW+1) +  jseam     *2;
+            indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
+            indices[idx++] = (j + 0)*(gridW+1) + (i + 1);
+
+            // right edge:
+            indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
+            indices[idx++] = (j + 1)*(gridW+1) + (i + 0);
+            indices[idx++] = (gridH+1)*(gridW+1) + (jseam + 1)*2 + 1;
+
+            indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
+            indices[idx++] = (gridH+1)*(gridW+1) + (jseam + 1)*2 + 1;
+            indices[idx++] = (gridH+1)*(gridW+1) +  jseam     *2 + 1;
+
+            continue;
+          }
+        }
+
         indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
         indices[idx++] = (j + 1)*(gridW+1) + (i + 0);
         indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
@@ -213,41 +241,91 @@ static void loadGeometry(void)
   // shaders
   {
     const GLchar* vertexShaderSource_header =
-      "#version 110\n"
-      "uniform float aspect;"
-      "varying float z;"
-      "void main(void)"
-      "{"
-      "       vec4 v = gl_ModelViewMatrix * gl_Vertex;"
-      "       z = length( gl_Vertex ) - 6371000.0;"
-      "       z /= 3000.0;";
+"                                               \
+#version 110\n                                  \
+uniform float view_z;                           \
+uniform int   demfileN, demfileW;               \
+uniform int   WDEM;                             \
+uniform float sin_view_lon;                     \
+uniform float cos_view_lon;                     \
+uniform float sin_view_lat;                     \
+uniform float cos_view_lat;                     \
+                                                \
+uniform float aspect;                           \
+varying float red;                              \
+                                                \
+void main(void)                                 \
+{                                               \
+  const float Rearth = 6371000.0;               \
+  const float pi     = 3.14159265358979;        \
+  const float znear  = 100.0, zfar = 200000.0;  \
+";
 
+#warning finish this
     const GLchar* vertexShaderSource_body_projection =
       "       gl_Position = gl_ProjectionMatrix * v;"
       "}";
-    const GLchar* vertexShaderSource_body_mercator =
-      "       const float znear = 10.0, zfar = 200000.0;"
-      "       const float pi = 3.14159265358979;"
-      "       float zeff  = length(vec2(v.x, v.z));"
-      "       float angle = atan(v.x, -v.z) / pi;"
 
-      // throw out the seam to ignore the wraparound triangles
-      "       if( abs(angle) > 0.999 ) zeff = -100.0;"
-      "       float A = (zfar + znear) / (zfar - znear);"
-      "       float B = zfar * (1.0 - A);"
-      "       gl_Position = vec4( angle * zeff,"
-      "                           v.y / pi * aspect,"
-      "                           zeff * A + B,"
-      "                           zeff );"
-      "}";
+
+    const GLchar* vertexShaderSource_body_mercator =
+"                                                                       \
+  /* gl_Vertex is (j,i,height) */                                       \
+  bool at_seam;                                                         \
+  vec3 vin = gl_Vertex.xyz;                                             \
+  if( vin.x < 0.0 )                                                     \
+  {                                                                     \
+    vin.x += float(WDEM);                                               \
+    at_seam = true;                                                     \
+  }                                                                     \
+  else                                                                  \
+    at_seam = false;                                                    \
+                                                                        \
+  float lat = radians( float( demfileN + 1) - vin.x/float(WDEM-1) );    \
+  float lon = radians( float(-demfileW)     + vin.y/float(WDEM-1) );    \
+  float sin_lon  = sin( lon );                                          \
+  float cos_lon  = cos( lon );                                          \
+  float sin_lat  = sin( lat );                                          \
+  float cos_lat  = cos( lat );                                          \
+  float sin_dlat = sin_lat * cos_view_lat - cos_lat * sin_view_lat;     \
+  float cos_dlat = cos_lat * cos_view_lat + sin_lat * sin_view_lat;     \
+  float sin_dlon = sin_lon * cos_view_lon - cos_lon * sin_view_lon;     \
+  float cos_dlon = cos_lon * cos_view_lon + sin_lon * sin_view_lon;     \
+                                                                        \
+  vec3 v = vec3( (Rearth + vin.z) * ( cos_lat * sin_dlon ),             \
+                 (Rearth + vin.z) * ( cos_dlat*cos_dlon + sin_lat*sin_view_lat*(1.0 - cos_dlon) ), \
+                 (Rearth + vin.z) * ( sin_dlat*cos_dlon + sin_lat*cos_view_lat*(1.0 - cos_dlon)) ); \
+  /* this is bad for roundoff error */                                  \
+  v.y -= Rearth + view_z;                                               \
+                                                                        \
+  float zeff  = length(vec2(v.x, v.z));                                 \
+  float angle = atan(v.x, v.z) / pi;                                    \
+  if( at_seam )                                                         \
+  {                                                                     \
+    if( angle > 0.0 )                                                   \
+      angle -= 2.0;                                                     \
+    else                                                                \
+      angle += 2.0;                                                     \
+  }                                                                     \
+                                                                        \
+  red = vin.z / 3000.0;                                                 \
+                                                                        \
+  const float A = (zfar + znear) / (zfar - znear);                      \
+  gl_Position = vec4( angle * zeff,                                     \
+                      v.y / pi * aspect,                                \
+                      mix(zfar, zeff, A),                               \
+                      zeff );                                           \
+}                                                                       \
+";
 
     const GLchar* fragmentShaderSource =
-      "#version 110\n"
-      "varying float z;"
-      "void main(void)"
-      "{"
-      "       gl_FragColor = vec4(z, 0.0 ,0.0, 0.0);"
-      "}";
+      "                                                 \
+      #version 110\n                                    \
+      varying float red;                                \
+      void main(void)                                   \
+      {                                                 \
+             gl_FragColor = vec4(red, 0.0 ,0.0, 0.0);   \
+      }                                                 \
+      ";
 
     GLuint vertexShader   = glCreateShader(GL_VERTEX_SHADER);   assert( glGetError() == GL_NO_ERROR );
     GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER); assert( glGetError() == GL_NO_ERROR );
@@ -292,7 +370,24 @@ static void loadGeometry(void)
     glLinkProgram(program); assert( glGetError() == GL_NO_ERROR );
     glUseProgram(program);  assert( glGetError() == GL_NO_ERROR );
 
-    aspectUniformLocation = glGetUniformLocation(program, "aspect"); assert( glGetError() == GL_NO_ERROR );
+    uniform_view_z       = glGetUniformLocation(program, "view_z"      ); assert( glGetError() == GL_NO_ERROR );
+    uniform_demfileN     = glGetUniformLocation(program, "demfileN"    ); assert( glGetError() == GL_NO_ERROR );
+    uniform_demfileW     = glGetUniformLocation(program, "demfileW"    ); assert( glGetError() == GL_NO_ERROR );
+    uniform_WDEM         = glGetUniformLocation(program, "WDEM"        ); assert( glGetError() == GL_NO_ERROR );
+    uniform_sin_view_lon = glGetUniformLocation(program, "sin_view_lon"); assert( glGetError() == GL_NO_ERROR );
+    uniform_cos_view_lon = glGetUniformLocation(program, "cos_view_lon"); assert( glGetError() == GL_NO_ERROR );
+    uniform_sin_view_lat = glGetUniformLocation(program, "sin_view_lat"); assert( glGetError() == GL_NO_ERROR );
+    uniform_cos_view_lat = glGetUniformLocation(program, "cos_view_lat"); assert( glGetError() == GL_NO_ERROR );
+    uniform_aspect       = glGetUniformLocation(program, "aspect"      ); assert( glGetError() == GL_NO_ERROR );
+
+    glUniform1f( uniform_view_z,       getHeight(view_lat, view_lon));
+    glUniform1i( uniform_demfileN,     demfileN);
+    glUniform1i( uniform_demfileW,     demfileW);
+    glUniform1i( uniform_WDEM,         WDEM);
+    glUniform1f( uniform_sin_view_lon, sinf( M_PI / 180.0f * view_lon ));
+    glUniform1f( uniform_cos_view_lon, cosf( M_PI / 180.0f * view_lon ));
+    glUniform1f( uniform_sin_view_lat, sinf( M_PI / 180.0f * view_lat ));
+    glUniform1f( uniform_cos_view_lat, cosf( M_PI / 180.0f * view_lat ));
   }
 }
 
@@ -305,11 +400,18 @@ static void reshape(int width, int height)
   glLoadIdentity();
 
   GLdouble aspect = (GLdouble)width / (GLdouble)height;
-  gluPerspective(72.2/aspect, aspect, 10.0, 200000.0);
+
+  // IRON_ANGLE
+  double fovy = IRON_ANGLE/aspect;
+
+  gluPerspective(fovy, aspect, 100.0, 200000.0);
+
+  fprintf(stderr, "fovy: %f\n", fovy);
+
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
-  glUniform1f(aspectUniformLocation, aspect);
+  glUniform1f(uniform_aspect, aspect);
 }
 
 
@@ -317,54 +419,8 @@ static void display(void)
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  glPushMatrix();
-
-
-  GLfloat eye[3];
-  GLfloat up[3];
-  GLfloat view[3];
-
-  if( doOverhead )
-  {
-    // overhead view
-    float lat    = 34.5;
-    float lon    = -117.5;
-    float height = 100000.0;
-
-    getUpVector(up, lat, lon);
-    getXYZ(eye, lat, lon, height);
-
-    for(int i=0; i<3; i++)
-      view[i] = eye[i] - up[i];
-    getNorthVector(up, lat, lon);
-  }
-  else
-  {
-    GLfloat viewdir[3];
-
-    float height = getHeight(view_lat, view_lon) + extraHeight + 10.0f;
-    assert(height > -1e3);
-
-    getUpVector(up, view_lat, view_lon);
-
-    getNorthVector(viewdir, view_lat, view_lon);
-    getXYZ(eye, view_lat, view_lon, height);
-
-    for(int i=0; i<3; i++)
-      view[i] = eye[i] + viewdir[i] - extraHeight/10000.0f*up[i];
-
-  }
-
-  glMatrixMode(GL_MODELVIEW);
-  glLoadIdentity();
-
-  gluLookAt( eye[0],  eye[1],  eye[2],
-             view[0], view[1], view[2],
-             up[0],   up[1],   up[2] );
-
   static const GLenum pmMap[] = {GL_FILL, GL_LINE, GL_POINT};
-  glPolygonMode(GL_FRONT, pmMap[ PolygonMode ] );
-  glPolygonMode(GL_BACK,  GL_POINT );
+  glPolygonMode(GL_FRONT_AND_BACK, pmMap[ PolygonMode ] );
 
   glEnable(GL_CULL_FACE);
 
@@ -376,8 +432,6 @@ static void display(void)
 
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   glDisable(GL_CULL_FACE);
-
-  glPopMatrix();
 
   if( !doOffscreen )
     glutSwapBuffers();
