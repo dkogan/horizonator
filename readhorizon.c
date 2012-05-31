@@ -33,8 +33,6 @@ static unsigned char* dem;
 #define idx_from_lon(lon) ( ((float)demfileW        + (lon)) * (float)(WDEM-1) )
 
 
-static const float Rearth = 6371000.0f;
-
 static int doOverhead   = 0;
 static int doOffscreen  = 0;
 static int doNoMercator = 0;
