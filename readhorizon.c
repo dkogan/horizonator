@@ -307,7 +307,7 @@ void main(void)                                 \
       angle += 2.0;                                                     \
   }                                                                     \
                                                                         \
-  red = vin.z / 3000.0;                                                 \
+  red = zeff / 10000.0;                                                 \
                                                                         \
   const float A = (zfar + znear) / (zfar - znear);                      \
   gl_Position = vec4( angle * zeff,                                     \
