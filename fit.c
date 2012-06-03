@@ -62,27 +62,50 @@ static CvPoint alignImages( const CvMat* img, const CvMat* pano )
   CvSize img_size  = cvGetSize(img);
   CvSize pano_size = cvGetSize(pano);
 
-  CvMat* img_float = cvCreateMat( img_size.height, img_size.width, CV_32FC1);
-  assert( img_float );
+  CvSize dft_size = cvSize( img_size.width  > pano_size.width  ? img_size.width  : pano_size.width,
+                            img_size.height > pano_size.height ? img_size.height : pano_size.height );
 
-  CvMat* pano_float = cvCreateMat( pano_size.height, pano_size.width, CV_32FC1);
-  assert( pano_float );
+#define DoDft(mat)                                                      \
+  CvMat* mat ## _float = cvCreateMat( dft_size.height, dft_size.width, CV_32FC1); \
+  assert( mat ## _float );                                              \
+                                                                        \
+  CvMat* mat ## _dft = cvCreateMat( dft_size.height, dft_size.width, CV_32FC1); \
+  assert( mat ## _dft );                                                \
+                                                                        \
+  cvSet( mat ## _float,                                                 \
+         cvAvg(mat, NULL),                                              \
+         NULL );                                                        \
+                                                                        \
+  CvMat mat ## _float_origsize;                                         \
+  cvGetSubRect( mat ## _float, &mat ## _float_origsize,                 \
+                cvRect(0,0, mat ## _size.width, mat ## _size.height ) ); \
+  cvConvert( mat,  &mat ## _float_origsize );                           \
+  cvDFT(mat ## _float,  mat ## _dft,  CV_DXT_FORWARD, 0)
 
-  CvMat* match = cvCreateMat( pano_size.height - img_size.height + 1,
-                              pano_size.width  - img_size.width  + 1,
-                              CV_32FC1);
 
-  cvConvert( img,  img_float );
-  cvConvert( pano, pano_float );
-  cvMatchTemplate( pano_float, img_float, match, CV_TM_SQDIFF );
+
+  DoDft(img);
+  DoDft(pano);
+
+  CvMat* correlation            = cvCreateMat( dft_size.height, dft_size.width, CV_32FC1);
+  CvMat* correlation_freqdomain = cvCreateMat( dft_size.height, dft_size.width, CV_32FC1);
+  assert(correlation_freqdomain);
+
+  cvMulSpectrums(pano_dft, img_dft, correlation_freqdomain, CV_DXT_MUL_CONJ);
+  cvDFT(correlation_freqdomain, correlation, CV_DXT_INVERSE, 0);
+
 
   double minval, maxval;
   CvPoint minpoint, maxpoint;
-  cvMinMaxLoc( match, &minval, &maxval, &minpoint, &maxpoint, NULL );
+  cvMinMaxLoc( correlation, &minval, &maxval, &minpoint, &maxpoint, NULL );
 
-  cvReleaseMat( &match );
+
+  cvReleaseMat( &correlation );
+  cvReleaseMat( &correlation_freqdomain );
   cvReleaseMat( &img_float );
   cvReleaseMat( &pano_float );
+  cvReleaseMat( &img_dft );
+  cvReleaseMat( &pano_dft );
 
   return maxpoint;
 }
