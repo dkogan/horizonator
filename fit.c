@@ -118,18 +118,13 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  IplImage* pano = cvLoadImage( argv[1], CV_LOAD_IMAGE_COLOR);
-  assert(pano);
+  IplImage* pano = cvLoadImage( argv[1], CV_LOAD_IMAGE_COLOR);  assert(pano);
+  IplImage* img  = cvLoadImage( argv[2], CV_LOAD_IMAGE_COLOR);  assert(img);
 
-  IplImage* img  = cvLoadImage( argv[2], CV_LOAD_IMAGE_COLOR);
-  assert(img);
-
-  CvSize pano_size = cvGetSize(pano);
-  CvMat* pano_edges = cvCreateMat( pano_size.height, pano_size.width, CV_16SC1 );
+  CvMat* pano_edges = cvCreateMat( pano->height, pano->width, CV_16SC1 );
   extractEdges(pano, pano_edges, 0);
 
-  CvSize img_size = cvGetSize(img);
-  CvMat* img_edges = cvCreateMat( img_size.height, img_size.width, CV_16SC1 );
+  CvMat* img_edges = cvCreateMat( img->height, img->width, CV_16SC1 );
   extractEdges(img, img_edges, 9);
   cvSmooth(img_edges, img_edges, CV_GAUSSIAN, 13, 13, 0.0, 0.0);
 
