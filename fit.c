@@ -107,6 +107,21 @@ static CvPoint alignImages( const CvMat* img, const CvMat* pano )
   cvMinMaxLoc( correlation, &minval, &maxval, &minpoint, &maxpoint, NULL );
 
 
+  printf("right answer: (644,86)\n");
+
+
+  cvSaveImage( "iedges.png", img_float ,0 );
+  cvSaveImage( "pedges.png", pano_float,0 );
+
+  CvMat* correlation_img = cvCreateMat( dft_size.height, dft_size.width, CV_8UC1);
+  cvConvertScale( correlation, correlation_img,
+                  255.0/(maxval - minval),
+                  -minval*255.0/(maxval - minval) );
+  cvSaveImage( "corr.png", correlation_img ,0 );
+  cvReleaseMat( &correlation_img );
+
+
+
   cvReleaseMat( &correlation );
   cvReleaseMat( &correlation_freqdomain );
   cvReleaseMat( &img_float );
