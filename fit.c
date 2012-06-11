@@ -6,55 +6,38 @@
 #include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/highgui/highgui_c.h>
 
-#define IRON_ANGLE 72.2 /* angle of view for my iron mt photo */
+#define IRON_ANGLE      72.2    /* angle of view for my iron mt photo */
+#define PHOTO_PRESMOOTH 9
 
-static void extractEdges( const IplImage* img, CvMat* edges, int presmooth )
+typedef enum{ PANO, PHOTO } image_type_t;
+static CvMat* extractEdges( IplImage* img, image_type_t source )
 {
-  CvSize size = cvGetSize(img);
-
-  CvMat* img_channels[3];
-  img_channels[0] = cvCreateMat( size.height, size.width, CV_8UC1 );
-  img_channels[1] = cvCreateMat( size.height, size.width, CV_8UC1 );
-  img_channels[2] = cvCreateMat( size.height, size.width, CV_8UC1 );
-
-  CvMat* img_channel_edges[3];
-  img_channel_edges[0] = cvCreateMat( size.height, size.width, CV_16SC1 );
-  img_channel_edges[1] = cvCreateMat( size.height, size.width, CV_16SC1 );
-  img_channel_edges[2] = cvCreateMat( size.height, size.width, CV_16SC1 );
-
-  cvSplit(img,
-          img_channels[0],
-          img_channels[1],
-          img_channels[2],
-          NULL);
-
-  if( presmooth )
-  {
-    cvSmooth(img_channels[0], img_channels[0], CV_GAUSSIAN, presmooth, presmooth, 0.0, 0.0);
-    cvSmooth(img_channels[1], img_channels[2], CV_GAUSSIAN, presmooth, presmooth, 0.0, 0.0);
-    cvSmooth(img_channels[2], img_channels[2], CV_GAUSSIAN, presmooth, presmooth, 0.0, 0.0);
-  }
-
-  cvLaplace(img_channels[0], img_channel_edges[0], 3);
-  cvLaplace(img_channels[1], img_channel_edges[1], 3);
-  cvLaplace(img_channels[2], img_channel_edges[2], 3);
-
-  cvAbs( img_channel_edges[0], img_channel_edges[0] );
-  cvAbs( img_channel_edges[1], img_channel_edges[1] );
-  cvAbs( img_channel_edges[2], img_channel_edges[2] );
+  CvMat* temp_16sc;
+  CvMat* temp_8uc;
+  CvMat* edges;
+  edges     = cvCreateMat( img->height, img->width, CV_8UC1 );
+  temp_16sc = cvCreateMat( img->height, img->width, CV_16SC1 );
+  temp_8uc  = cvCreateMat( img->height, img->width, CV_8UC1 );
 
   cvZero(edges);
-  cvAdd(edges, img_channel_edges[0], edges, NULL);
-  cvAdd(edges, img_channel_edges[1], edges, NULL);
-  cvAdd(edges, img_channel_edges[2], edges, NULL);
 
-  cvReleaseMat( &img_channels[0] );
-  cvReleaseMat( &img_channels[1] );
-  cvReleaseMat( &img_channels[2] );
+  for(int i = ( source == PHOTO ? 0 : 2);
+      i < 3; i++)
+  {
+    cvSetImageCOI( img, 3-i); // BGR. I want B
+    cvCopy(img, temp_8uc, NULL); // needed only becaues cvLaplace() doesn't support COI
 
-  cvReleaseMat( &img_channel_edges[0] );
-  cvReleaseMat( &img_channel_edges[1] );
-  cvReleaseMat( &img_channel_edges[2] );
+    if( source == PHOTO )
+      cvSmooth(temp_8uc, temp_8uc, CV_GAUSSIAN, PHOTO_PRESMOOTH, PHOTO_PRESMOOTH, 0.0, 0.0);
+
+    cvLaplace(temp_8uc, temp_16sc, 3);
+    cvAbs( temp_16sc, temp_16sc );
+    cvAdd( edges, temp_16sc, edges, NULL);
+  }
+
+  cvReleaseMat(&temp_16sc);
+  cvReleaseMat(&temp_8uc);
+  return edges;
 }
 
 static CvPoint alignImages( const CvMat* img, const CvMat* pano )
@@ -143,13 +126,12 @@ int main(int argc, char* argv[])
   IplImage* pano = cvLoadImage( argv[1], CV_LOAD_IMAGE_COLOR);  assert(pano);
   IplImage* img  = cvLoadImage( argv[2], CV_LOAD_IMAGE_COLOR);  assert(img);
 
+
   CvMat* pano_edges;
   CvMat* img_edges;
 
   {
-    pano_edges = cvCreateMat( pano->height, pano->width, CV_8UC1 );
-    extractEdges(pano, pano_edges, 0);
-
+    pano_edges = extractEdges(pano, PANO);
 
     cvThreshold( pano_edges, pano_edges, 200.0, 0, CV_THRESH_TOZERO );
     // the non-edge areas of the panorama should be dont-care areas. I implement
@@ -178,8 +160,7 @@ int main(int argc, char* argv[])
   }
 
   {
-    img_edges = cvCreateMat( img->height, img->width, CV_8UC1 );
-    extractEdges(img, img_edges, 9);
+    img_edges = extractEdges(img, PHOTO);
     cvSmooth(img_edges, img_edges, CV_GAUSSIAN, 13, 13, 0.0, 0.0);
   }
 
