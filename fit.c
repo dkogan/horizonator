@@ -62,8 +62,15 @@ static CvPoint alignImages( const CvMat* img, const CvMat* pano )
   CvSize img_size  = cvGetSize(img);
   CvSize pano_size = cvGetSize(pano);
 
-  CvSize dft_size = cvSize( img_size.width  > pano_size.width  ? img_size.width  : pano_size.width,
-                            img_size.height > pano_size.height ? img_size.height : pano_size.height );
+  // to handle wraparound correctly, I set the output size to be at least as
+  // large as double the smallest dimensions
+#define max(a,b) ( (a) > (b) ? (a) : (b) )
+#define min(a,b) ( (a) < (b) ? (a) : (b) )
+  CvSize dft_size =
+    cvSize( max( 2*min(img_size.width,  pano_size.width),  max(img_size.width,  pano_size.width)  ),
+            max( 2*min(img_size.height, pano_size.height), max(img_size.height, pano_size.height) ) );
+#undef min
+#undef max
 
 #define DoDft(mat)                                                      \
   CvMat* mat ## _float = cvCreateMat( dft_size.height, dft_size.width, CV_32FC1); \
