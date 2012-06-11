@@ -128,14 +128,45 @@ int main(int argc, char* argv[])
   IplImage* pano = cvLoadImage( argv[1], CV_LOAD_IMAGE_COLOR);  assert(pano);
   IplImage* img  = cvLoadImage( argv[2], CV_LOAD_IMAGE_COLOR);  assert(img);
 
-  CvMat* pano_edges = cvCreateMat( pano->height, pano->width, CV_16SC1 );
-  extractEdges(pano, pano_edges, 0);
+  CvMat* pano_edges;
+  CvMat* img_edges;
 
-  CvMat* img_edges = cvCreateMat( img->height, img->width, CV_16SC1 );
-  extractEdges(img, img_edges, 9);
-  cvSmooth(img_edges, img_edges, CV_GAUSSIAN, 13, 13, 0.0, 0.0);
+  {
+    pano_edges = cvCreateMat( pano->height, pano->width, CV_8UC1 );
+    extractEdges(pano, pano_edges, 0);
 
-  // cvSmooth(img_channels[0], img_channels[0], CV_GAUSSIAN, presmooth, presmooth, 0.0, 0.0);
+
+    cvThreshold( pano_edges, pano_edges, 200.0, 0, CV_THRESH_TOZERO );
+    // the non-edge areas of the panorama should be dont-care areas. I implement
+    // this by
+    // x -> dilate ? x : mean;
+    // another way to state the same thing:
+    //   !dilate -> mask
+    //   cvSet(mean)
+
+#define DILATE_R    9
+#define EDGE_MINVAL 180
+
+    IplConvKernel* kernel = cvCreateStructuringElementEx( 2*DILATE_R + 1, 2*DILATE_R + 1,
+                                                         DILATE_R, DILATE_R,
+                                                         CV_SHAPE_ELLIPSE, NULL);
+    CvMat* dilated = cvCreateMat( pano->height, pano->width, CV_8UC1 );
+
+    cvDilate(pano_edges, dilated, kernel, 1);
+
+    CvScalar avg = cvAvg(pano_edges, dilated);
+    cvCmpS(dilated, EDGE_MINVAL, dilated, CV_CMP_LT);
+    cvSet( pano_edges, avg, dilated );
+
+    cvReleaseMat(&dilated);
+    cvReleaseStructuringElement(&kernel);
+  }
+
+  {
+    img_edges = cvCreateMat( img->height, img->width, CV_8UC1 );
+    extractEdges(img, img_edges, 9);
+    cvSmooth(img_edges, img_edges, CV_GAUSSIAN, 13, 13, 0.0, 0.0);
+  }
 
   CvPoint offset = alignImages( img_edges, pano_edges );
   printf("offset: x,y: %d %d\n", offset.x, offset.y );
