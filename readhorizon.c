@@ -56,7 +56,7 @@ static GLint uniform_aspect;
 #define IRON_ANGLE      72.2 /* angle of view for my iron mt photo */
 #define IRON_WIDTH 3656
 
-#define OFFSCREEN_W (int)( 1400.0/1050.0*300.0 /IRON_ANGLE * 360.0 + 0.5 )
+#define OFFSCREEN_W (int)( 1400.0/1050.0*OFFSCREEN_H /IRON_ANGLE * 360.0 + 0.5 )
 #define OFFSCREEN_H 300
 
 
