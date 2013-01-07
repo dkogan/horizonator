@@ -185,6 +185,7 @@ static void loadGeometry(void)
     {
       for( int i=0; i<gridW; i++ )
       {
+        // seam? only do this if we're doing a mercator projection
         if( !doNoMercator && i == view_i)
         {
           // do not render the triangles the camera is sitting on
@@ -219,6 +220,7 @@ static void loadGeometry(void)
           }
         }
 
+        // non-seam
         indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
         indices[idx++] = (j + 1)*(gridW+1) + (i + 0);
         indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
