@@ -33,12 +33,8 @@ static unsigned char* dem;
 #define idx_from_lon(lon) ( ((float)demfileW        + (lon)) * (float)(WDEM-1) )
 
 
-static int doOverhead   = 0;
 static int doOffscreen  = 0;
 static int doNoMercator = 0;
-
-
-static double extraHeight = 0.0;
 
 static GLint uniform_view_z;
 static GLint uniform_demfileN, uniform_demfileW;
@@ -539,10 +535,6 @@ static void keyPressed(unsigned char key, int x, int y)
     glFrontFace(winding);
     break;
 
-  case 'i':
-    extraHeight += 1000.0;
-    break;
-
   case 'q':
   case 27:
     exit(0);
@@ -555,7 +547,6 @@ int main(int argc, char** argv)
 {
   static struct option long_options[] =
     {
-      {"overhead",   no_argument, &doOverhead,   1 },
       {"offscreen",  no_argument, &doOffscreen,  1 },
       {"nomercator", no_argument, &doNoMercator, 1 },
       {}
