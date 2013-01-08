@@ -21,10 +21,12 @@ static CvMat* extractEdges( IplImage* img, image_type_t source )
 
   cvZero(edges);
 
-  for(int i = ( source == PHOTO ? 0 : 2);
-      i < 3; i++)
+
+  void accumulateEdgesFromChannel( int channel )
   {
-    cvSetImageCOI( img, 3-i); // BGR. I want B
+    if( channel > 0 )
+      cvSetImageCOI( img, channel );
+
     cvCopy(img, temp_8uc, NULL); // needed only becaues cvLaplace() doesn't support COI
 
     if( source == PHOTO )
@@ -34,6 +36,16 @@ static CvMat* extractEdges( IplImage* img, image_type_t source )
     cvAbs( temp_16sc, temp_16sc );
     cvAdd( edges, temp_16sc, edges, NULL);
   }
+
+
+  if( img->nChannels == 1 )
+    accumulateEdgesFromChannel( -1 );
+  else if( source != PHOTO )
+    accumulateEdgesFromChannel( 1 );
+  else
+    for(int i = 0; i < 3; i++)
+      accumulateEdgesFromChannel( i+1 );
+
 
   cvReleaseMat(&temp_16sc);
   cvReleaseMat(&temp_8uc);
