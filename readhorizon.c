@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <assert.h>
 #include <stdarg.h>
 #include <GL/glew.h>
@@ -57,13 +58,11 @@ static GLint uniform_aspect;
 
 
 
-static short getDemAt(int i, int j)
+static int16_t getDemAt(int i, int j)
 {
-  int p = i + j*WDEM;
-  short z = (short) ((dem[2*p] << 8) | dem[2*p + 1]);
-  if(z < 0)
-    z = 0;
-  return z;
+  uint32_t p = i + j*WDEM;
+  int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
+  return (z < 0) ? 0 : z;
 }
 
 static float getHeight(float lat, float lon)
