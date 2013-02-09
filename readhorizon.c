@@ -26,13 +26,6 @@ static const float   view_lon = -117.7128f;
 static unsigned char* dem;
 
 
-// grid starts at the NW corner, and traverses along the latitude first.
-// DEM tile is named from the SW point
-#define lat_from_idx(j)   (  (float)demfileN + 1.0f - (float)(j)/(float)(WDEM-1) )
-#define lon_from_idx(i)   ( -(float)demfileW        + (float)(i)/(float)(WDEM-1) )
-#define idx_from_lat(lat) ( ((float)demfileN + 1.0f - (lat)) * (float)(WDEM-1) )
-#define idx_from_lon(lon) ( ((float)demfileW        + (lon)) * (float)(WDEM-1) )
-
 
 static int doOffscreen  = 0;
 static int doNoMercator = 0;
@@ -57,6 +50,18 @@ static GLint uniform_aspect;
 #define OFFSCREEN_H 300
 
 
+
+// grid starts at the NW corner, and traverses along the latitude first.
+// DEM tile is named from the SW point
+static float lat_from_idx(int j)
+{ return  (float)demfileN + 1.0f - (float)j/(float)(WDEM-1); }
+static float lon_from_idx(int i)
+{ return -(float)demfileW        + (float)i/(float)(WDEM-1); }
+
+static int floor_idx_from_lat(float lat)
+{ return floorf( ((float)demfileN + 1.0f - lat) * (float)(WDEM-1) ); }
+static int floor_idx_from_lon(float lon)
+{ return floorf( ((float)demfileW        + lon) * (float)(WDEM-1) ); }
 
 static int16_t getDemAt(int i, int j)
 {
