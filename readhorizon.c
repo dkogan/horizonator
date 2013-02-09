@@ -74,11 +74,8 @@ static int16_t sampleDEM(int i, int j)
   return (z < 0) ? 0 : z;
 }
 
-static float getHeight(float lat, float lon)
+static float getHeight(int i, int j)
 {
-  int i = floorf( idx_from_lon(lon) );
-  int j = floorf( idx_from_lat(lat) );
-
   // return the largest height in the 4 neighboring cells
   bool inrange(int i, int j)
   {
@@ -397,7 +394,7 @@ void main(void)                                 \
     uniform_cos_view_lat = glGetUniformLocation(program, "cos_view_lat"); assert( glGetError() == GL_NO_ERROR );
     uniform_aspect       = glGetUniformLocation(program, "aspect"      ); assert( glGetError() == GL_NO_ERROR );
 
-    glUniform1f( uniform_view_z,       getHeight(view_lat, view_lon));
+    glUniform1f( uniform_view_z,       getHeight(view_i, view_j));
     glUniform1i( uniform_demfileN,     demfileN);
     glUniform1i( uniform_demfileW,     demfileW);
     glUniform1i( uniform_WDEM,         WDEM);
