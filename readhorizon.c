@@ -15,6 +15,9 @@
 #include <getopt.h>
 #include <opencv2/highgui/highgui_c.h>
 
+// can be used for testing/debugging to turn off the seam rendering
+#define NOSEAM 0
+
 static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
 static int Nvertices;
@@ -125,8 +128,13 @@ static void loadGeometry(void)
 
     Lseam = gridH - view_j;
 
+#if NOSEAM != 0
     Nvertices  += Lseam*2;      // double-up the seam vertices
     Ntriangles += (Lseam-1)*2;  // Seam rendered twice. This is the extra one
+#else
+    Ntriangles -= (Lseam-1)*2;
+#endif
+
     Ntriangles -= 2;            // Don't render the triangles AT the viewer
   }
 
@@ -150,6 +158,7 @@ static void loadGeometry(void)
       }
     }
 
+#if NOSEAM != 0
     // add the extra seam vertices
     if( Lseam )
     {
@@ -170,6 +179,7 @@ static void loadGeometry(void)
         vertices[idx++] = getDemAt(view_i+1,j);
       }
     }
+#endif
 
     assert( glUnmapBuffer(GL_ARRAY_BUFFER) == GL_TRUE );
     assert( idx == Nvertices*3 );
@@ -198,6 +208,7 @@ static void loadGeometry(void)
 
           if( j >= view_j+1 )
           {
+#if NOSEAM != 0
             // seam. I add two sets of triangles here; one for the left edge of
             // the screen and one for the right
             int jseam = j - (view_j + 1);
@@ -219,6 +230,7 @@ static void loadGeometry(void)
             indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
             indices[idx++] = (gridH+1)*(gridW+1) + (jseam + 1)*2 + 1;
             indices[idx++] = (gridH+1)*(gridW+1) +  jseam     *2 + 1;
+#endif
 
             continue;
           }
