@@ -141,6 +141,9 @@ static void loadGeometry(void)
   }
 
   // vertices
+  //
+  // I fill in the VBO. Each point is a 16-bit integer tuple (ilon,ilat,height).
+  // The first 2 args are indices into the DEM. The height is in meters
   {
     GLuint vertexBufID;
     glGenBuffers(1, &vertexBufID);
@@ -254,6 +257,9 @@ static void loadGeometry(void)
 
   // shaders
   {
+    // The shader transforms the VBO vertices into the view coord system. Each VBO
+    // point is a 16-bit integer tuple (ilon,ilat,height). The first 2 args are
+    // indices into the DEM. The height is in meters
     const GLchar* vertexShaderSource_header =
 "                                               \
 #version 110\n                                  \
