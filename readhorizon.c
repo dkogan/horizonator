@@ -1,5 +1,6 @@
 #include <math.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
@@ -79,15 +80,19 @@ static float getHeight(float lat, float lon)
   int j = floorf( idx_from_lat(lat) );
 
   // return the largest height in the 4 neighboring cells
-  float z = -1e20f;
-#define inrange(i, j) ( (i) >= 0 && (i) < WDEM && (j) >= 0 && (j) < WDEM )
+  bool inrange(int i, int j)
+  {
+    return
+      i >= 0 && i < WDEM &&
+      j >= 0 && j < WDEM;
+  }
 
+  float z = -1e20f;
   if( inrange(i,  j  ) ) z = fmaxf(z, (float) sampleDEM(i,  j  ) );
   if( inrange(i+1,j  ) ) z = fmaxf(z, (float) sampleDEM(i+1,j  ) );
   if( inrange(i,  j+1) ) z = fmaxf(z, (float) sampleDEM(i,  j+1) );
   if( inrange(i+1,j+1) ) z = fmaxf(z, (float) sampleDEM(i+1,j+1) );
 
-#undef inrange
   return z;
 }
 
