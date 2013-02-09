@@ -66,7 +66,7 @@ static int floor_idx_from_lat(float lat)
 static int floor_idx_from_lon(float lon)
 { return floorf( ((float)demfileW        + lon) * (float)(WDEM-1) ); }
 
-static int16_t getDemAt(int i, int j)
+static int16_t sampleDEM(int i, int j)
 {
   uint32_t p = i + j*WDEM;
   int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
@@ -82,10 +82,10 @@ static float getHeight(float lat, float lon)
   float z = -1e20f;
 #define inrange(i, j) ( (i) >= 0 && (i) < WDEM && (j) >= 0 && (j) < WDEM )
 
-  if( inrange(i,  j  ) ) z = fmaxf(z, (float) getDemAt(i,  j  ) );
-  if( inrange(i+1,j  ) ) z = fmaxf(z, (float) getDemAt(i+1,j  ) );
-  if( inrange(i,  j+1) ) z = fmaxf(z, (float) getDemAt(i,  j+1) );
-  if( inrange(i+1,j+1) ) z = fmaxf(z, (float) getDemAt(i+1,j+1) );
+  if( inrange(i,  j  ) ) z = fmaxf(z, (float) sampleDEM(i,  j  ) );
+  if( inrange(i+1,j  ) ) z = fmaxf(z, (float) sampleDEM(i+1,j  ) );
+  if( inrange(i,  j+1) ) z = fmaxf(z, (float) sampleDEM(i,  j+1) );
+  if( inrange(i+1,j+1) ) z = fmaxf(z, (float) sampleDEM(i+1,j+1) );
 
 #undef inrange
   return z;
@@ -154,7 +154,7 @@ static void loadGeometry(void)
       {
         vertices[idx++] = j;
         vertices[idx++] = i;
-        vertices[idx++] = getDemAt(i,j);
+        vertices[idx++] = sampleDEM(i,j);
       }
     }
 
@@ -171,12 +171,12 @@ static void loadGeometry(void)
         // left side
         vertices[idx++] = j - WDEM; // negative to indicate that this is a duplicate for the seam
         vertices[idx++] =  view_i;
-        vertices[idx++] = getDemAt(view_i,j);
+        vertices[idx++] = sampleDEM(view_i,j);
 
         // right side
         vertices[idx++] = j - WDEM; // negative to indicate that this is a duplicate for the seam
         vertices[idx++] =  view_i+1;
-        vertices[idx++] = getDemAt(view_i+1,j);
+        vertices[idx++] = sampleDEM(view_i+1,j);
       }
     }
 #endif
