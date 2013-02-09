@@ -125,8 +125,8 @@ static void loadGeometry(void)
     //
     // Furthermore, I do not render the two triangles that span the cell that
     // the camera is in
-    view_i = floorf( idx_from_lon(view_lon) );
-    view_j = floorf( idx_from_lat(view_lat) );
+    view_i = floor_idx_from_lon(view_lon);
+    view_j = floor_idx_from_lat(view_lat);
 
     Lseam = gridH - view_j;
 
