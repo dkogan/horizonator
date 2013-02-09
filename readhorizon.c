@@ -260,135 +260,44 @@ static void loadGeometry(void)
     // The shader transforms the VBO vertices into the view coord system. Each VBO
     // point is a 16-bit integer tuple (ilon,ilat,height). The first 2 args are
     // indices into the DEM. The height is in meters
-    const GLchar* vertexShaderSource_header =
-"                                               \
-#version 110\n                                  \
-uniform float view_z;                           \
-uniform int   demfileN, demfileW;               \
-uniform int   WDEM;                             \
-uniform float sin_view_lon;                     \
-uniform float cos_view_lon;                     \
-uniform float sin_view_lat;                     \
-uniform float cos_view_lat;                     \
-                                                \
-uniform float aspect;                           \
-varying float red;                              \
-                                                \
-void main(void)                                 \
-{                                               \
-  const float Rearth = 6371000.0;               \
-  const float pi     = 3.14159265358979;        \
-  const float znear  = 100.0, zfar = 200000.0;  \
-";
-
-#warning finish this
-    const GLchar* vertexShaderSource_body_projection =
-      "       gl_Position = gl_ProjectionMatrix * v;"
-      "}";
-
-
-    const GLchar* vertexShaderSource_body_mercator =
-"                                                                       \
-  /* gl_Vertex is (j,i,height) */                                       \
-  bool at_seam;                                                         \
-  vec3 vin = gl_Vertex.xyz;                                             \
-  if( vin.x < 0.0 )                                                     \
-  {                                                                     \
-    vin.x += float(WDEM);                                               \
-    at_seam = true;                                                     \
-  }                                                                     \
-  else                                                                  \
-    at_seam = false;                                                    \
-                                                                        \
-  float lat = radians( float( demfileN + 1) - vin.x/float(WDEM-1) );    \
-  float lon = radians( float(-demfileW)     + vin.y/float(WDEM-1) );    \
-  float sin_lon  = sin( lon );                                          \
-  float cos_lon  = cos( lon );                                          \
-  float sin_lat  = sin( lat );                                          \
-  float cos_lat  = cos( lat );                                          \
-  float sin_dlat = sin_lat * cos_view_lat - cos_lat * sin_view_lat;     \
-  float cos_dlat = cos_lat * cos_view_lat + sin_lat * sin_view_lat;     \
-  float sin_dlon = sin_lon * cos_view_lon - cos_lon * sin_view_lon;     \
-  float cos_dlon = cos_lon * cos_view_lon + sin_lon * sin_view_lon;     \
-                                                                        \
-  vec3 v = vec3( (Rearth + vin.z) * ( cos_lat * sin_dlon ),             \
-                 (Rearth + vin.z) * ( cos_dlat*cos_dlon + sin_lat*sin_view_lat*(1.0 - cos_dlon) ), \
-                 (Rearth + vin.z) * ( sin_dlat*cos_dlon + sin_lat*cos_view_lat*(1.0 - cos_dlon)) ); \
-  /* this is bad for roundoff error */                                  \
-  v.y -= Rearth + view_z;                                               \
-                                                                        \
-  float zeff  = length(vec2(v.x, v.z));                                 \
-  float angle = atan(v.x, v.z) / pi;                                    \
-  if( at_seam )                                                         \
-  {                                                                     \
-    if( angle > 0.0 )                                                   \
-      angle -= 2.0;                                                     \
-    else                                                                \
-      angle += 2.0;                                                     \
-  }                                                                     \
-                                                                        \
-  red = zeff / 10000.0;                                                 \
-                                                                        \
-  const float A = (zfar + znear) / (zfar - znear);                      \
-  gl_Position = vec4( angle * zeff,                                     \
-                      v.y / pi * aspect,                                \
-                      mix(zfar, zeff, A),                               \
-                      zeff );                                           \
-}                                                                       \
-";
+    const GLchar* vertexShaderSource =
+#include "vertex.glsl.h"
+      ;
 
     const GLchar* fragmentShaderSource =
-      "                                                 \
-      #version 110\n                                    \
-      varying float red;                                \
-      void main(void)                                   \
-      {                                                 \
-             gl_FragColor = vec4(red, 0.0 ,0.0, 0.0);   \
-      }                                                 \
-      ";
-
-    GLuint vertexShader   = glCreateShader(GL_VERTEX_SHADER);   assert( glGetError() == GL_NO_ERROR );
-    GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER); assert( glGetError() == GL_NO_ERROR );
-
-
-    const GLchar* vertexShaderSource_body_pieces[] =
-      {
-        vertexShaderSource_header,
-        NULL
-      };
-    vertexShaderSource_body_pieces[1] =
-      doNoMercator ?
-        vertexShaderSource_body_projection :
-        vertexShaderSource_body_mercator;
-
-    glShaderSource(vertexShader,
-                   sizeof(vertexShaderSource_body_pieces)/sizeof(vertexShaderSource_body_pieces[0]),
-                   vertexShaderSource_body_pieces,
-                   NULL);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glShaderSource(fragmentShader, 1, (const GLchar**)&fragmentShaderSource, NULL);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glCompileShader(vertexShader);   assert( glGetError() == GL_NO_ERROR );
-
+#include "fragment.glsl.h"
+      ;
 
     char msg[1024];
     int len;
-    glGetShaderInfoLog( vertexShader, sizeof(msg), &len, msg );
-    if( strlen(msg) )
-      printf("vertex msg: %s\n", msg);
+    GLuint program =glCreateProgram();
+    assert( glGetError() == GL_NO_ERROR );
 
-    glCompileShader(fragmentShader); assert( glGetError() == GL_NO_ERROR );
-    glGetShaderInfoLog( fragmentShader, sizeof(msg), &len, msg );
-    if( strlen(msg) )
-      printf("fragment msg: %s\n", msg);
 
-    GLuint program = glCreateProgram();      assert( glGetError() == GL_NO_ERROR );
-    glAttachShader(program, vertexShader);   assert( glGetError() == GL_NO_ERROR );
-    glAttachShader(program, fragmentShader); assert( glGetError() == GL_NO_ERROR );
+#define installshader(type,TYPE)                                        \
+    GLuint type ## Shader = glCreateShader(GL_ ## TYPE ## _SHADER);     \
+    assert( glGetError() == GL_NO_ERROR );                              \
+                                                                        \
+    glShaderSource(type ## Shader, 1, (const GLchar**)&type ## ShaderSource, NULL); \
+    assert( glGetError() == GL_NO_ERROR );                              \
+                                                                        \
+    glCompileShader(type ## Shader);                                    \
+    assert( glGetError() == GL_NO_ERROR );                              \
+    glGetShaderInfoLog( type ## Shader, sizeof(msg), &len, msg );       \
+    if( strlen(msg) )                                                   \
+      printf(#type " msg: %s\n", msg);                                  \
+                                                                        \
+    glAttachShader(program, type ##Shader);                             \
+    assert( glGetError() == GL_NO_ERROR );
+
+
+
+    installshader(vertex, VERTEX);
+    installshader(fragment, FRAGMENT);
+
     glLinkProgram(program); assert( glGetError() == GL_NO_ERROR );
     glUseProgram(program);  assert( glGetError() == GL_NO_ERROR );
+
 
     uniform_view_z       = glGetUniformLocation(program, "view_z"      ); assert( glGetError() == GL_NO_ERROR );
     uniform_demfileN     = glGetUniformLocation(program, "demfileN"    ); assert( glGetError() == GL_NO_ERROR );
