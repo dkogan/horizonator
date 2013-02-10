@@ -140,7 +140,7 @@ static void loadGeometry(void)
 
     Lseam = gridH - view_j;
 
-#if NOSEAM != 0
+#if NOSEAM == 0
     Nvertices  += Lseam*2;      // double-up the seam vertices
     Ntriangles += (Lseam-1)*2;  // Seam rendered twice. This is the extra one
 #else
@@ -173,7 +173,7 @@ static void loadGeometry(void)
       }
     }
 
-#if NOSEAM != 0
+#if NOSEAM == 0
     // add the extra seam vertices
     if( Lseam )
     {
@@ -223,7 +223,7 @@ static void loadGeometry(void)
 
           if( j >= view_j+1 )
           {
-#if NOSEAM != 0
+#if NOSEAM == 0
             // seam. I add two sets of triangles here; one for the left edge of
             // the screen and one for the right
             int jseam = j - (view_j + 1);
