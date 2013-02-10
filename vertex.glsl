@@ -47,7 +47,9 @@ void main(void)
   if     ( at_left_seam )  angle -= 2.0;
   else if( at_right_seam ) angle += 2.0;
 
-  red = zeff / 10000.0;
+  // coloring by...
+  red = zeff / 10000.0; // ... distance from camera
+  //red = vin.z / 3500.0; // ... elevation
 
   const float A = (zfar + znear) / (zfar - znear);
   gl_Position = vec4( angle * zeff,
