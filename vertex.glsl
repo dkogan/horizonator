@@ -22,14 +22,19 @@ void main(void)
 
   float lon = radians( float(-demfileW)     + vin.x/float(WDEM-1) );
   float lat = radians( float( demfileN + 1) - vin.y/float(WDEM-1) );
-  float sin_lon  = sin( lon );
-  float cos_lon  = cos( lon );
+
+  // Here I compute 4 sin/cos. Previously I was sending sincos( view_lat/lon) as
+  // a uniform, so no trig was needed here. I think this may have been causing
+  // roundoff issues, so I'm not doing that anymore. Specifically, sin(+eps) was
+  // being slightly negative
+  float sin_dlat = sin( lat - view_lat );
+  float cos_dlat = cos( lat - view_lat );
+  float sin_dlon = sin( lon - view_lon );
+  float cos_dlon = cos( lon - view_lon );
+
   float sin_lat  = sin( lat );
   float cos_lat  = cos( lat );
-  float sin_dlat = sin_lat * cos_view_lat - cos_lat * sin_view_lat;
-  float cos_dlat = cos_lat * cos_view_lat + sin_lat * sin_view_lat;
-  float sin_dlon = sin_lon * cos_view_lon - cos_lon * sin_view_lon;
-  float cos_dlon = cos_lon * cos_view_lon + sin_lon * sin_view_lon;
+
 
   vec3 v = vec3( (Rearth + vin.z) * ( cos_lat * sin_dlon ),
                  (Rearth + vin.z) * ( cos_dlat*cos_dlon + sin_lat*sin_view_lat*(1.0 - cos_dlon) ),
