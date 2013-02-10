@@ -23,22 +23,6 @@ static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
 static int Nvertices;
 
-
-// two different viewpoints for testing
-#if 1
-  // Chilao camp
-  static const int     demfileN = 34;
-  static const int     demfileW = 119;
-  static const float   view_lat = 34.3252f;
-  static const float   view_lon = -118.02f;
-#else
-  // peak of Iron Mt
-  static const int     demfileN = 34;
-  static const int     demfileW = 118;
-  static const float   view_lat = 34.2883f;
-  static const float   view_lon = -117.7128f;
-#endif
-
 static unsigned char* dem;
 
 
@@ -62,6 +46,40 @@ static GLint uniform_sin_view_lat, uniform_cos_view_lat;
 
 #define OFFSCREEN_W (int)( 1400.0/1050.0*OFFSCREEN_H /IRON_ANGLE * 360.0 + 0.5 )
 #define OFFSCREEN_H 300
+
+
+
+
+// two different viewpoints for testing
+#if 1
+  // Chilao camp
+  static const int     demfileN = 34;
+  static const int     demfileW = 119;
+  static const float   view_lat = 34.3252f;
+  static       float   view_lon = -118.02f;
+#else
+  // peak of Iron Mt
+  static const int     demfileN = 34;
+  static const int     demfileW = 118;
+  static const float   view_lat = 34.2883f;
+  static       float   view_lon = -117.7128f;
+#endif
+
+// Viewer is looking north, the seam is behind (to the south). If the viewer is
+// directly on a grid value, then the cell of the seam is poorly defined. In
+// that scenario, I nudge the viewer to one side to unambiguously pick the seam
+// cell
+__attribute__((constructor))
+static void normalize_view_lon(void)
+{
+  float cell_idx         = view_lon * WDEM;
+  float cell_idx_rounded = floorf( cell_idx + 0.5f );
+  float diff = fabsf( cell_idx - cell_idx_rounded );
+
+  // want at least 0.1 cells of separation
+  if( diff < 0.1 * 2.0 )
+    view_lon -= 0.1/WDEM;
+}
 
 
 
