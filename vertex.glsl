@@ -35,15 +35,15 @@ void main(void)
   float sin_lat  = sin( lat );
   float cos_lat  = cos( lat );
 
+  float east  = cos_lat * sin_dlon;
+  float north = ( sin_dlat*cos_dlon + sin_lat*cos_view_lat*(1.0 - cos_dlon)) ;
+  float height = (Rearth + vin.z) * ( cos_dlat*cos_dlon + sin_lat*sin_view_lat*(1.0 - cos_dlon) )
+                 /* this is bad for roundoff error */
+                 - Rearth - view_z;
 
-  vec3 v = vec3( (Rearth + vin.z) * ( cos_lat * sin_dlon ),
-                 (Rearth + vin.z) * ( cos_dlat*cos_dlon + sin_lat*sin_view_lat*(1.0 - cos_dlon) ),
-                 (Rearth + vin.z) * ( sin_dlat*cos_dlon + sin_lat*cos_view_lat*(1.0 - cos_dlon)) );
-  /* this is bad for roundoff error */
-  v.y -= Rearth + view_z;
+  float zeff  = (Rearth + vin.z)*length(vec2(east, north ));
+  float angle = atan(east, north) / pi;
 
-  float zeff  = length(vec2(v.x, v.z));
-  float angle = atan(v.x, v.z) / pi;
   if     ( at_left_seam )  angle -= 2.0;
   else if( at_right_seam ) angle += 2.0;
 
@@ -51,7 +51,7 @@ void main(void)
 
   const float A = (zfar + znear) / (zfar - znear);
   gl_Position = vec4( angle * zeff,
-                      v.y / pi * aspect,
+                      height / pi * aspect,
                       mix(zfar, zeff, A),
                       zeff );
 }
