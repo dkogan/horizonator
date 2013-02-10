@@ -6,6 +6,7 @@ uniform int   demfileN, demfileW;
 uniform int   WDEM;
 uniform float view_lon;
 uniform float view_lat;
+uniform float sin_view_lat, cos_view_lat;
 
 uniform float aspect;
 varying float red;
