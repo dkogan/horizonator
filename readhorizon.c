@@ -23,12 +23,23 @@ static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
 static int Nvertices;
 
-static const int     demfileN = 34.0;
-static const int     demfileW = 118.0;
-static const float   view_lat = 34.2883f; // peak of Iron Mt
-static const float   view_lon = -117.7128f;
-static unsigned char* dem;
 
+// two different viewpoints for testing
+#if 1
+  // Chilao camp
+  static const int     demfileN = 34;
+  static const int     demfileW = 119;
+  static const float   view_lat = 34.3252f;
+  static const float   view_lon = -118.02f;
+#else
+  // peak of Iron Mt
+  static const int     demfileN = 34;
+  static const int     demfileW = 118;
+  static const float   view_lat = 34.2883f;
+  static const float   view_lon = -117.7128f;
+#endif
+
+static unsigned char* dem;
 
 
 static int doOffscreen  = 0;
