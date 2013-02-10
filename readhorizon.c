@@ -168,8 +168,8 @@ static void loadGeometry(void)
     {
       for( int i=0; i<=gridW; i++ )
       {
-        vertices[idx++] = j;
         vertices[idx++] = i;
+        vertices[idx++] = j;
         vertices[idx++] = sampleDEM(i,j);
       }
     }
@@ -185,13 +185,13 @@ static void loadGeometry(void)
         // by 2*pi
 
         // left side
-        vertices[idx++] = j - WDEM; // negative to indicate that this is a duplicate for the seam
-        vertices[idx++] =  view_i;
+        vertices[idx++] = view_i;
+        vertices[idx++] = j - 2*WDEM; // negative to indicate that this is a duplicate for the left seam
         vertices[idx++] = sampleDEM(view_i,j);
 
         // right side
-        vertices[idx++] = j - WDEM; // negative to indicate that this is a duplicate for the seam
-        vertices[idx++] =  view_i+1;
+        vertices[idx++] = view_i+1 - 2*WDEM; // negative to indicate that this is a duplicate for the right seam
+        vertices[idx++] = j;
         vertices[idx++] = sampleDEM(view_i+1,j);
       }
     }

@@ -5,19 +5,23 @@
 
 void main(void)
 {
-  /* gl_Vertex is (j,i,height) */
-  bool at_seam;
+  /* gl_Vertex is (i,j,height) */
+  bool at_left_seam  = false;
+  bool at_right_seam = false;
   vec3 vin = gl_Vertex.xyz;
   if( vin.x < 0.0 )
   {
-    vin.x += float(WDEM);
-    at_seam = true;
+    vin.x += float(2*WDEM);
+    at_left_seam = true;
   }
-  else
-    at_seam = false;
+  else if( vin.y < 0.0 )
+  {
+    vin.y += float(2*WDEM);
+    at_right_seam = true;
+  }
 
-  float lat = radians( float( demfileN + 1) - vin.x/float(WDEM-1) );
-  float lon = radians( float(-demfileW)     + vin.y/float(WDEM-1) );
+  float lon = radians( float(-demfileW)     + vin.x/float(WDEM-1) );
+  float lat = radians( float( demfileN + 1) - vin.y/float(WDEM-1) );
   float sin_lon  = sin( lon );
   float cos_lon  = cos( lon );
   float sin_lat  = sin( lat );
@@ -35,13 +39,8 @@ void main(void)
 
   float zeff  = length(vec2(v.x, v.z));
   float angle = atan(v.x, v.z) / pi;
-  if( at_seam )
-  {
-    if( angle > 0.0 )
-      angle -= 2.0;
-    else
-      angle += 2.0;
-  }
+  if     ( at_left_seam )  angle -= 2.0;
+  else if( at_right_seam ) angle += 2.0;
 
   red = zeff / 10000.0;
 
