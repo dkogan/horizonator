@@ -48,10 +48,7 @@ static int doNoMercator = 0;
 static GLint uniform_view_z;
 static GLint uniform_demfileN, uniform_demfileW;
 static GLint uniform_WDEM;
-static GLint uniform_sin_view_lon;
-static GLint uniform_cos_view_lon;
-static GLint uniform_sin_view_lat;
-static GLint uniform_cos_view_lat;
+static GLint uniform_view_lon, uniform_view_lat;
 static GLint uniform_aspect;
 
 #define WDEM        1201
@@ -314,20 +311,17 @@ static void loadGeometry(void)
     uniform_demfileN     = glGetUniformLocation(program, "demfileN"    ); assert( glGetError() == GL_NO_ERROR );
     uniform_demfileW     = glGetUniformLocation(program, "demfileW"    ); assert( glGetError() == GL_NO_ERROR );
     uniform_WDEM         = glGetUniformLocation(program, "WDEM"        ); assert( glGetError() == GL_NO_ERROR );
-    uniform_sin_view_lon = glGetUniformLocation(program, "sin_view_lon"); assert( glGetError() == GL_NO_ERROR );
-    uniform_cos_view_lon = glGetUniformLocation(program, "cos_view_lon"); assert( glGetError() == GL_NO_ERROR );
-    uniform_sin_view_lat = glGetUniformLocation(program, "sin_view_lat"); assert( glGetError() == GL_NO_ERROR );
-    uniform_cos_view_lat = glGetUniformLocation(program, "cos_view_lat"); assert( glGetError() == GL_NO_ERROR );
+    uniform_view_lat     = glGetUniformLocation(program, "view_lat"    ); assert( glGetError() == GL_NO_ERROR );
+    uniform_view_lon     = glGetUniformLocation(program, "view_lon"    ); assert( glGetError() == GL_NO_ERROR );
     uniform_aspect       = glGetUniformLocation(program, "aspect"      ); assert( glGetError() == GL_NO_ERROR );
 
     glUniform1f( uniform_view_z,       getHeight(view_i, view_j));
     glUniform1i( uniform_demfileN,     demfileN);
     glUniform1i( uniform_demfileW,     demfileW);
     glUniform1i( uniform_WDEM,         WDEM);
-    glUniform1f( uniform_sin_view_lon, sinf( M_PI / 180.0f * view_lon ));
-    glUniform1f( uniform_cos_view_lon, cosf( M_PI / 180.0f * view_lon ));
-    glUniform1f( uniform_sin_view_lat, sinf( M_PI / 180.0f * view_lat ));
-    glUniform1f( uniform_cos_view_lat, cosf( M_PI / 180.0f * view_lat ));
+
+    glUniform1f( uniform_view_lon,     view_lon * M_PI / 180.0f );
+    glUniform1f( uniform_view_lat,     view_lat * M_PI / 180.0f );
   }
 }
 
