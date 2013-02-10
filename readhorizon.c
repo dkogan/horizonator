@@ -54,7 +54,7 @@ static GLint uniform_sin_view_lat, uniform_cos_view_lat;
 
 
 #define WDEM        1201
-#define gridW       600
+#define gridW       1200
 #define gridH       1200
 
 #define IRON_ANGLE      72.2 /* angle of view for my iron mt photo */
