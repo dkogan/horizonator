@@ -9,6 +9,20 @@
 #define IRON_ANGLE      72.2    /* angle of view for my iron mt photo */
 #define PHOTO_PRESMOOTH 9
 
+
+static void writeNormalized( const char* filename, const CvMat* img )
+{
+  double minval, maxval;
+  CvPoint minpoint, maxpoint;
+  cvMinMaxLoc( img, &minval, &maxval, &minpoint, &maxpoint, NULL );
+
+  CvMat* scaled_img = cvCreateMat( img->rows, img->cols, CV_8UC1);
+  cvConvertScale( img, scaled_img,
+                  255.0/(maxval - minval),
+                  -minval*255.0/(maxval - minval) );
+  cvSaveImage( filename, scaled_img, 0 );
+}
+
 typedef enum{ PANO, PHOTO } image_type_t;
 static CvMat* extractEdges( IplImage* img, image_type_t source )
 {
