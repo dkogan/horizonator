@@ -143,8 +143,6 @@ sub correlate_conj
 
 
 
-    my $inn = Cabs $mounted[1];
-
     gplot( globalwith => 'image',
            square => 1,
            extracmds => 'set yrange [*:*] reverse',
