@@ -12,7 +12,7 @@ use PDL::NiceSlice;
 use PDL::OpenCV qw(Smooth Sobel %cvdef);
 use PDL::LinearAlgebra;
 use PDL::Complex;
-use PDL::FFTW;
+use PDL::FFTW3;
 
 my %image;
 
@@ -135,8 +135,8 @@ sub correlate_conj
 
     my $Npoints = $mounted[0]->dim(1) * $mounted[0]->dim(2);
 
-    my @fft = map { cplx fftw($_) } @mounted;
-    my $corr = cplx ifftw( $fft[0] * Cconj( $fft[1] ) ) / $Npoints;
+    my @fft = map { cplx fft2(real $_) } @mounted;
+    my $corr = cplx ifft2( real( $fft[0] * Cconj( $fft[1] )) ) / $Npoints;
 
 
 
