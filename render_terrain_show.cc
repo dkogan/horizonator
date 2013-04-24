@@ -2,8 +2,14 @@
 #include <getopt.h>
 #include <opencv2/highgui/highgui_c.h>
 
-#include "render_terrain.h"
+#include <FL/Fl.H>
+#include <FL/Fl_Double_Window.H>
+#include <cvFltkWidget.hh>
 
+extern "C"
+{
+  #include "render_terrain.h"
+}
 
   // two different viewpoints for testing
 #if 1
@@ -42,6 +48,26 @@ int main(int argc, char** argv)
   } while(getopt_res != -1);
 
   IplImage* img = render_terrain( view_lat, view_lon );
-  cvSaveImage("out.png", img, (int[]){9,0}); // 9 == png quality, 0 == 'end of options'
+
+  // start up the GUI
+  Fl_Double_Window* window =
+    new Fl_Double_Window( img->width, img->height, "Photo annotator" );
+  CvFltkWidget* widgetImage =
+    new CvFltkWidget(0, 0, img->width, img->height,
+                     WIDGET_COLOR);
+
+  cvCopy( img, (IplImage*)*widgetImage, NULL );
+
+  window->resizable(window);
+  window->end();
+  window->show();
+
+  while (Fl::wait())
+  {
+  }
+
+  delete window;
+
+  cvReleaseImage( &img );
   return 0;
 }
