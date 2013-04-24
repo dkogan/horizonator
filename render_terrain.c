@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
-#include <stdarg.h>
 #include <GL/glew.h>
 #include <GL/glut.h>
 #include <sys/fcntl.h>
@@ -13,21 +12,17 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
-#include <getopt.h>
 #include <opencv2/highgui/highgui_c.h>
 
 // can be used for testing/debugging to turn off the seam rendering
 #define NOSEAM 0
+
 
 static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
 static int Ntriangles;
 static int Nvertices;
 
 static unsigned char* dem;
-
-
-static int doOffscreen  = 0;
-static int doNoMercator = 0;
 
 static GLint uniform_view_z;
 static GLint uniform_demfileN, uniform_demfileW;
@@ -37,63 +32,16 @@ static GLint uniform_aspect;
 static GLint uniform_sin_view_lat, uniform_cos_view_lat;
 
 
+// These are such because of the layout of the SRTM DEMs
 #define WDEM        1201
 #define gridW       1200
 #define gridH       1200
 
 #define IRON_ANGLE      72.2 /* angle of view for my iron mt photo */
-#define IRON_WIDTH 3656
 
 #define OFFSCREEN_W (int)( 1400.0/1050.0*OFFSCREEN_H /IRON_ANGLE * 360.0 + 0.5 )
 #define OFFSCREEN_H 300
 
-
-
-
-// two different viewpoints for testing
-#if 1
-  // Chilao camp
-  static const int     demfileN = 34;
-  static const int     demfileW = 119;
-  static const float   view_lat = 34.3252f;
-  static       float   view_lon = -118.02f;
-#else
-  // peak of Iron Mt
-  static const int     demfileN = 34;
-  static const int     demfileW = 118;
-  static const float   view_lat = 34.2883f;
-  static       float   view_lon = -117.7128f;
-#endif
-
-// Viewer is looking north, the seam is behind (to the south). If the viewer is
-// directly on a grid value, then the cell of the seam is poorly defined. In
-// that scenario, I nudge the viewer to one side to unambiguously pick the seam
-// cell
-__attribute__((constructor))
-static void normalize_view_lon(void)
-{
-  float cell_idx         = view_lon * WDEM;
-  float cell_idx_rounded = floorf( cell_idx + 0.5f );
-  float diff = fabsf( cell_idx - cell_idx_rounded );
-
-  // want at least 0.1 cells of separation
-  if( diff < 0.1 * 2.0 )
-    view_lon -= 0.1/WDEM;
-}
-
-
-
-// grid starts at the NW corner, and traverses along the latitude first.
-// DEM tile is named from the SW point
-static float lat_from_idx(int j)
-{ return  (float)demfileN + 1.0f - (float)j/(float)(WDEM-1); }
-static float lon_from_idx(int i)
-{ return -(float)demfileW        + (float)i/(float)(WDEM-1); }
-
-static int floor_idx_from_lat(float lat)
-{ return floorf( ((float)demfileN + 1.0f - lat) * (float)(WDEM-1) ); }
-static int floor_idx_from_lon(float lon)
-{ return floorf( ((float)demfileW        + lon) * (float)(WDEM-1) ); }
 
 static int16_t sampleDEM(int i, int j)
 {
@@ -121,8 +69,49 @@ static float getHeight(int i, int j)
   return z;
 }
 
-static void loadGeometry(void)
+static void loadGeometry( float view_lat, float view_lon )
 {
+  // Viewer is looking north, the seam is behind (to the south). If the viewer is
+  // directly on a grid value, then the cell of the seam is poorly defined. In
+  // that scenario, I nudge the viewer to one side to unambiguously pick the seam
+  // cell
+  float cell_idx         = view_lon * WDEM;
+  float cell_idx_rounded = floorf( cell_idx + 0.5f );
+  float diff = fabsf( cell_idx - cell_idx_rounded );
+
+  // want at least 0.1 cells of separation
+  if( diff < 0.1 * 2.0 )
+    view_lon -= 0.1/WDEM;
+
+  int demfileN =  (int)floorf( view_lat );
+  int demfileW = -(int)floorf( view_lon );
+
+
+  // grid starts at the NW corner, and traverses along the latitude first.
+  // DEM tile is named from the SW point
+  float lat_from_idx(int j)
+  {
+    return  (float)demfileN + 1.0f - (float)j/(float)(WDEM-1);
+  }
+
+  float lon_from_idx(int i)
+  {
+    return -(float)demfileW        + (float)i/(float)(WDEM-1);
+  }
+
+  int floor_idx_from_lat(float lat)
+  {
+    return floorf( ((float)demfileN + 1.0f - lat) * (float)(WDEM-1) );
+  }
+
+  int floor_idx_from_lon(float lon)
+  {
+    return floorf( ((float)demfileW        + lon) * (float)(WDEM-1) );
+  }
+
+
+
+
   char filename[1024];
   snprintf(filename, sizeof(filename), "../N%dW%d.srtm3.hgt", demfileN, demfileW);
 
@@ -138,9 +127,9 @@ static void loadGeometry(void)
   Nvertices = (gridW + 1) * (gridH + 1);
   Ntriangles = gridW*gridH*2;
 
+  // seam business
   int Lseam = 0;
   int view_i, view_j;
-  if( !doNoMercator )
   {
     // if we're doing a mercator projection, we must take care of the seam. The
     // camera always looks north, so the seam is behind us. Behind me are two
@@ -232,8 +221,8 @@ static void loadGeometry(void)
     {
       for( int i=0; i<gridW; i++ )
       {
-        // seam? only do this if we're doing a mercator projection
-        if( !doNoMercator && i == view_i)
+        // seam?
+        if( i == view_i)
         {
           // do not render the triangles the camera is sitting on
           if( j == view_j )
@@ -350,7 +339,7 @@ static void loadGeometry(void)
 }
 
 
-static void reshape(int width, int height)
+static void window_reshape(int width, int height)
 {
   glViewport(0, 0, width, height);
 
@@ -372,8 +361,7 @@ static void reshape(int width, int height)
   glUniform1f(uniform_aspect, aspect);
 }
 
-
-static void display(void)
+static void do_draw(void)
 {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -390,99 +378,15 @@ static void display(void)
 
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
   glDisable(GL_CULL_FACE);
-
-  if( !doOffscreen )
-    glutSwapBuffers();
 }
 
-
-static void DoFeatureChecks(void)
+static void window_display(void)
 {
-  char *version = (char *) glGetString(GL_VERSION);
-  if (version[0] == '1') {
-    /* check for individual extensions */
-    if (!glutExtensionSupported("GL_ARB_vertex_shader")) {
-      printf("Sorry, GL_ARB_vertex_shader is required.\n");
-      exit(1);
-    }
-    if (!glutExtensionSupported("GL_ARB_fragment_shader")) {
-      printf("Sorry, GL_ARB_fragment_shader is required.\n");
-      exit(1);
-    }
-    if (!glutExtensionSupported("GL_ARB_vertex_buffer_object")) {
-      printf("Sorry, GL_ARB_vertex_buffer_object is required.\n");
-      exit(1);
-    }
-    if (!glutExtensionSupported("GL_EXT_framebuffer_object")) {
-      printf("GL_EXT_framebuffer_object not found!\n");
-      exit(1);
-    }
-  }
+  do_draw();
+  glutSwapBuffers();
 }
 
-static void createOffscreenTargets(void)
-{
-  GLuint frameBufID;
-  {
-    glGenFramebuffers(1, &frameBufID);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glBindFramebuffer(GL_FRAMEBUFFER, frameBufID);
-    assert( glGetError() == GL_NO_ERROR );
-  }
-
-  {
-    GLuint renderBufID;
-    glGenRenderbuffers(1, &renderBufID);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, OFFSCREEN_W, OFFSCREEN_H);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                              GL_RENDERBUFFER, renderBufID);
-    assert( glGetError() == GL_NO_ERROR );
-  }
-
-  {
-    GLuint depthBufID;
-    glGenRenderbuffers(1, &depthBufID);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glBindRenderbuffer(GL_RENDERBUFFER, depthBufID);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, OFFSCREEN_W, OFFSCREEN_H);
-    assert( glGetError() == GL_NO_ERROR );
-
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                              GL_RENDERBUFFER, depthBufID);
-    assert( glGetError() == GL_NO_ERROR );
-  }
-
-  assert( glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE );
-}
-
-static void readOffscreenPixels(void)
-{
-  CvSize size = { .width  = OFFSCREEN_W,
-                  .height = OFFSCREEN_H };
-
-  IplImage* img = cvCreateImage(size, 8, 3);
-  assert( img );
-
-  glDrawBuffer(GL_COLOR_ATTACHMENT0);
-  glReadPixels(0,0, OFFSCREEN_W, OFFSCREEN_H,
-               GL_BGR, GL_UNSIGNED_BYTE, img->imageData);
-  cvFlip(img, NULL, 0);
-  cvSaveImage("out.png", img, (int[]){9,0}); // 9 == png quality, 0 == 'end of options'
-  cvReleaseImage(&img);
-}
-
-static void keyPressed(unsigned char key, int x, int y)
+static void window_keyPressed(unsigned char key, int x, int y)
 {
   static GLenum winding = GL_CCW;
 
@@ -507,66 +411,144 @@ static void keyPressed(unsigned char key, int x, int y)
   glutPostRedisplay();
 }
 
-int main(int argc, char** argv)
+
+static IplImage* readOffscreenPixels(void)
 {
-  static struct option long_options[] =
-    {
-      {"offscreen",  no_argument, &doOffscreen,  1 },
-      {"nomercator", no_argument, &doNoMercator, 1 },
-      {}
-    };
+  CvSize size = { .width  = OFFSCREEN_W,
+                  .height = OFFSCREEN_H };
 
-  int getopt_res;
-  do
+  IplImage* img = cvCreateImage(size, 8, 3);
+  assert( img );
+
+  glDrawBuffer(GL_COLOR_ATTACHMENT0);
+  glReadPixels(0,0, OFFSCREEN_W, OFFSCREEN_H,
+               GL_BGR, GL_UNSIGNED_BYTE, img->imageData);
+  cvFlip(img, NULL, 0);
+  return img;
+}
+
+static void setup_gl( bool doRenderToScreen,
+                      float view_lat, float view_lon )
+{
+  void DoFeatureChecks(void)
   {
-    getopt_res = getopt_long(argc, argv, "", long_options, NULL);
-    if( getopt_res == '?' )
-    {
-      fprintf(stderr, "Unknown cmdline option encountered\n");
-      exit(1);
+    char *version = (char *) glGetString(GL_VERSION);
+    if (version[0] == '1') {
+      /* check for individual extensions */
+      if (!glutExtensionSupported("GL_ARB_vertex_shader")) {
+        printf("Sorry, GL_ARB_vertex_shader is required.\n");
+        exit(1);
+      }
+      if (!glutExtensionSupported("GL_ARB_fragment_shader")) {
+        printf("Sorry, GL_ARB_fragment_shader is required.\n");
+        exit(1);
+      }
+      if (!glutExtensionSupported("GL_ARB_vertex_buffer_object")) {
+        printf("Sorry, GL_ARB_vertex_buffer_object is required.\n");
+        exit(1);
+      }
+      if (!glutExtensionSupported("GL_EXT_framebuffer_object")) {
+        printf("GL_EXT_framebuffer_object not found!\n");
+        exit(1);
+      }
     }
-  } while(getopt_res != -1);
+  }
+
+  void createOffscreenTargets(void)
+  {
+    GLuint frameBufID;
+    {
+      glGenFramebuffers(1, &frameBufID);
+      assert( glGetError() == GL_NO_ERROR );
+
+      glBindFramebuffer(GL_FRAMEBUFFER, frameBufID);
+      assert( glGetError() == GL_NO_ERROR );
+    }
+
+    {
+      GLuint renderBufID;
+      glGenRenderbuffers(1, &renderBufID);
+      assert( glGetError() == GL_NO_ERROR );
+
+      glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
+      assert( glGetError() == GL_NO_ERROR );
+
+      glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, OFFSCREEN_W, OFFSCREEN_H);
+      assert( glGetError() == GL_NO_ERROR );
+
+      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                GL_RENDERBUFFER, renderBufID);
+      assert( glGetError() == GL_NO_ERROR );
+    }
+
+    {
+      GLuint depthBufID;
+      glGenRenderbuffers(1, &depthBufID);
+      assert( glGetError() == GL_NO_ERROR );
+
+      glBindRenderbuffer(GL_RENDERBUFFER, depthBufID);
+      assert( glGetError() == GL_NO_ERROR );
+
+      glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, OFFSCREEN_W, OFFSCREEN_H);
+      assert( glGetError() == GL_NO_ERROR );
+
+      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                                GL_RENDERBUFFER, depthBufID);
+      assert( glGetError() == GL_NO_ERROR );
+    }
+
+    assert( glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE );
+  }
 
 
-  glutInit(&(int){1}, argv);
-  glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH | ( doOffscreen ? 0 : GLUT_DOUBLE ));
+
+  static bool already_setup = false;
+  if( already_setup )
+    return;
+  already_setup = true;
+
+  glutInit(&(int){1}, &(char*){"exec"});
+  glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH | ( doRenderToScreen ? GLUT_DOUBLE : 0 ));
+
+  // when offscreen, I really don't want to glutCreateWindow(), but for some
+  // reason not doing this causes glewInit() to segfault...
   glutCreateWindow("Terrain renderer");
   glewInit();
   DoFeatureChecks();
 
-  if( doOffscreen )
+  if( doRenderToScreen )
   {
-    // when offscreen, I really don't want to glutCreateWindow(), but for some
-    // reason not doing this causes glewInit() to segfault...
-    createOffscreenTargets();
-    loadGeometry();
-
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_NORMALIZE);
-    glClearColor(0.3, 0.3, 0.9, 0.0);
-
-    reshape(OFFSCREEN_W, OFFSCREEN_H);
-    display();
-
-    readOffscreenPixels();
+    glutKeyboardFunc(window_keyPressed);
+    glutReshapeFunc (window_reshape);
+    glutDisplayFunc (window_display);
   }
   else
-  {
-    glutKeyboardFunc(keyPressed);
+    createOffscreenTargets();
 
-    glutReshapeFunc(reshape);
-    glutDisplayFunc(display);
+  glEnable(GL_DEPTH_TEST);
+  glEnable(GL_CULL_FACE);
+  glEnable(GL_NORMALIZE);
+  glClearColor(0.3, 0.3, 0.9, 0.0);
 
-    loadGeometry();
+  loadGeometry( view_lat, view_lon );
+}
 
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glEnable(GL_NORMALIZE);
-    glClearColor(0.3, 0.3, 0.9, 0.0);
+// returns the rendered opencv image. NULL on error. It is the caller's
+// responsibility to free this image's memory
+IplImage* render_terrain( float view_lat, float view_lon )
+{
+  setup_gl( false, view_lat, view_lon );
 
-    glutMainLoop();
-  }
+  window_reshape(OFFSCREEN_W, OFFSCREEN_H);
+  do_draw();
 
-  return 0;
+  return readOffscreenPixels();
+}
+
+bool render_terrain_to_window( float view_lat, float view_lon )
+{
+  setup_gl( true, view_lat, view_lon );
+
+  glutMainLoop();
+  return true;
 }
