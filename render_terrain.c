@@ -422,7 +422,7 @@ static IplImage* readOffscreenPixels(void)
 
   glDrawBuffer(GL_COLOR_ATTACHMENT0);
   glReadPixels(0,0, OFFSCREEN_W, OFFSCREEN_H,
-               GL_BGR, GL_UNSIGNED_BYTE, img->imageData);
+               GL_RGB, GL_UNSIGNED_BYTE, img->imageData);
   cvFlip(img, NULL, 0);
   return img;
 }
