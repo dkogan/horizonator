@@ -542,7 +542,9 @@ IplImage* render_terrain( float view_lat, float view_lon )
   window_reshape(OFFSCREEN_W, OFFSCREEN_H);
   do_draw();
 
-  return readOffscreenPixels();
+  IplImage* img = readOffscreenPixels();
+  glutExit();
+  return img;
 }
 
 bool render_terrain_to_window( float view_lat, float view_lon )
