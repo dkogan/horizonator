@@ -15,13 +15,14 @@ my ($col_name) = grep { $key[$_] eq 'FEATURE_NAME'  } 0..$#key;
 my ($col_lat ) = grep { $key[$_] eq 'PRIM_LAT_DEC'  } 0..$#key;
 my ($col_lon ) = grep { $key[$_] eq 'PRIM_LONG_DEC' } 0..$#key;
 my ($col_ele ) = grep { $key[$_] eq 'ELEV_IN_M'     } 0..$#key;
+my ($col_class)= grep { $key[$_] eq 'FEATURE_CLASS' } 0..$#key;
 
 while(<>)
 {
   chomp;
   my @fields = split '\|';
 
-  my ($name,$lat,$lon,$ele) = @fields[$col_name, $col_lat, $col_lon, $col_ele];
+  my ($name,$lat,$lon,$ele,$class) = @fields[$col_name, $col_lat, $col_lon, $col_ele, $col_class];
 
   # convert to radians
   $lat *= 3.14159265 / 180.0;
