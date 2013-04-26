@@ -3,6 +3,9 @@ use strict;
 use warnings;
 use feature qw(say state);
 
+# ask emacs to treat this file as plain text
+say "// -*- text -*-";
+
 my $key_line = <>;
 chomp $key_line;
 
