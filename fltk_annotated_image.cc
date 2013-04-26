@@ -141,13 +141,13 @@ void CvFltkWidget_annotated::setTransformation( float view_lat, float view_lon, 
 }
 
 
-static void drawLabel( const struct poi_t* poi )
+void CvFltkWidget_annotated::drawLabel( const struct poi_t* poi )
 {
-  fl_xyline( poi->draw_x - LABEL_CROSSHAIR_R, poi->draw_y,
-             poi->draw_x + LABEL_CROSSHAIR_R );
-  fl_yxline( poi->draw_x, poi->draw_y + LABEL_CROSSHAIR_R,
-             poi->draw_label_y - font_height );
-  fl_draw( poi->name, poi->draw_x, poi->draw_label_y );
+  fl_xyline( x() + poi->draw_x - LABEL_CROSSHAIR_R, y() + poi->draw_y,
+             x() + poi->draw_x + LABEL_CROSSHAIR_R );
+  fl_yxline( x() + poi->draw_x, y() + poi->draw_y + LABEL_CROSSHAIR_R,
+             y() + poi->draw_label_y - font_height );
+  fl_draw( poi->name, x() + poi->draw_x, y() + poi->draw_label_y );
 }
 
 void CvFltkWidget_annotated::draw()
@@ -163,8 +163,10 @@ void CvFltkWidget_annotated::draw()
   struct poi_t* poi;
   getPOIs( &poi_indices, &poi_N, &poi);
 
+  fl_push_clip(x(), y(), w(), h());
   fl_font( LABEL_FONT, LABEL_FONT_SIZE );
   fl_color( LABEL_COLOR );
   for( int i=0; i<poi_N; i++ )
     drawLabel( &poi[ poi_indices[i]] );
+  fl_pop_clip();
 }

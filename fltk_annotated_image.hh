@@ -11,6 +11,8 @@ enum cameraType_t { perspective, mercator };
 
 class CvFltkWidget_annotated : public CvFltkWidget
 {
+  void drawLabel( const struct poi_t* poi );
+
 public:
   CvFltkWidget_annotated( int x, int y, int w, int h, CvFltkWidget_ColorChoice color )
     : CvFltkWidget( x,y,w,h,color )
