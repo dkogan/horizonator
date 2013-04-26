@@ -23,5 +23,9 @@ while(<>)
 
   my ($name,$lat,$lon,$ele) = @fields[$col_name, $col_lat, $col_lon, $col_ele];
 
+  # convert to radians
+  $lat *= 3.14159265 / 180.0;
+  $lon *= 3.14159265 / 180.0;
+
   say "{ \"$name\", $lat, $lon, $ele },";
 }
