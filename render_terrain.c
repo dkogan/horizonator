@@ -353,8 +353,6 @@ static void window_reshape(int width, int height)
 
   gluPerspective(fovy, aspect, 100.0, 200000.0);
 
-  fprintf(stderr, "fovy: %f\n", fovy);
-
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
