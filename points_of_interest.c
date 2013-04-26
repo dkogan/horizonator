@@ -1,14 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include "points_of_interest.h"
 
-struct poi_t pois[] = {
+static struct poi_t pois[] = {
 #include "features_generated.h"
 };
 
-#define MIN_MARKER_DIST 20000.0 /* 20km max dist */
+#define MAX_MARKER_DIST 15000.0
+#define MIN_MARKER_DIST 50.0
+
 const float Rearth = 6371000.0;
 
 static int  N_active_pois;
@@ -41,8 +44,8 @@ static bool within( int ipoi )
   }
 
 
-
-  return arclen( pois[ipoi].lat, pois[ipoi].lon ) < MIN_MARKER_DIST;
+  float len = arclen( pois[ipoi].lat, pois[ipoi].lon );
+  return MIN_MARKER_DIST < len && len < MAX_MARKER_DIST;
 }
 
 static void addToActive( int ipoi )
@@ -62,20 +65,21 @@ void initPOIs( float lat, float lon )
 
   // alloc an upper-bound amount of memory. It's probably too much, but I know
   // we'll never run out
-  int N_pois = sizeof(pois) / sizeof(pois[0]);
+  int Npois = sizeof(pois) / sizeof(pois[0]);
   active_pois = malloc(Npois * sizeof(active_pois[0]) );
   N_active_pois = 0;
 
   for( int i=0; i<Npois; i++ )
-    if( within( int i ) )
+    if( within( i ) )
       addToActive( i );
 }
 
-const struct poi_i* getPOI( int idx )
+// caller may modify the indices and the poi internals
+void getPOIs( int** _indices, int* _N,
+              struct poi_t** _pois)
 {
-  if( idx < 0 || idx >= N_active_pois )
-    return NULL;
-
-  return &pois[ active_pois[idx] ];
+  *_indices = active_pois;
+  *_N       = N_active_pois;
+  *_pois    = pois;
 }
 

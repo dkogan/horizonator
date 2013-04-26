@@ -4,8 +4,8 @@
 
 #include <FL/Fl.H>
 #include <FL/Fl_Double_Window.H>
-#include <cvFltkWidget.hh>
 #include "fltk_scroll_wheelable.hh"
+#include "fltk_annotated_image.hh"
 
 extern "C"
 {
@@ -13,7 +13,7 @@ extern "C"
 }
 
   // two different viewpoints for testing
-#if 1
+#if 0
   // Chilao camp
   const float   view_lat = 34.3252f;
         float   view_lon = -118.02f;
@@ -51,18 +51,24 @@ int main(int argc, char** argv)
   IplImage* img = render_terrain( view_lat, view_lon );
 
   // start up the GUI
-  Fl_Double_Window*    window      = new Fl_Double_Window( 800, 600, "Photo annotator" );
-  Fl_Scroll_Wheelable* scroll      = new Fl_Scroll_Wheelable( 0, 0, window->w(), window->h() );
+  Fl_Double_Window*       window      = new Fl_Double_Window( 800, 600, "Photo annotator" );
+  Fl_Scroll_Wheelable*    scroll      = new Fl_Scroll_Wheelable( 0, 0, window->w(), window->h() );
   scroll->begin();
-  CvFltkWidget*        widgetImage = new CvFltkWidget(0, 0, img->width, img->height,
-                                               WIDGET_COLOR);
+  CvFltkWidget_annotated* widgetImage = new CvFltkWidget_annotated(0, 0, img->width, img->height,
+                                                                   WIDGET_COLOR);
   cvCopy( img, (IplImage*)*widgetImage, NULL );
-
   scroll->end();
 
   window->resizable(window);
   window->end();
   window->show();
+
+  // set up the labels
+  widgetImage->setTransformation( view_lat * M_PI / 180.0,
+                                  view_lon * M_PI / 180.0,
+                                  2438.4,
+                                  mercator,
+                                  0,0,0,0 );
 
   while (Fl::wait())
   {
