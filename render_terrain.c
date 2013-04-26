@@ -69,7 +69,7 @@ static float getHeight(int i, int j)
   return z;
 }
 
-static void loadGeometry( float view_lat, float view_lon )
+static float loadGeometry( float view_lat, float view_lon )
 {
   // Viewer is looking north, the seam is behind (to the south). If the viewer is
   // directly on a grid value, then the cell of the seam is poorly defined. In
@@ -130,6 +130,7 @@ static void loadGeometry( float view_lat, float view_lon )
   // seam business
   int Lseam = 0;
   int view_i, view_j;
+  float viewer_z;
   {
     // if we're doing a mercator projection, we must take care of the seam. The
     // camera always looks north, so the seam is behind us. Behind me are two
@@ -144,6 +145,8 @@ static void loadGeometry( float view_lat, float view_lon )
     // the camera is in
     view_i = floor_idx_from_lon(view_lon);
     view_j = floor_idx_from_lat(view_lat);
+
+    viewer_z = getHeight(view_i, view_j);
 
     Lseam = gridH - view_j;
 
@@ -326,7 +329,7 @@ static void loadGeometry( float view_lat, float view_lon )
     uniform_cos_view_lat = glGetUniformLocation(program, "cos_view_lat"); assert( glGetError() == GL_NO_ERROR );
     uniform_aspect       = glGetUniformLocation(program, "aspect"      ); assert( glGetError() == GL_NO_ERROR );
 
-    glUniform1f( uniform_view_z,       getHeight(view_i, view_j));
+    glUniform1f( uniform_view_z,       viewer_z);
     glUniform1i( uniform_demfileN,     demfileN);
     glUniform1i( uniform_demfileW,     demfileW);
     glUniform1i( uniform_WDEM,         WDEM);
@@ -336,6 +339,8 @@ static void loadGeometry( float view_lat, float view_lon )
     glUniform1f( uniform_sin_view_lat, sinf( M_PI / 180.0f * view_lat ));
     glUniform1f( uniform_cos_view_lat, cosf( M_PI / 180.0f * view_lat ));
   }
+
+  return viewer_z;
 }
 
 
@@ -425,8 +430,8 @@ static IplImage* readOffscreenPixels(void)
   return img;
 }
 
-static void setup_gl( bool doRenderToScreen,
-                      float view_lat, float view_lon )
+static float setup_gl( bool doRenderToScreen,
+                       float view_lat, float view_lon )
 {
   void DoFeatureChecks(void)
   {
@@ -502,7 +507,7 @@ static void setup_gl( bool doRenderToScreen,
 
   static bool already_setup = false;
   if( already_setup )
-    return;
+    return -1.0;
   already_setup = true;
 
   glutInit(&(int){1}, &(char*){"exec"});
@@ -528,14 +533,17 @@ static void setup_gl( bool doRenderToScreen,
   glEnable(GL_NORMALIZE);
   glClearColor(0.3, 0.3, 0.9, 0.0);
 
-  loadGeometry( view_lat, view_lon );
+  return loadGeometry( view_lat, view_lon );
 }
 
 // returns the rendered opencv image. NULL on error. It is the caller's
 // responsibility to free this image's memory
-IplImage* render_terrain( float view_lat, float view_lon )
+IplImage* render_terrain( float view_lat, float view_lon, float* elevation )
 {
-  setup_gl( false, view_lat, view_lon );
+  static float viewer_z = -1.0;
+  float viewer_z_new = setup_gl( false, view_lat, view_lon );
+  if( viewer_z_new > 0.0f )
+    viewer_z = *elevation = viewer_z_new;
 
   window_reshape(OFFSCREEN_W, OFFSCREEN_H);
   do_draw();
