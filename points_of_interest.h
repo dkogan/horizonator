@@ -3,7 +3,7 @@
 struct poi_t
 {
   const char* name;
-  float lat, lon, ele;
+  float lat, lon, ele_m;
 };
 
 void initPOIs( float lat, float lon );
