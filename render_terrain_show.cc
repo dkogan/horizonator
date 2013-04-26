@@ -48,7 +48,8 @@ int main(int argc, char** argv)
     }
   } while(getopt_res != -1);
 
-  IplImage* img = render_terrain( view_lat, view_lon );
+  float elevation;
+  IplImage* img = render_terrain( view_lat, view_lon, &elevation );
 
   // start up the GUI
   Fl_Double_Window*       window      = new Fl_Double_Window( 800, 600, "Photo annotator" );
@@ -66,7 +67,7 @@ int main(int argc, char** argv)
   // set up the labels
   widgetImage->setTransformation( view_lat * M_PI / 180.0,
                                   view_lon * M_PI / 180.0,
-                                  2438.4,
+                                  elevation,
                                   mercator,
                                   0,0,0,0 );
 
