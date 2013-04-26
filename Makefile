@@ -1,5 +1,5 @@
 LDLIBS += -lGL -lGLEW -lglut
-CFLAGS = -std=gnu99 -g -O3
+CFLAGS = -std=gnu99 -g -O3 -MMD
 
 CFLAGS += -Wno-missing-field-initializers -Wno-unused-parameter -Wno-unused-function -Wextra -Wall
 
@@ -28,3 +28,4 @@ clean:
 
 .PHONY: clean
 
+-include *.d
