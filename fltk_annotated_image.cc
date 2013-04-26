@@ -147,6 +147,8 @@ void CvFltkWidget_annotated::drawLabel( const struct poi_t* poi )
              x() + poi->draw_x + LABEL_CROSSHAIR_R );
   fl_yxline( x() + poi->draw_x, y() + poi->draw_y + LABEL_CROSSHAIR_R,
              y() + poi->draw_label_y - font_height );
+  fl_yxline( x() + poi->draw_x, y() + poi->draw_y + LABEL_CROSSHAIR_R,
+             y() + poi->draw_y - LABEL_CROSSHAIR_R );
   fl_draw( poi->name, x() + poi->draw_x, y() + poi->draw_label_y );
 }
 
