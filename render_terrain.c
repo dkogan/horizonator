@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <GL/glew.h>
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #include <sys/fcntl.h>
 #include <sys/mman.h>
 #include <sys/types.h>
