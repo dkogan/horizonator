@@ -82,6 +82,18 @@ if( !%image )
     # Done. I have the normalized directions ($v) and the magnitudes ($m). I now
     # construct the output array of vectors
     $image{$name}{edges} = $v * $m->dummy(0);
+
+
+    # I want to align the vectors mod pi. I treat these as complex numbers.Given two
+    # complex numbers,
+    #
+    # Re(a*conj(b)) = |a||b| cos( th_a - th_b ). This shows angle differences mod
+    # 2pi. To show differences mod pi, I simply double the angles by squaring the
+    # numbers: Re( a^2 * conj(b^2) ) = |a|^2 |b|^ cos( 2* (th_a - th_b) )
+
+    # I square each of the vectors
+    $image{$name}{edges} = cplx $image{$name}{edges};
+    $image{$name}{edges} = $image{$name}{edges} * $image{$name}{edges};
   }
 }
 
@@ -89,22 +101,6 @@ if( !%image )
 my ($dx,$dy, @mounted_size);
 if( !@cache_stage2 )
 {
-  # I want to align the vectors mod pi. I treat these as complex numbers.Given two
-  # complex numbers,
-  #
-  # Re(a*conj(b)) = |a||b| cos( th_a - th_b ). This shows angle differences mod
-  # 2pi. To show differences mod pi, I simply double the angles by squaring the
-  # numbers: Re( a^2 * conj(b^2) ) = |a|^2 |b|^ cos( 2* (th_a - th_b) )
-
-  # I square each of the vectors
-  {
-    for my $type (qw(img pano))
-    {
-      $image{$type}{edges} = cplx $image{$type}{edges};
-      $image{$type}{edges} = $image{$type}{edges} * $image{$type}{edges};
-    }
-  }
-
   # and correlate
   ($dx,$dy, @mounted_size) = correlate_conj( $image{pano}{edges},
                                              $image{img} {edges} );
