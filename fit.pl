@@ -151,22 +151,6 @@ sub correlate_conj
   {
     my @mounted = @_;
 
-
-
-    # $mounted[0]->(1,:,:) .= 0; # test code
-    # $mounted[1]->(1,:,:) .= 0; # test code
-    # say join(' ', $mounted[0]->dims);
-    # $mounted[0] = cplx abs real $mounted[0]; # test code
-    # $mounted[1] = cplx abs real $mounted[1]; # test code
-    # gplot( globalwith => 'image',
-    #        square => 1,
-    #        extracmds => 'set yrange [*:*] reverse',
-    #        re $mounted[0]->glue(1, $mounted[1])
-    #      );
-    # sleep(1000);
-
-
-
     my $Npoints = $mounted[0]->dim(1) * $mounted[0]->dim(2);
 
     my @fft = dog cplx fft2 real cat @mounted;
@@ -177,13 +161,14 @@ sub correlate_conj
 
     say "best offset: @corr_offset";
 
-    # exit;
     # # correlation plot
     # gplot( globalwith => 'image',
     #        square => 1,
     #        extracmds => 'set yrange [*:*] reverse',
     #        re $corr
     #      );
+    # sleep 1000;
+    # exit;
 
     my @mounted_size = $mounted[0]->dims;
     shift @mounted_size;
