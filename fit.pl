@@ -3,7 +3,10 @@ use strict;
 use warnings;
 use feature qw(say);
 
-use blib '/home/dima/PDL';
+set_autopthread_targ(2);
+set_autopthread_size(0);
+
+use blib '/home/dima/projects/PDL-FFTW3';
 
 use PDL;
 use PDL::IO::GD;
@@ -155,7 +158,7 @@ sub correlate_conj
 
     my $Npoints = $mounted[0]->dim(1) * $mounted[0]->dim(2);
 
-    my @fft = map { cplx fft2(real $_) } @mounted;
+    my @fft = dog cplx fft2 real cat @mounted;
     my $corr = cplx ifft2( real( $fft[0] * Cconj( $fft[1] )) ) / $Npoints;
 
 
