@@ -19,10 +19,25 @@ use PDL::FFTW3;
 use PDL::Image2D;
 use PDL::IO::Storable;
 use Storable qw(store retrieve);
+use Getopt::Euclid;
 
+
+my $cache;
 my %image;
+my @cache_stage2;
+if( defined $ARGV{'--cache'} )
+{
+  say STDERR "Reading cache";
 
-if( !$ARGV[0] )
+  $cache = retrieve $ARGV{'--cache'};
+
+  %image        = %{ $cache->{image} };
+  @cache_stage2 = @{ $cache->{stage2} } if defined $cache->{stage2} && !$ARGV{'--only1'};
+}
+
+
+
+if( !%image )
 {
   for my $name_file ( [qw(img  ironcut.png)],
                       [qw(pano pano.png)] )
@@ -68,17 +83,11 @@ if( !$ARGV[0] )
     # construct the output array of vectors
     $image{$name}{edges} = $v * $m->dummy(0);
   }
-
-  store \%image, "cache";
-}
-else
-{
-  %image = %{retrieve $ARGV[0]};
 }
 
 
 my ($dx,$dy, @mounted_size);
-if( !$ARGV[1] )
+if( !@cache_stage2 )
 {
   # I want to align the vectors mod pi. I treat these as complex numbers.Given two
   # complex numbers,
@@ -99,13 +108,16 @@ if( !$ARGV[1] )
   # and correlate
   ($dx,$dy, @mounted_size) = correlate_conj( $image{pano}{edges},
                                              $image{img} {edges} );
-
-  store [$dx,$dy, @mounted_size], "cache2";
 }
 else
 {
-  ($dx,$dy, @mounted_size) = @{retrieve $ARGV[1]};
+  ($dx,$dy, @mounted_size) = @cache_stage2;
 }
+
+store { image  => \%image,
+        stage2 => [$dx,$dy, @mounted_size] }, "cache";
+
+
 
 # plot the aligned images
 my $img0_gray = real $image{img} {orig}->mv(-1,0)->average;
@@ -200,3 +212,40 @@ sub mount_images
 }
 
 __END__
+
+=head1 NAME
+
+fit - prototype for the image aligner
+
+=head1 OPTIONS
+
+=over
+
+=item --cache <file>
+
+File to read cached data from
+
+=for Euclid:
+    file.type:        readable
+
+=item --only1
+
+Read only the first stage of the cache
+
+=item --help
+
+Print the usual program information
+
+=back
+
+=head1 AUTHOR
+
+Dima Kogan, C<< <dima@secretsauce.net> >>
+
+=head1 COPYRIGHT
+
+Copyright (c) 2013, Dima Kogan
+
+This module is free software. It may be used,
+redistributed and/or modified under the terms of the GNU public license or the
+Perl Artistic License
