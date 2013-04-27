@@ -22,11 +22,6 @@ use Storable qw(store retrieve);
 
 my %image;
 
-# for my $name_file ( [qw(img  /tmp/tst1.png)],
-#                     [qw(pano /tmp/tst2.png)] )
-
-# for my name_file ( [qw(img  remapped.
-
 if( !$ARGV[0] )
 {
   for my $name_file ( [qw(img  ironcut.png)],
@@ -35,8 +30,6 @@ if( !$ARGV[0] )
     my ($name, $file) = @$name_file;
 
     my $img   = PDL::IO::GD->new( $file )->to_pdl->float / 255.0;
-
-  #  $img = float random(4,8,3); # test code
 
     my $gradx = $img->copy;
     my $grady = $img->copy;
