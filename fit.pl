@@ -126,6 +126,7 @@ my $img1_gray = real $image{pano}{orig}->mv(-1,0)->average;
 my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
 
 my @w;
+if($ARGV{'--plot'} eq 'alignpair')
 {
   $mounted[1] = $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' );
   for my $i (0..1)
@@ -137,6 +138,24 @@ my @w;
                   extracmds => 'set yrange [*:*] reverse',
                   $x->(0:1000,0:400) );
   }
+  sleep(1000);
+  exit;
+}
+if($ARGV{'--plot'} eq 'regions')
+{
+  my @mounted = mount_images( $image{img}{edges}, $image{pano}{edges} );
+  $mounted[1] = $mounted[1]->range( [0,$dx,$dy], [$mounted[1]->dims], 'p' );
+
+  $mounted[0] = cplx $mounted[0];
+  $mounted[1] = cplx $mounted[1];
+
+  my $p = real( $mounted[0] * Cconj $mounted[1] );
+  say "This should match the reported corr: value: " . sum( $p((0),:,:) );
+
+  gplot( globalwith => 'image',
+         square => 1,
+         extracmds => 'set yrange [*:*] reverse',
+         $p((0),:,:));
   sleep(1000);
   exit;
 }
@@ -168,10 +187,10 @@ sub correlate_conj
 
     my ($corr_max, @corr_offset ) = max2d_ind( $corr->re );
 
-    say "best offset: @corr_offset";
+    say "best offset: @corr_offset; corr: $corr_max";
 
     # correlation plot
-    if( $ARGV{'--plotcorr'} )
+    if( $ARGV{'--plot'} eq 'corr' )
     {
       gplot( globalwith => 'image',
              square => 1,
@@ -229,9 +248,14 @@ File to read cached data from
 
 Read only the first stage of the cache
 
-=item --plotcorr
+=item --plot <what>
 
-Plot the correlation map when done
+Selects what should be plotted at the end. Could be C<corr> for the correlation
+map, C<alignpair> to show the aligned original pair of images or C<regions> to
+show which regions of the image aligned the best in the best-case alignment
+
+=for Euclid:
+    what.type: /corr|alignpair|regions/
 
 =item --s[moothradius] <smoothradius>
 
