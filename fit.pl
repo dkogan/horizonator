@@ -50,7 +50,10 @@ if( !%image )
     my $grady = $img->copy;
 
     my $img_smoothed = $img->zeros;
-    Smooth( $img, $img_smoothed, $cvdef{CV_GAUSSIAN}, 7, 7, 0, 0 );
+
+    Smooth( $img, $img_smoothed, $cvdef{CV_GAUSSIAN},
+            $ARGV{'--smoothradius'},
+            $ARGV{'--smoothradius'}, 0, 0 );
     $img_smoothed /= 3*3;
 
     $image{$name}{orig}     = $img;
@@ -157,14 +160,17 @@ sub correlate_conj
 
     say "best offset: @corr_offset";
 
-    # # correlation plot
-    # gplot( globalwith => 'image',
-    #        square => 1,
-    #        extracmds => 'set yrange [*:*] reverse',
-    #        re $corr
-    #      );
-    # sleep 1000;
-    # exit;
+    # correlation plot
+    if( $ARGV{'--plotcorr'} )
+    {
+      gplot( globalwith => 'image',
+             square => 1,
+             extracmds => 'set yrange [*:*] reverse',
+             re $corr
+           );
+      sleep 1000;
+      exit;
+    }
 
     my @mounted_size = $mounted[0]->dims;
     shift @mounted_size;
@@ -212,6 +218,21 @@ File to read cached data from
 =item --only1
 
 Read only the first stage of the cache
+
+=item --plotcorr
+
+Plot the correlation map when done
+
+=item --s[moothradius] <smoothradius>
+
+The radius of the initial smoothing filter. The default is smoothradius.default.
+This must be an odd integer >= 3
+
+=for Euclid:
+    smoothradius.type:       int, smoothradius >= 3 && smoothradius % 2 == 1
+    smoothradius.type.error: smoothradius must be odd integer >= 3
+    smoothradius.default:    7
+
 
 =item --help
 
