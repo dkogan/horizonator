@@ -231,6 +231,5 @@ Dima Kogan, C<< <dima@secretsauce.net> >>
 
 Copyright (c) 2013, Dima Kogan
 
-This module is free software. It may be used,
-redistributed and/or modified under the terms of the GNU public license or the
-Perl Artistic License
+This module is free software. It may be used, redistributed and/or modified
+under the terms of the GNU public license or the Perl Artistic License
