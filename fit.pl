@@ -13,76 +13,96 @@ use PDL::OpenCV qw(Smooth Sobel %cvdef);
 use PDL::LinearAlgebra;
 use PDL::Complex;
 use PDL::FFTW3;
+use PDL::IO::Storable;
+use Storable qw(store retrieve);
 
 my %image;
 
-# for my $name_file ( [qw(img  /tmp/tst1.png)],
-#                     [qw(pano /tmp/tst2.png)] )
-for my $name_file ( [qw(img  ironcut.png)],
-                    [qw(pano pano.png)] )
+if( !$ARGV[0] )
 {
-  my ($name, $file) = @$name_file;
-
-  my $img   = PDL::IO::GD->new( $file )->to_pdl->float / 255.0;
-
-#  $img = float random(4,8,3); # test code
-
-  my $gradx = $img->copy;
-  my $grady = $img->copy;
-
-  Smooth( $img, $img, $cvdef{CV_GAUSSIAN}, 9, 9, 0, 0 );
-  $img /= 3*3;
-
-  $image{$name}{orig} = $img;
-  $image{$name}{size} = [$img->dims];
-  pop $image{$name}{size};
-
-  # edges looking at each channel separately
-  $image{$name}{edgecomponents}{x} = $gradx;
-  $image{$name}{edgecomponents}{y} = $grady;
-
-  Sobel( $img, $gradx, 1, 0, $cvdef{CV_SCHARR} );
-  Sobel( $img, $grady, 0, 1, $cvdef{CV_SCHARR} );
-
-  # I now join the channel-independent edges into single-channel edge vectors. I
-  # do this by computing the most-aligned direction, weighted by the magnitude
-  # of each vector. The magnitude of the result is simply the mean magnitude of
-  # the sources
-
-  # the gradients have dimensions (x,y,rgb)
-  my $V = cat($gradx, $grady)->mv(3,0); # dims (grad, x,y,rgb )
-
-  my $M = outer( $V, $V );      # dims (M0, M1, x, y, rgb)
-  $M = $M->mv(-1,0)->sumover;   # dims (M0, M1, x, y)
-  my ($l, $v) = msymeigen( $M, 0, 1 );
-  $v = $v((1),:,:,:);           # select the larger eigenvalue
-  my $m = sqrt(inner( $V, $V) )->mv(-1,0)->sumover; # sum of the lengths of the gradient vectors
-
-  # Done. I have the normalized directions ($v) and the magnitudes ($m). I now
-  # construct the output array of vectors
-  $image{$name}{edges} = $v * $m->dummy(0);
-}
-
-
-# I want to align the vectors mod pi. I treat these as complex numbers.Given two
-# complex numbers,
-#
-# Re(a*conj(b)) = |a||b| cos( th_a - th_b ). This shows angle differences mod
-# 2pi. To show differences mod pi, I simply double the angles by squaring the
-# numbers: Re( a^2 * conj(b^2) ) = |a|^2 |b|^ cos( 2* (th_a - th_b) )
-
-# I square each of the vectors
-{
-  for my $type (qw(img pano))
+  # for my $name_file ( [qw(img  /tmp/tst1.png)],
+  #                     [qw(pano /tmp/tst2.png)] )
+  for my $name_file ( [qw(img  ironcut.png)],
+                      [qw(pano pano.png)] )
   {
-    $image{$type}{edges} = cplx $image{$type}{edges};
-    $image{$type}{edges} = $image{$type}{edges} * $image{$type}{edges};
+    my ($name, $file) = @$name_file;
+
+    my $img   = PDL::IO::GD->new( $file )->to_pdl->float / 255.0;
+
+  #  $img = float random(4,8,3); # test code
+
+    my $gradx = $img->copy;
+    my $grady = $img->copy;
+
+    Smooth( $img, $img, $cvdef{CV_GAUSSIAN}, 9, 9, 0, 0 );
+    $img /= 3*3;
+
+    $image{$name}{orig} = $img;
+    $image{$name}{size} = [$img->dims];
+    pop $image{$name}{size};
+
+    # edges looking at each channel separately
+    $image{$name}{edgecomponents}{x} = $gradx;
+    $image{$name}{edgecomponents}{y} = $grady;
+
+    Sobel( $img, $gradx, 1, 0, $cvdef{CV_SCHARR} );
+    Sobel( $img, $grady, 0, 1, $cvdef{CV_SCHARR} );
+
+    # I now join the channel-independent edges into single-channel edge vectors. I
+    # do this by computing the most-aligned direction, weighted by the magnitude
+    # of each vector. The magnitude of the result is simply the mean magnitude of
+    # the sources
+
+    # the gradients have dimensions (x,y,rgb)
+    my $V = cat($gradx, $grady)->mv(3,0); # dims (grad, x,y,rgb )
+
+    my $M = outer( $V, $V );      # dims (M0, M1, x, y, rgb)
+    $M = $M->mv(-1,0)->sumover;   # dims (M0, M1, x, y)
+    my ($l, $v) = msymeigen( $M, 0, 1 );
+    $v = $v((1),:,:,:);           # select the larger eigenvalue
+    my $m = sqrt(inner( $V, $V) )->mv(-1,0)->sumover; # sum of the lengths of the gradient vectors
+
+    # Done. I have the normalized directions ($v) and the magnitudes ($m). I now
+    # construct the output array of vectors
+    $image{$name}{edges} = $v * $m->dummy(0);
   }
+
+  store \%image, "cache";
+}
+else
+{
+  %image = %{retrieve $ARGV[0]};
 }
 
-# and correlate
-my ($dx,$dy) = correlate_conj( $image{pano}{edges},
-                               $image{img} {edges} );
+my ($dx,$dy, @mounted_size);
+if( !$ARGV[1] )
+{
+  # I want to align the vectors mod pi. I treat these as complex numbers.Given two
+  # complex numbers,
+  #
+  # Re(a*conj(b)) = |a||b| cos( th_a - th_b ). This shows angle differences mod
+  # 2pi. To show differences mod pi, I simply double the angles by squaring the
+  # numbers: Re( a^2 * conj(b^2) ) = |a|^2 |b|^ cos( 2* (th_a - th_b) )
+
+  # I square each of the vectors
+  {
+    for my $type (qw(img pano))
+    {
+      $image{$type}{edges} = cplx $image{$type}{edges};
+      $image{$type}{edges} = $image{$type}{edges} * $image{$type}{edges};
+    }
+  }
+  # and correlate
+  ($dx,$dy, @mounted_size) = correlate_conj( $image{pano}{edges},
+                                             $image{img} {edges} );
+
+  store [$dx,$dy, @mounted_size], "cache2";
+}
+else
+{
+  ($dx,$dy, @mounted_size) = @{retrieve $ARGV[1]};
+}
+
 
 
 
