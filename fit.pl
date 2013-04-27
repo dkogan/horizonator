@@ -16,15 +16,19 @@ use PDL::OpenCV qw(Smooth Sobel %cvdef);
 use PDL::LinearAlgebra;
 use PDL::Complex;
 use PDL::FFTW3;
+use PDL::Image2D;
 use PDL::IO::Storable;
 use Storable qw(store retrieve);
 
 my %image;
 
+# for my $name_file ( [qw(img  /tmp/tst1.png)],
+#                     [qw(pano /tmp/tst2.png)] )
+
+# for my name_file ( [qw(img  remapped.
+
 if( !$ARGV[0] )
 {
-  # for my $name_file ( [qw(img  /tmp/tst1.png)],
-  #                     [qw(pano /tmp/tst2.png)] )
   for my $name_file ( [qw(img  ironcut.png)],
                       [qw(pano pano.png)] )
   {
@@ -37,19 +41,21 @@ if( !$ARGV[0] )
     my $gradx = $img->copy;
     my $grady = $img->copy;
 
-    Smooth( $img, $img, $cvdef{CV_GAUSSIAN}, 9, 9, 0, 0 );
-    $img /= 3*3;
+    my $img_smoothed = $img->zeros;
+    Smooth( $img, $img_smoothed, $cvdef{CV_GAUSSIAN}, 7, 7, 0, 0 );
+    $img_smoothed /= 3*3;
 
-    $image{$name}{orig} = $img;
-    $image{$name}{size} = [$img->dims];
+    $image{$name}{orig}     = $img;
+    $image{$name}{smoothed} = $img_smoothed;
+    $image{$name}{size}     = [$img->dims];
     pop $image{$name}{size};
 
     # edges looking at each channel separately
     $image{$name}{edgecomponents}{x} = $gradx;
     $image{$name}{edgecomponents}{y} = $grady;
 
-    Sobel( $img, $gradx, 1, 0, $cvdef{CV_SCHARR} );
-    Sobel( $img, $grady, 0, 1, $cvdef{CV_SCHARR} );
+    Sobel( $img_smoothed, $gradx, 1, 0, $cvdef{CV_SCHARR} );
+    Sobel( $img_smoothed, $grady, 0, 1, $cvdef{CV_SCHARR} );
 
     # I now join the channel-independent edges into single-channel edge vectors. I
     # do this by computing the most-aligned direction, weighted by the magnitude
@@ -77,6 +83,7 @@ else
   %image = %{retrieve $ARGV[0]};
 }
 
+
 my ($dx,$dy, @mounted_size);
 if( !$ARGV[1] )
 {
@@ -95,6 +102,7 @@ if( !$ARGV[1] )
       $image{$type}{edges} = $image{$type}{edges} * $image{$type}{edges};
     }
   }
+
   # and correlate
   ($dx,$dy, @mounted_size) = correlate_conj( $image{pano}{edges},
                                              $image{img} {edges} );
@@ -106,6 +114,20 @@ else
   ($dx,$dy, @mounted_size) = @{retrieve $ARGV[1]};
 }
 
+# plot the aligned images
+my $img0_gray = real $image{img} {orig}->mv(-1,0)->average;
+my $img1_gray = real $image{pano}{orig}->mv(-1,0)->average;
+
+
+my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
+gplot( globalwith => 'image',
+       square => 1,
+       extracmds => 'set yrange [*:*] reverse',
+       0.5 * ($mounted[0] + $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' ))->(0:1000,0:400)
+     );
+sleep 1000;
+
+
 
 
 
@@ -114,23 +136,7 @@ else
 sub correlate_conj
 {
   my @imgs = @_;
-
-  # mount the images into larger, equal matrix
-  my $sizes = pdl( [$imgs[0]->dims], [$imgs[1]->dims] );
-  my @mountsize = PDL::list( $sizes->transpose->maximum->(1:-1) * 2 );
-
-  say "mounted size: @mountsize";
-
-  my @mounted;
-  foreach my $img(@imgs)
-  {
-    # mount the image
-    my $mountedimg = cplx zeros( 2, @mountsize );
-    $mountedimg->(:, 0:$img->dim(1)-1, 0:$img->dim(2)-1 ) .= $img;
-    push @mounted, $mountedimg;
-  }
-
-  return correlate_conj_mounted( @mounted );
+  return correlate_conj_mounted( mount_images(@imgs) );
 
 
 
@@ -162,30 +168,42 @@ sub correlate_conj
     my $corr = cplx ifft2( real( $fft[0] * Cconj( $fft[1] )) ) / $Npoints;
 
 
+    my ($corr_max, @corr_offset ) = max2d_ind( $corr->re );
 
+    say "best offset: @corr_offset";
 
+    # exit;
+    # # correlation plot
+    # gplot( globalwith => 'image',
+    #        square => 1,
+    #        extracmds => 'set yrange [*:*] reverse',
+    #        re $corr
+    #      );
 
-
-    gplot( globalwith => 'image',
-           square => 1,
-           extracmds => 'set yrange [*:*] reverse',
-           re $corr
-         );
-    sleep(1000);
-
-
-
-
-
-    # say $corr(:,0:1,0:1);
-    # say PDL::Complex::sum( $mounted[0] * Cconj $mounted[1] );
-    # my $panoshift = $mounted[0]->(:,1:-1,:)->glue(1, $mounted[0]->(:,0,:) ) ;
-    # say PDL::Complex::sum($panoshift * Cconj $mounted[1] );
-
-
+    my @mounted_size = $mounted[0]->dims;
+    shift @mounted_size;
+    return (@corr_offset, @mounted_size);
   }
 }
 
+sub mount_images
+{
+  my @imgs = @_;
+
+  # mount the images into larger, equal matrix
+  my $sizes = pdl( [$imgs[0]->dims], [$imgs[1]->dims] );
+  my @mountsize = PDL::list( $sizes->transpose->maximum->(1:-1) * 2 );
+
+  my @mounted;
+  foreach my $img(@imgs)
+  {
+    # mount the image
+    my $mountedimg = cplx zeros( 2, @mountsize );
+    $mountedimg->(:, 0:$img->dim(1)-1, 0:$img->dim(2)-1 ) .= $img;
+    push @mounted, $mountedimg;
+  }
+
+  return @mounted;
+}
+
 __END__
-need     avgover alias to average
-similarly minover and maxover
