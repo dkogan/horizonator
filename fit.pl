@@ -124,12 +124,22 @@ my $img1_gray = real $image{pano}{orig}->mv(-1,0)->average;
 
 
 my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
-gplot( globalwith => 'image',
-       square => 1,
-       extracmds => 'set yrange [*:*] reverse',
-       0.5 * ($mounted[0] + $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' ))->(0:1000,0:400)
-     );
-sleep 1000;
+
+my @w;
+{
+  $mounted[1] = $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' );
+  for my $i (0..1)
+  {
+    my $x = $mounted[$i];
+    push @w, gpwin;
+    $w[-1]->plot( globalwith => 'image',
+                  square => 1,
+                  extracmds => 'set yrange [*:*] reverse',
+                  $x->(0:1000,0:400) );
+  }
+  sleep(1000);
+  exit;
+}
 
 
 
