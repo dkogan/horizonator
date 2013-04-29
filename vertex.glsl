@@ -35,25 +35,34 @@ void main(void)
   float sin_lat  = sin( lat );
   float cos_lat  = cos( lat );
 
-  float east  = cos_lat * sin_dlon;
-  float north = ( sin_dlat*cos_dlon + sin_lat*cos_view_lat*(1.0 - cos_dlon)) ;
-  float height = (Rearth + vin.z) * ( cos_dlat*cos_dlon + sin_lat*sin_view_lat*(1.0 - cos_dlon) )
-                 /* this is bad for roundoff error */
-                 - Rearth - view_z;
+  // Convert current point being rendered into the coordinate system centered on
+  // the viewpoint. The axes are (east,north,height). I implicitly divide all 3
+  // by the height of the observation point
+  float east   = cos_lat * sin_dlon;
+  float north  = sin_dlat*cos_dlon + sin_lat*cos_view_lat*(1.0 - cos_dlon);
+  float height = cos_dlat*cos_dlon + sin_lat*sin_view_lat*(1.0 - cos_dlon)
+    - (Rearth + view_z) / (Rearth + vin.z);
 
-  float zeff  = (Rearth + vin.z)*length(vec2(east, north ));
-  float angle = atan(east, north) / pi;
+  float len_ne = length(vec2(east, north ));
+  float zeff  = (Rearth + vin.z)*len_ne;
+  float az    = atan(east, north) / pi;
+  float el    = atan( height, len_ne ) / pi;
 
-  if     ( at_left_seam )  angle -= 2.0;
-  else if( at_right_seam ) angle += 2.0;
+  if     ( at_left_seam )  az -= 2.0;
+  else if( at_right_seam ) az += 2.0;
 
   // coloring by...
-  red = zeff / 10000.0; // ... distance from camera
-  //red = vin.z / 3500.0; // ... elevation
+  //red = zeff / 10000.0; // ... distance from camera
+  red = vin.z / 3500.0; // ... elevation
+
+  // float ft = vin.z*100.0/2.54/12.0;
+  // if( abs( float(-demfileW)+ vin.x/float(WDEM-1) -
+  //         -118.18) < 0.0005 )
+  //   red = 1.0;
 
   const float A = (zfar + znear) / (zfar - znear);
-  gl_Position = vec4( angle * zeff,
-                      height / pi * aspect,
+  gl_Position = vec4( az * zeff,
+                      el * zeff * aspect,
                       mix(zfar, zeff, A),
                       zeff );
 }
