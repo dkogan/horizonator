@@ -170,5 +170,28 @@ void CvFltkWidget_annotated::draw()
   fl_color( LABEL_COLOR );
   for( int i=0; i<poi_N; i++ )
     drawLabel( &poi[ poi_indices[i]] );
+
+#if 0
+  // testing code to save an annotated image to a file
+
+  if( w() > 0 && h() > 0 )
+  {
+    // for some reason I can't ask for the full width (fl_read_image() returns
+    // NULL), so I ask for less...
+    int w = 1800;
+    int h = 300;
+
+    uchar* img = fl_read_image(NULL, 0,0, w, h );
+    if( img )
+    {
+      FILE* fp = fopen( "img.ppm", "w+");
+      fprintf(fp, "P6\n%d %d\n%d\n", w,h,255);
+      fwrite(img, 1, w*h*3, fp);
+      fclose(fp);
+      exit(1);
+    }
+  }
+#endif
+
   fl_pop_clip();
 }
