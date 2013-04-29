@@ -16,11 +16,11 @@ extern "C"
 #if 0
   // Chilao camp
   const float   view_lat = 34.3252f;
-        float   view_lon = -118.02f;
+  const float   view_lon = -118.02f;
 #else
   // peak of Iron Mt
   const float   view_lat = 34.2883f;
-        float   view_lon = -117.7128f;
+  const float   view_lon = -117.7128f;
 #endif
 
 
