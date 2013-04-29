@@ -24,6 +24,8 @@ while(<>)
 
   my ($name,$lat,$lon,$ele,$class) = @fields[$col_name, $col_lat, $col_lon, $col_ele, $col_class];
 
+  next if $fields[$col_class] ne 'Summit';
+
   # convert to radians
   $lat *= 3.14159265 / 180.0;
   $lon *= 3.14159265 / 180.0;
