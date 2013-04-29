@@ -12,7 +12,7 @@ use PDL;
 use PDL::IO::GD;
 use PDL::Graphics::Gnuplot;
 use PDL::NiceSlice;
-use PDL::OpenCV qw(Smooth Sobel %cvdef);
+use PDL::OpenCV qw(Smooth Sobel Remap %cvdef);
 use PDL::LinearAlgebra;
 use PDL::Complex;
 use PDL::FFTW3;
@@ -39,12 +39,12 @@ if( defined $ARGV{'--cache'} )
 
 if( !%image )
 {
-  for my $name_file ( [qw(img  ironcut.png)],
-                      [qw(pano pano.png)] )
-  {
-    my ($name, $file) = @$name_file;
+  my ($img_remapped, $pano) = readImages();
 
-    my $img   = PDL::IO::GD->new( $file )->to_pdl->float / 255.0;
+  for my $name_img ( ['img',  $img_remapped],
+                     ['pano', $pano ] )
+  {
+    my ($name, $img) = @$name_img;
 
     my $gradx = $img->copy;
     my $grady = $img->copy;
@@ -165,6 +165,34 @@ if($ARGV{'--plot'} eq 'regions')
 
 
 
+sub readImages
+{
+  my $pi         = 3.14159265359;
+  my @sensorsize = ( 7.31, 5.49 );
+  my $focal      = 5.1;
+
+
+  my $img  = PDL::IO::GD->new( $ARGV{'--photo'} )->to_pdl->float / 255.0;
+  my $pano = PDL::IO::GD->new( $ARGV{'--pano'}  )->to_pdl->float / 255.0;
+  my $px_per_rad = $pano->dim(0) / (2.0 * $pi);
+
+  my @fov        = map { list atan( $_ / 2.0 / $focal ) * 2.0 } @sensorsize;
+  my @remap_size = map { $_ * $px_per_rad } @fov;
+
+  my $img_remapped = float zeros( @remap_size, 3 );
+
+  my $mapx = float (tan( $img_remapped->xlinvals(-0.5, 0.5)->float * $fov[0] ) * $focal / $sensorsize[0] + 0.5 ) * ($img->dim(0)-1);
+  my $mapy = float (tan( $img_remapped->ylinvals(-0.5, 0.5)->float * $fov[1] ) * $focal / $sensorsize[1] + 0.5 ) * ($img->dim(1)-1);
+
+  Remap( $img,
+         $img_remapped,
+         $mapx, $mapy,
+         1 + 9,                 # CV_INTER_LINEAR+CV_WARP_FILL_OUTLIERS
+         zeros(4)->float );
+
+  return ($img_remapped, $pano);
+}
+
 # computes the peak of the correlation of img0 and conj(img1)
 sub correlate_conj
 {
@@ -233,6 +261,26 @@ __END__
 
 fit - prototype for the image aligner
 
+=head1 REQUIRED ARGUMENTS
+
+=over
+
+=item --pano <pano>
+
+Panorama render image
+
+=for Euclid:
+  pano.type: readable
+
+=item --photo <photo>
+
+Photo being annotated
+
+=for Euclid:
+  photo.type: readable
+
+=back
+
 =head1 OPTIONS
 
 =over
@@ -256,6 +304,7 @@ show which regions of the image aligned the best in the best-case alignment
 
 =for Euclid:
     what.type: /corr|alignpair|regions/
+    what.default: ''
 
 =item --s[moothradius] <smoothradius>
 
