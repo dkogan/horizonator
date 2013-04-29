@@ -20,8 +20,8 @@ public:
     // mouse-over-widget state
     if(event == FL_MOUSEWHEEL)
     {
-      scroll_to( xposition() + Fl::event_dx(),
-                 yposition() + Fl::event_dy() );
+      scroll_to( xposition() + 5*Fl::event_dx(),
+                 yposition() + 5*Fl::event_dy() );
 
       return 1;
     }
