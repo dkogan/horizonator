@@ -407,7 +407,7 @@ static void window_keyPressed(unsigned char key, int x, int y)
 }
 
 
-static IplImage* readOffscreenPixels(void)
+static IplImage* readOffscreenPixels( bool do_bgr )
 {
   CvSize size = { .width  = OFFSCREEN_W,
                   .height = OFFSCREEN_H };
@@ -417,7 +417,8 @@ static IplImage* readOffscreenPixels(void)
 
   glDrawBuffer(GL_COLOR_ATTACHMENT0);
   glReadPixels(0,0, OFFSCREEN_W, OFFSCREEN_H,
-               GL_RGB, GL_UNSIGNED_BYTE, img->imageData);
+               do_bgr ? GL_BGR : GL_RGB,
+               GL_UNSIGNED_BYTE, img->imageData);
   cvFlip(img, NULL, 0);
   return img;
 }
@@ -530,7 +531,8 @@ static float setup_gl( bool doRenderToScreen,
 
 // returns the rendered opencv image. NULL on error. It is the caller's
 // responsibility to free this image's memory
-IplImage* render_terrain( float view_lat, float view_lon, float* elevation )
+IplImage* render_terrain( float view_lat, float view_lon, float* elevation,
+                          bool do_bgr )
 {
   static float viewer_z = -1.0;
   float viewer_z_new = setup_gl( false, view_lat, view_lon );
@@ -540,7 +542,7 @@ IplImage* render_terrain( float view_lat, float view_lon, float* elevation )
   window_reshape(OFFSCREEN_W, OFFSCREEN_H);
   do_draw();
 
-  IplImage* img = readOffscreenPixels();
+  IplImage* img = readOffscreenPixels( do_bgr );
   glutExit();
   return img;
 }

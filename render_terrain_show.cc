@@ -27,11 +27,13 @@ extern "C"
 
 int main(int argc, char** argv)
 {
-  int doOnscreen   = 0;
+  int doOnscreen = 0;
+  char* outfile = NULL;
 
   struct option long_options[] =
     {
-      {"onscreen",   no_argument, &doOnscreen,   1 },
+      {"onscreen",   no_argument,       &doOnscreen, 1 },
+      {"save",       required_argument, NULL,        's' },
       {}
     };
 
@@ -39,10 +41,17 @@ int main(int argc, char** argv)
   do
   {
     getopt_res = getopt_long(argc, argv, "", long_options, NULL);
-    if( getopt_res == '?' )
+    switch( getopt_res )
     {
+    case 's':
+      outfile = optarg;
+      break;
+
+    case '?':
       fprintf(stderr, "Unknown cmdline option encountered\n");
-      exit(1);
+      return 1;
+
+    default: ;
     }
   } while(getopt_res != -1);
 
@@ -54,7 +63,16 @@ int main(int argc, char** argv)
     render_terrain_to_window( view_lat, view_lon );
     return 0;
   }
-  img = render_terrain( view_lat, view_lon, &elevation );
+  img = render_terrain( view_lat, view_lon, &elevation,
+                        outfile != NULL /* BGR is we're writing to a file;
+                                           cvSaveImage() expects */
+                        );
+
+  if( outfile )
+  {
+    cvSaveImage( outfile, img, 0 );
+    return 0;
+  }
 
   // start up the GUI
   Fl_Double_Window*       window      = new Fl_Double_Window( 800, 600, "Photo annotator" );
