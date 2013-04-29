@@ -49,7 +49,14 @@ int main(int argc, char** argv)
   } while(getopt_res != -1);
 
   float elevation;
-  IplImage* img = render_terrain( view_lat, view_lon, &elevation );
+  IplImage* img;
+
+  if( doOnscreen )
+  {
+    render_terrain_to_window( view_lat, view_lon );
+    return 0;
+  }
+  img = render_terrain( view_lat, view_lon, &elevation );
 
   // start up the GUI
   Fl_Double_Window*       window      = new Fl_Double_Window( 800, 600, "Photo annotator" );
