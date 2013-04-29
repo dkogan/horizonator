@@ -37,11 +37,10 @@ static GLint uniform_sin_view_lat, uniform_cos_view_lat;
 #define gridW       1200
 #define gridH       1200
 
-#define IRON_ANGLE      72.2 /* angle of view for my iron mt photo */
+#define FOVY_DEG    30.0 /* vertical field of view of the render */
 
-#define OFFSCREEN_W (int)( 1400.0/1050.0*OFFSCREEN_H /IRON_ANGLE * 360.0 + 0.5 )
-#define OFFSCREEN_H 300
-
+#define OFFSCREEN_W 2000.0
+#define OFFSCREEN_H (int)( 0.5 + OFFSCREEN_W / 360.0 * FOVY_DEG)
 
 static int16_t sampleDEM(int i, int j)
 {
@@ -351,17 +350,10 @@ static void window_reshape(int width, int height)
   glMatrixMode(GL_PROJECTION);
   glLoadIdentity();
 
-  GLdouble aspect = (GLdouble)width / (GLdouble)height;
-
-  // IRON_ANGLE
-  double fovy = IRON_ANGLE/aspect;
-
-  gluPerspective(fovy, aspect, 100.0, 200000.0);
-
   glMatrixMode(GL_MODELVIEW);
   glLoadIdentity();
 
-  glUniform1f(uniform_aspect, aspect);
+  glUniform1f(uniform_aspect, (float)width / (float)height);
 }
 
 static void do_draw(void)
