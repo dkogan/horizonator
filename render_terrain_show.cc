@@ -28,12 +28,10 @@ extern "C"
 int main(int argc, char** argv)
 {
   int doOnscreen   = 0;
-  int doNoMercator = 0;
 
   struct option long_options[] =
     {
       {"onscreen",   no_argument, &doOnscreen,   1 },
-      {"nomercator", no_argument, &doNoMercator, 1 },
       {}
     };
 
