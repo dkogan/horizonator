@@ -52,8 +52,8 @@ void main(void)
   else if( at_right_seam ) az += 2.0;
 
   // coloring by...
-  //red = zeff / 10000.0; // ... distance from camera
-  red = vin.z / 3500.0; // ... elevation
+  red = zeff / 10000.0; // ... distance from camera
+  //red = vin.z / 3500.0; // ... elevation
 
   // float ft = vin.z*100.0/2.54/12.0;
   // if( abs( float(-demfileW)+ vin.x/float(WDEM-1) -
