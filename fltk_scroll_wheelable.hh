@@ -26,7 +26,7 @@ public:
       return 1;
     }
 
-    return Fl_Widget::handle(event);
+    return Fl_Scroll::handle(event);
   }
 };
 
