@@ -122,17 +122,17 @@ void CvFltkWidget_annotated::setTransformation( float view_lat, float view_lon, 
     int left  = thispoi->draw_x;
     int right = thispoi->draw_x + fl_width( thispoi->name );
 
-    if( left <= overlapgroup_right )
+    if( left > overlapgroup_right || current_y + font_height + TEXT_MARGIN >= h() )
+    {
+      // not overlapping, or the label is too low. Draw label on top.
+      current_y = 0;
+      overlapgroup_right = right;
+    }
+    else
     {
       // I overlap the previous. Thus draw the label a bit lower
       if( overlapgroup_right < right )
         overlapgroup_right = right;
-    }
-    else
-    {
-      // not overlapping. Draw label on top.
-      current_y = 0;
-      overlapgroup_right = right;
     }
     current_y += font_height + TEXT_MARGIN;
 
