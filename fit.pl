@@ -146,7 +146,7 @@ if($ARGV{'--plot'} eq 'alignpair')
                   extracmds => 'set yrange [*:*] reverse',
                   $x->(0:1000,0:400) );
   }
-  sleep(1000);
+  sleep(1000000);
   exit;
 }
 if($ARGV{'--plot'} eq 'regions')
@@ -164,7 +164,7 @@ if($ARGV{'--plot'} eq 'regions')
          square => 1,
          extracmds => 'set yrange [*:*] reverse',
          $p((0),:,:));
-  sleep(1000);
+  sleep(1000000);
   exit;
 }
 
@@ -237,7 +237,7 @@ sub correlate_conj
              extracmds => 'set yrange [*:*] reverse',
              re $corr
            );
-      sleep 1000;
+      sleep 1000000;
       exit;
     }
 
