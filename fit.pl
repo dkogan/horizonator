@@ -143,8 +143,8 @@ if($ARGV{'--plot'} eq 'alignpair')
     push @w, gpwin;
     $w[-1]->plot( globalwith => 'image',
                   square => 1,
-                  extracmds => 'set yrange [*:*] reverse',
-                  $x->(0:1000,0:400) );
+                  extracmds => 'set yrange [*:*] reverse', clut => 'gray',
+                  $x->(0:500,0:200) );
   }
   sleep(1000000);
   exit;
