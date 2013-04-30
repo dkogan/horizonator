@@ -51,10 +51,18 @@ if( !%image )
 
     my $img_smoothed = $img->zeros;
 
-    Smooth( $img, $img_smoothed, $cvdef{CV_GAUSSIAN},
-            $ARGV{'--smoothradius'},
-            $ARGV{'--smoothradius'}, 0, 0 );
-    $img_smoothed /= 3*3;
+    if( $name eq 'pano' )
+    {
+      # don't smooth the panorama image, since it's perfect
+      $img_smoothed = $img->copy;
+    }
+    else
+    {
+      Smooth( $img, $img_smoothed, $cvdef{CV_GAUSSIAN},
+              $ARGV{'--smoothradius'},
+              $ARGV{'--smoothradius'}, 0, 0 );
+      $img_smoothed /= 3*3;
+    }
 
     $image{$name}{orig}     = $img;
     $image{$name}{smoothed} = $img_smoothed;
