@@ -136,18 +136,8 @@ my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1
 my @w;
 if($ARGV{'--plot'} eq 'alignpair')
 {
-  $mounted[1] = $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' );
-  for my $i (0..1)
-  {
-    my $x = $mounted[$i];
-    push @w, gpwin;
-    $w[-1]->plot( globalwith => 'image',
-                  square => 1,
-                  extracmds => 'set yrange [*:*] reverse', clut => 'gray',
-                  $x->(0:500,0:200) );
-  }
-  sleep(1000000);
-  exit;
+  debugPlot( {clut => 'gray'},
+             $mounted[0], $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' ) );
 }
 if($ARGV{'--plot'} eq 'regions')
 {
@@ -160,12 +150,7 @@ if($ARGV{'--plot'} eq 'regions')
   my $p = real( $mounted[0] * Cconj $mounted[1] );
   say "This should match the reported corr: value: " . sum( $p((0),:,:) );
 
-  gplot( globalwith => 'image',
-         square => 1,
-         extracmds => 'set yrange [*:*] reverse',
-         $p((0),:,:));
-  sleep(1000000);
-  exit;
+  debugPlot( {}, $p((0),:,:));
 }
 
 
@@ -232,13 +217,7 @@ sub correlate_conj
     # correlation plot
     if( $ARGV{'--plot'} eq 'corr' )
     {
-      gplot( globalwith => 'image',
-             square => 1,
-             extracmds => 'set yrange [*:*] reverse',
-             re $corr
-           );
-      sleep 1000000;
-      exit;
+      debugPlot( {}, re $corr );
     }
 
     my @mounted_size = $mounted[0]->dims;
@@ -266,6 +245,33 @@ sub mount_images
 
   return @mounted;
 }
+
+
+# This is for testing/debugging. Each piddle in the argument plot is drawn as an
+# image. First argument is a hashref to pass to gplot()
+sub debugPlot
+{
+  my $plotoptions = shift;
+  my @data = @_;
+
+  my @w;
+  for my $x(@data)
+  {
+    push @w, gpwin;
+
+    my @options = (globalwith => 'image',
+                   square => 1,
+                   extracmds => 'set yrange [*:*] reverse');
+
+    push @options, %$plotoptions if $plotoptions && %$plotoptions;
+
+    $w[-1]->plot( @options, $x );
+  }
+  sleep(1000000);
+  exit;
+}
+
+
 
 __END__
 
