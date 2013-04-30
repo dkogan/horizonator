@@ -198,6 +198,10 @@ sub readImages
          1 + 9,                 # CV_INTER_LINEAR+CV_WARP_FILL_OUTLIERS
          zeros(4)->float );
 
+  if( $ARGV{'--saveremapped'} )
+  {
+    write_true_png( $img_remapped*255, $ARGV{'--saveremapped'} );
+  }
   return ($img_remapped, $pano);
 }
 
@@ -303,6 +307,13 @@ File to read cached data from
 =item --only1
 
 Read only the first stage of the cache
+
+=item --saveremapped <remappedfile>
+
+Save a remapped photo to a given file
+
+=for Euclid
+  remappedfile.type: writable
 
 =item --plot <what>
 
