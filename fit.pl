@@ -174,12 +174,26 @@ sub readImages
 
   my $img_remapped = float zeros( @remap_size, 3 );
 
-  my $mapx = float (tan( $img_remapped->xlinvals(-0.5, 0.5)->float * $fov[0] ) * $focal / $sensorsize[0] + 0.5 ) * ($img->dim(0)-1);
-  my $mapy = float (tan( $img_remapped->ylinvals(-0.5, 0.5)->float * $fov[1] ) * $focal / $sensorsize[1] + 0.5 ) * ($img->dim(1)-1);
+  # I remap my photo (from a perspective camera) to an az-el image. $map is a
+  # piddle corresponding to the target az-el image; values of $map are indices
+  # into the original photo image. Transformation is:
+  #
+  # x = (w-1)(f/sx tan(az)         + 1/2 )
+  # y = (h-1)(f/sy tan(el)/cos(az) + 1/2 )
+  #
+  # Derivation is in my notebook and probably in many other places
+  my $az = $img_remapped->(:,:,(0))->xlinvals( -$fov[0]/2, $fov[0]/2 );
+  my $el = $img_remapped->(:,:,(0))->ylinvals( -$fov[1]/2, $fov[1]/2 );
+
+  my $wh  = pdl( $img->dim(0), $img->dim(1) );
+  my $sxy = pdl( @sensorsize );
+
+  my $map = cat( tan($az), tan($el)/cos($az) );
+  $map = float( ($map * $focal / $sxy->dummy(0)->dummy(0) + 0.5) * ($wh->dummy(0)->dummy(0) - 1));
 
   Remap( $img,
          $img_remapped,
-         $mapx, $mapy,
+         $map->dog,
          1 + 9,                 # CV_INTER_LINEAR+CV_WARP_FILL_OUTLIERS
          zeros(4)->float );
 
