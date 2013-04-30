@@ -187,6 +187,12 @@ sub readImages
   {
     write_true_png( $img_remapped*255, $ARGV{'--saveremapped'} );
   }
+  if( $ARGV{'--plot'} eq 'remapped' )
+  {
+    debugPlot( {clut => 'gray'},
+               $img_remapped );
+  }
+
   return ($img_remapped, $pano);
 }
 
@@ -323,12 +329,18 @@ Save a remapped photo to a given file
 
 =item --plot <what>
 
-Selects what should be plotted at the end. Could be C<corr> for the correlation
-map, C<alignpair> to show the aligned original pair of images or C<regions> to
-show which regions of the image aligned the best in the best-case alignment
+Selects what should be plotted at the end. Could be
+
+C<remapped> to plot just the remapped photo, without fitting anything
+
+C<corr> for the correlation map
+
+C<alignpair> to show the aligned original pair of images
+
+C<regions> to show which regions of the image aligned the best in the best-case alignment
 
 =for Euclid:
-    what.type: /corr|alignpair|regions/
+    what.type: /remapped|corr|alignpair|regions/
     what.default: ''
 
 =item --s[moothradius] <smoothradius>
