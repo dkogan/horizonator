@@ -4,7 +4,7 @@
 
 #include <FL/Fl.H>
 #include <FL/Fl_Double_Window.H>
-#include "fltk_scroll_wheelable.hh"
+#include <FL/Fl_Scroll.H>
 #include "fltk_annotated_image.hh"
 
 extern "C"
@@ -76,12 +76,10 @@ int main(int argc, char** argv)
 
   // start up the GUI
   Fl_Double_Window*       window      = new Fl_Double_Window( 800, 600, "Photo annotator" );
-  Fl_Scroll_Wheelable*    scroll      = new Fl_Scroll_Wheelable( 0, 0, window->w(), window->h() );
-  scroll->begin();
+  Fl_Scroll*              scroll      = new Fl_Scroll( 0, 0, window->w(), window->h() );
   CvFltkWidget_annotated* widgetImage = new CvFltkWidget_annotated(0, 0, img->width, img->height,
                                                                    WIDGET_COLOR);
   cvCopy( img, (IplImage*)*widgetImage, NULL );
-  scroll->end();
 
   window->resizable(window);
   window->end();
