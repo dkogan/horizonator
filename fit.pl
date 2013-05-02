@@ -126,16 +126,17 @@ store { image  => \%image,
 
 
 
-# plot the aligned images
-my $img0_gray = real $image{img} {orig}->mv(-1,0)->average;
-my $img1_gray = real $image{pano}{orig}->mv(-1,0)->average;
-
-
-my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
-
-my @w;
-if($ARGV{'--plot'} eq 'alignpair')
+if($ARGV{'--plot'} =~ /alignpair/ )
 {
+  # plot the aligned images
+  my $which = $ARGV{'--plot'} =~ /smoothed/ ? 'smoothed' : 'orig';
+  my $img_orig  = $image{img} { $which };
+  my $pano_orig = $image{pano}{ $which };
+
+  my $img0_gray = real $img_orig ->mv(-1,0)->average;
+  my $img1_gray = real $pano_orig->mv(-1,0)->average;
+  my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
+
   debugPlot( {clut => 'gray'},
              $mounted[0], $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' ) );
 }
@@ -351,10 +352,12 @@ C<corr> for the correlation map
 
 C<alignpair> to show the aligned original pair of images
 
+C<alignpair_smoothed> to show the aligned smoothed pair of images
+
 C<regions> to show which regions of the image aligned the best in the best-case alignment
 
 =for Euclid:
-    what.type: /remapped|corr|alignpair|regions/
+    what.type: /remapped|corr|alignpair|alignpair_smoothed|regions/
     what.default: ''
 
 =item --s[moothradius] <smoothradius>
