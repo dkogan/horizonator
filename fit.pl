@@ -153,7 +153,7 @@ if($ARGV{'--plot'} eq 'regions')
   my $p = real( $mounted[0] * Cconj $mounted[1] );
   say "This should match the reported corr: value: " . sum( $p((0),:,:) );
 
-  debugPlot( {}, $p((0),:,:));
+  debugPlot( $p((0),:,:));
 }
 
 
@@ -240,7 +240,7 @@ sub correlate_conj
     # correlation plot
     if( $ARGV{'--plot'} eq 'corr' )
     {
-      debugPlot( {}, re $corr );
+      debugPlot( re $corr );
     }
 
     my @mounted_size = $mounted[0]->dims;
@@ -274,7 +274,9 @@ sub mount_images
 # image. First argument is a hashref to pass to gplot()
 sub debugPlot
 {
-  my $plotoptions = shift;
+  my $plotoptions;
+  $plotoptions = shift if ref $_[0] eq 'HASH';
+
   my @data = @_;
 
   my @w;
