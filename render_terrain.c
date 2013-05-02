@@ -524,7 +524,7 @@ static float setup_gl( bool doRenderToScreen,
   glEnable(GL_DEPTH_TEST);
   glEnable(GL_CULL_FACE);
   glEnable(GL_NORMALIZE);
-  glClearColor(0.3, 0.3, 0.9, 0.0);
+  glClearColor(0, 0, 1, 0);
 
   return loadGeometry( view_lat, view_lon );
 }
