@@ -76,24 +76,31 @@ if( !%image )
     Sobel( $img_smoothed, $gradx, 1, 0, $cvdef{CV_SCHARR} );
     Sobel( $img_smoothed, $grady, 0, 1, $cvdef{CV_SCHARR} );
 
-    # I now join the channel-independent edges into single-channel edge vectors. I
-    # do this by computing the most-aligned direction, weighted by the magnitude
-    # of each vector. The magnitude of the result is simply the mean magnitude of
-    # the sources
-
     # the gradients have dimensions (x,y,rgb)
     my $V = cat($gradx, $grady)->mv(3,0); # dims (grad, x,y,rgb )
 
-    my $M = outer( $V, $V );      # dims (M0, M1, x, y, rgb)
-    $M = $M->mv(-1,0)->sumover;   # dims (M0, M1, x, y)
-    my ($l, $v) = msymeigen( $M, 0, 1 );
-    $v = $v((1),:,:,:);           # select the larger eigenvalue
-    my $m = sqrt(inner( $V, $V) )->mv(-1,0)->sumover; # sum of the lengths of the gradient vectors
+    # photo: join the channels intelligently; pano: just take the red
+    if( $name eq 'pano' )
+    {
+      $image{$name}{edges} = $V(:,:,:,(0));
+    }
+    else
+    {
+      # I now join the channel-independent edges into single-channel edge vectors. I
+      # do this by computing the most-aligned direction, weighted by the magnitude
+      # of each vector. The magnitude of the result is simply the mean magnitude of
+      # the sources
 
-    # Done. I have the normalized directions ($v) and the magnitudes ($m). I now
-    # construct the output array of vectors
-    $image{$name}{edges} = $v * $m->dummy(0);
+      my $M = outer( $V, $V );  # dims (M0, M1, x, y, rgb)
+      $M = $M->mv(-1,0)->sumover; # dims (M0, M1, x, y)
+      my ($l, $v) = msymeigen( $M, 0, 1 );
+      $v = $v((1),:,:,:);       # select the larger eigenvalue
+      my $m = sqrt(inner( $V, $V) )->mv(-1,0)->sumover; # sum of the lengths of the gradient vectors
 
+      # Done. I have the normalized directions ($v) and the magnitudes ($m). I now
+      # construct the output array of vectors
+      $image{$name}{edges} = $v * $m->dummy(0);
+    }
 
     # I want to align the vectors mod pi. I treat these as complex numbers.Given two
     # complex numbers,
@@ -134,7 +141,7 @@ if($ARGV{'--plot'} =~ /alignpair/ )
   my $pano_orig = $image{pano}{ $which };
 
   my $img0_gray = real $img_orig ->mv(-1,0)->average;
-  my $img1_gray = real $pano_orig->mv(-1,0)->average;
+  my $img1_gray = real $pano_orig->(:,:,(0));
   my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
 
   debugPlot( {clut => 'gray',
