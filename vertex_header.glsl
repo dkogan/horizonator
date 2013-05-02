@@ -13,4 +13,4 @@ varying float red;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
-const float znear  = 100.0, zfar = 200000.0;
+const float znear  = 100.0, zfar = 30000.0;
