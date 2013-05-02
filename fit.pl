@@ -137,7 +137,9 @@ if($ARGV{'--plot'} =~ /alignpair/ )
   my $img1_gray = real $pano_orig->mv(-1,0)->average;
   my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
 
-  debugPlot( {clut => 'gray'},
+  debugPlot( {clut => 'gray',
+              xrange => [0,$img_orig->dim(0)-1],
+              yrange => [0,$img_orig->dim(1)-1] },
              $mounted[0], $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' ) );
 }
 if($ARGV{'--plot'} eq 'regions')
@@ -281,10 +283,22 @@ sub debugPlot
     push @w, gpwin;
 
     my @options = (globalwith => 'image',
-                   square => 1,
-                   extracmds => 'set yrange [*:*] reverse');
+                   square => 1);
 
-    push @options, %$plotoptions if $plotoptions && %$plotoptions;
+    if( defined $plotoptions && %$plotoptions )
+    {
+      if( defined $plotoptions->{yrange} &&
+          $plotoptions->{yrange}[0] < $plotoptions->{yrange}[1] )
+      {
+        $plotoptions->{yrange} = [ reverse @{$plotoptions->{yrange}}];
+      }
+
+      push @options, %$plotoptions;
+    }
+    else
+    {
+      push @options, (extracmds => 'set yrange [*:*] reverse');
+    }
 
     $w[-1]->plot( @options, $x );
   }
