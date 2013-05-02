@@ -132,6 +132,11 @@ store { image  => \%image,
         stage2 => [$dx,$dy, @mounted_size] }, "cache";
 
 
+if ( $ARGV{'--forcerightanswer'} )
+{
+  ($dx,$dy)=(718,24);
+}
+
 
 if($ARGV{'--plot'} =~ /alignpair/ )
 {
@@ -393,6 +398,9 @@ This must be an odd integer >= 3
     smoothradius.type.error: smoothradius must be odd integer >= 3
     smoothradius.default:    7
 
+=item --forcerightanswer
+
+Pretend I found the right solution for my Iron-mt photo
 
 =item --help
 
