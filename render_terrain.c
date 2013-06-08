@@ -21,17 +21,9 @@
 
 
 static enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode = PM_FILL;
-static int Ntriangles;
-static int Nvertices;
+static int Ntriangles, Nvertices;
 
-static unsigned char* dem;
-
-static GLint uniform_view_z;
-static GLint uniform_demfileN, uniform_demfileW;
-static GLint uniform_WDEM;
-static GLint uniform_view_lon, uniform_view_lat;
 static GLint uniform_aspect;
-static GLint uniform_sin_view_lat, uniform_cos_view_lat;
 
 
 // These are such because of the layout of the SRTM DEMs
@@ -44,34 +36,47 @@ static GLint uniform_sin_view_lat, uniform_cos_view_lat;
 #define OFFSCREEN_W 2000.0
 #define OFFSCREEN_H (int)( 0.5 + OFFSCREEN_W / 360.0 * FOVY_DEG)
 
-static int16_t sampleDEM(int i, int j)
-{
-  uint32_t p = i + j*WDEM;
-  int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
-  return (z < 0) ? 0 : z;
-}
-
-static float getHeight(int i, int j)
-{
-  // return the largest height in the 4 neighboring cells
-  bool inrange(int i, int j)
-  {
-    return
-      i >= 0 && i < WDEM &&
-      j >= 0 && j < WDEM;
-  }
-
-  float z = -1e20f;
-  if( inrange(i,  j  ) ) z = fmaxf(z, (float) sampleDEM(i,  j  ) );
-  if( inrange(i+1,j  ) ) z = fmaxf(z, (float) sampleDEM(i+1,j  ) );
-  if( inrange(i,  j+1) ) z = fmaxf(z, (float) sampleDEM(i,  j+1) );
-  if( inrange(i+1,j+1) ) z = fmaxf(z, (float) sampleDEM(i+1,j+1) );
-
-  return z;
-}
-
 static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 {
+  unsigned char* dem;
+
+  GLint          uniform_view_z;
+  GLint          uniform_demfileN, uniform_demfileW;
+  GLint          uniform_WDEM;
+  GLint          uniform_view_lon, uniform_view_lat;
+  GLint          uniform_sin_view_lat, uniform_cos_view_lat;
+
+
+  int16_t sampleDEM(int i, int j)
+  {
+    uint32_t p = i + j*WDEM;
+    int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
+    return (z < 0) ? 0 : z;
+  }
+
+  float getHeight(int i, int j)
+  {
+    // return the largest height in the 4 neighboring cells
+    bool inrange(int i, int j)
+    {
+      return
+        i >= 0 && i < WDEM &&
+        j >= 0 && j < WDEM;
+    }
+
+    float z = -1e20f;
+    if( inrange(i,  j  ) ) z = fmaxf(z, (float) sampleDEM(i,  j  ) );
+    if( inrange(i+1,j  ) ) z = fmaxf(z, (float) sampleDEM(i+1,j  ) );
+    if( inrange(i,  j+1) ) z = fmaxf(z, (float) sampleDEM(i,  j+1) );
+    if( inrange(i+1,j+1) ) z = fmaxf(z, (float) sampleDEM(i+1,j+1) );
+
+    return z;
+  }
+
+
+
+
+
   // Viewer is looking north, the seam is behind (to the south). If the viewer is
   // directly on a grid value, then the cell of the seam is poorly defined. In
   // that scenario, I nudge the viewer to one side to unambiguously pick the seam
