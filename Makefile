@@ -27,7 +27,7 @@ features_generated.h: CA_Features_20130404.txt parse_features.pl
 points_of_interest.o: features_generated.h
 
 clean:
-	rm -rf $(TARGETS) features_generated.h .o *.glsl.h
+	rm -rf $(TARGETS) features_generated.h .o *.glsl.h *.d
 
 .PHONY: clean
 
