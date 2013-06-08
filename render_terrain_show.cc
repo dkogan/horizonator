@@ -27,13 +27,20 @@ extern "C"
 
 int main(int argc, char** argv)
 {
-  int doOnscreen = 0;
-  char* outfile = NULL;
+  int   doGlonly = 0;
+  char* outfile  = NULL;
+
+  const char* usage =
+    "%s [--glonly] [--save render.png] [--help]\n"
+    "  --glonly renders to a OpenGL window. No annotations\n"
+    "  --save renders directly to an image. No annotations\n"
+    "  otherwise the full FLTK app is launched; annotations and all\n";
 
   struct option long_options[] =
     {
-      {"onscreen",   no_argument,       &doOnscreen, 1 },
-      {"save",       required_argument, NULL,        's' },
+      {"glonly",   no_argument,       &doGlonly, 1 },
+      {"help",     no_argument,       NULL,      'h' },
+      {"save",     required_argument, NULL,      's' },
       {}
     };
 
@@ -48,8 +55,13 @@ int main(int argc, char** argv)
       break;
 
     case '?':
-      fprintf(stderr, "Unknown cmdline option encountered\n");
+      fprintf(stderr, "Unknown cmdline option encountered\nUsage: ");
+      fprintf(stderr, usage, argv[0]);
       return 1;
+
+    case 'h':
+      fprintf(stdout, usage, argv[0]);
+      return 0;
 
     default: ;
     }
@@ -58,7 +70,7 @@ int main(int argc, char** argv)
   float elevation;
   IplImage* img;
 
-  if( doOnscreen )
+  if( doGlonly )
   {
     render_terrain_to_window( view_lat, view_lon );
     return 0;
