@@ -40,11 +40,11 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 {
   unsigned char* dem;
 
-  GLint          uniform_view_z;
-  GLint          uniform_demfileN, uniform_demfileW;
-  GLint          uniform_WDEM;
-  GLint          uniform_view_lon, uniform_view_lat;
-  GLint          uniform_sin_view_lat, uniform_cos_view_lat;
+  GLint uniform_view_z;
+  GLint uniform_baseDEMfileN, uniform_baseDEMfileE;
+  GLint uniform_WDEM;
+  GLint uniform_view_lon, uniform_view_lat;
+  GLint uniform_sin_view_lat, uniform_cos_view_lat;
 
 
   int16_t sampleDEM(int i, int j)
@@ -89,30 +89,30 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
   if( diff < 0.1 * 2.0 )
     view_lon -= 0.1/WDEM;
 
-  int demfileN =  (int)floorf( view_lat );
-  int demfileW = -(int)floorf( view_lon );
+  int baseDEMfileN = (int)floorf( view_lat );
+  int baseDEMfileE = (int)floorf( view_lon );
 
 
   // grid starts at the NW corner, and traverses along the latitude first.
   // DEM tile is named from the SW point
   float lat_from_idx(int j)
   {
-    return  (float)demfileN + 1.0f - (float)j/(float)(WDEM-1);
+    return (float)baseDEMfileN + 1.0f - (float)j/(float)(WDEM-1);
   }
 
   float lon_from_idx(int i)
   {
-    return -(float)demfileW        + (float)i/(float)(WDEM-1);
+    return (float)baseDEMfileE        + (float)i/(float)(WDEM-1);
   }
 
   int floor_idx_from_lat(float lat)
   {
-    return floorf( ((float)demfileN + 1.0f - lat) * (float)(WDEM-1) );
+    return floorf( ((float)baseDEMfileN + 1.0f - lat) * (float)(WDEM-1) );
   }
 
   int floor_idx_from_lon(float lon)
   {
-    return floorf( ((float)demfileW        + lon) * (float)(WDEM-1) );
+    return floorf( (-(float)baseDEMfileE        + lon) * (float)(WDEM-1) );
   }
 
 
@@ -120,7 +120,7 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 
 
   // This function will try to download the DEM if it's not found
-  const char* filename = getDEM_filename( demfileN, demfileW );
+  const char* filename = getDEM_filename( baseDEMfileN, baseDEMfileE );
   if( filename == NULL )
     return false;
 
@@ -335,8 +335,8 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 
 
     uniform_view_z       = glGetUniformLocation(program, "view_z"      ); assert( glGetError() == GL_NO_ERROR );
-    uniform_demfileN     = glGetUniformLocation(program, "demfileN"    ); assert( glGetError() == GL_NO_ERROR );
-    uniform_demfileW     = glGetUniformLocation(program, "demfileW"    ); assert( glGetError() == GL_NO_ERROR );
+    uniform_baseDEMfileN = glGetUniformLocation(program, "baseDEMfileN"); assert( glGetError() == GL_NO_ERROR );
+    uniform_baseDEMfileE = glGetUniformLocation(program, "baseDEMfileE"); assert( glGetError() == GL_NO_ERROR );
     uniform_WDEM         = glGetUniformLocation(program, "WDEM"        ); assert( glGetError() == GL_NO_ERROR );
     uniform_view_lat     = glGetUniformLocation(program, "view_lat"    ); assert( glGetError() == GL_NO_ERROR );
     uniform_view_lon     = glGetUniformLocation(program, "view_lon"    ); assert( glGetError() == GL_NO_ERROR );
@@ -345,8 +345,8 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
     uniform_aspect       = glGetUniformLocation(program, "aspect"      ); assert( glGetError() == GL_NO_ERROR );
 
     glUniform1f( uniform_view_z,       *viewer_z);
-    glUniform1i( uniform_demfileN,     demfileN);
-    glUniform1i( uniform_demfileW,     demfileW);
+    glUniform1i( uniform_baseDEMfileN, baseDEMfileN);
+    glUniform1i( uniform_baseDEMfileE, baseDEMfileE);
     glUniform1i( uniform_WDEM,         WDEM);
 
     glUniform1f( uniform_view_lon,     view_lon * M_PI / 180.0f );

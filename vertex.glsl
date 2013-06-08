@@ -20,8 +20,8 @@ void main(void)
     at_right_seam = true;
   }
 
-  float lon = radians( float(-demfileW)     + vin.x/float(WDEM-1) );
-  float lat = radians( float( demfileN + 1) - vin.y/float(WDEM-1) );
+  float lon = radians( float(baseDEMfileE)     + vin.x/float(WDEM-1) );
+  float lat = radians( float(baseDEMfileN + 1) - vin.y/float(WDEM-1) );
 
   // Here I compute 4 sin/cos. Previously I was sending sincos( view_lat/lon) as
   // a uniform, so no trig was needed here. I think this may have been causing
@@ -57,7 +57,7 @@ void main(void)
   //red = vin.z / 3500.0; // ... elevation
 
   // float ft = vin.z*100.0/2.54/12.0;
-  // if( abs( float(-demfileW)+ vin.x/float(WDEM-1) -
+  // if( abs( float(baseDEMfileE)+ vin.x/float(WDEM-1) -
   //         -118.18) < 0.0005 )
   //   red = 1.0;
 
