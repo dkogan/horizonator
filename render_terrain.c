@@ -14,6 +14,8 @@
 #include <string.h>
 #include <opencv2/highgui/highgui_c.h>
 
+#include "dem_downloader.h"
+
 // can be used for testing/debugging to turn off the seam rendering
 #define NOSEAM 0
 
@@ -111,16 +113,26 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 
 
 
-  char filename[1024];
-  snprintf(filename, sizeof(filename), "data/N%dW%d.srtm3.hgt", demfileN, demfileW);
+
+  // This function will try to download the DEM if it's not found
+  const char* filename = getDEM_filename( demfileN, demfileW );
+  if( filename == NULL )
+    return false;
 
   struct stat sb;
   int fd = open( filename, O_RDONLY );
   assert(fd > 0);
   assert( fstat(fd, &sb) == 0 );
   dem = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  assert( dem != MAP_FAILED );
-  assert(  WDEM*WDEM*2 == sb.st_size );
+  if( dem == MAP_FAILED )
+    return false;
+
+  if( WDEM*WDEM*2 != sb.st_size )
+  {
+    munmap( dem, sb.st_size );
+    return false;
+  }
+
 
 
   Nvertices = (gridW + 1) * (gridH + 1);
@@ -337,6 +349,8 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
     glUniform1f( uniform_sin_view_lat, sinf( M_PI / 180.0f * view_lat ));
     glUniform1f( uniform_cos_view_lat, cosf( M_PI / 180.0f * view_lat ));
   }
+
+  munmap( dem, sb.st_size );
 
   return true;
 }
