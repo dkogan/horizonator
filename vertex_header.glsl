@@ -2,7 +2,7 @@
 #version 110
 
 uniform float view_z;
-uniform int   demfileN, demfileW;
+uniform int   baseDEMfileN, baseDEMfileE;
 uniform int   WDEM;
 uniform float view_lon;
 uniform float view_lat;
