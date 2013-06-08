@@ -112,7 +112,7 @@ static float loadGeometry( float view_lat, float view_lon )
 
 
   char filename[1024];
-  snprintf(filename, sizeof(filename), "../N%dW%d.srtm3.hgt", demfileN, demfileW);
+  snprintf(filename, sizeof(filename), "data/N%dW%d.srtm3.hgt", demfileN, demfileW);
 
   struct stat sb;
   int fd = open( filename, O_RDONLY );
