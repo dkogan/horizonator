@@ -1,4 +1,4 @@
-#include <math.h>
+#include <tgmath.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -65,10 +65,10 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
     }
 
     float z = -1e20f;
-    if( inrange(i,  j  ) ) z = fmaxf(z, (float) sampleDEM(i,  j  ) );
-    if( inrange(i+1,j  ) ) z = fmaxf(z, (float) sampleDEM(i+1,j  ) );
-    if( inrange(i,  j+1) ) z = fmaxf(z, (float) sampleDEM(i,  j+1) );
-    if( inrange(i+1,j+1) ) z = fmaxf(z, (float) sampleDEM(i+1,j+1) );
+    if( inrange(i,  j  ) ) z = fmax(z, (float) sampleDEM(i,  j  ) );
+    if( inrange(i+1,j  ) ) z = fmax(z, (float) sampleDEM(i+1,j  ) );
+    if( inrange(i,  j+1) ) z = fmax(z, (float) sampleDEM(i,  j+1) );
+    if( inrange(i+1,j+1) ) z = fmax(z, (float) sampleDEM(i+1,j+1) );
 
     return z;
   }
@@ -82,15 +82,15 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
   // that scenario, I nudge the viewer to one side to unambiguously pick the seam
   // cell
   float cell_idx         = view_lon * WDEM;
-  float cell_idx_rounded = floorf( cell_idx + 0.5f );
-  float diff = fabsf( cell_idx - cell_idx_rounded );
+  float cell_idx_rounded = floor( cell_idx + 0.5f );
+  float diff = fabs( cell_idx - cell_idx_rounded );
 
   // want at least 0.1 cells of separation
   if( diff < 0.1 * 2.0 )
     view_lon -= 0.1/WDEM;
 
-  int baseDEMfileN = (int)floorf( view_lat );
-  int baseDEMfileE = (int)floorf( view_lon );
+  int baseDEMfileN = (int)floor( view_lat );
+  int baseDEMfileE = (int)floor( view_lon );
 
 
   // grid starts at the NW corner, and traverses along the latitude first.
@@ -107,12 +107,12 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 
   int floor_idx_from_lat(float lat)
   {
-    return floorf( ((float)baseDEMfileN + 1.0f - lat) * (float)(WDEM-1) );
+    return floor( ((float)baseDEMfileN + 1.0f - lat) * (float)(WDEM-1) );
   }
 
   int floor_idx_from_lon(float lon)
   {
-    return floorf( (-(float)baseDEMfileE        + lon) * (float)(WDEM-1) );
+    return floor( (-(float)baseDEMfileE        + lon) * (float)(WDEM-1) );
   }
 
 
@@ -351,8 +351,8 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 
     glUniform1f( uniform_view_lon,     view_lon * M_PI / 180.0f );
     glUniform1f( uniform_view_lat,     view_lat * M_PI / 180.0f );
-    glUniform1f( uniform_sin_view_lat, sinf( M_PI / 180.0f * view_lat ));
-    glUniform1f( uniform_cos_view_lat, cosf( M_PI / 180.0f * view_lat ));
+    glUniform1f( uniform_sin_view_lat, sin( M_PI / 180.0f * view_lat ));
+    glUniform1f( uniform_cos_view_lat, cos( M_PI / 180.0f * view_lat ));
   }
 
   munmap( dem, sb.st_size );
