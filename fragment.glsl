@@ -1,6 +1,7 @@
 /* -*- c -*- */
 
-#version 110\n
+#version 110
+
 varying float red;
 void main(void)
 {
