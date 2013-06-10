@@ -11,17 +11,17 @@ void main(void)
   vec3 vin = gl_Vertex.xyz;
   if( vin.x < 0.0 )
   {
-    vin.x += float(2*WDEM);
+    vin.x *= -1.0;
     at_left_seam = true;
   }
   else if( vin.y < 0.0 )
   {
-    vin.y += float(2*WDEM);
+    vin.y *= -1.0;
     at_right_seam = true;
   }
 
-  float lon = radians( float(baseDEMfileE)     + vin.x/float(WDEM-1) );
-  float lat = radians( float(baseDEMfileN + 1) - vin.y/float(WDEM-1) );
+  float lon = radians( float(renderStartE) + vin.x * DEG_PER_CELL );
+  float lat = radians( float(renderStartN) + vin.y * DEG_PER_CELL );
 
   // Here I compute 4 sin/cos. Previously I was sending sincos( view_lat/lon) as
   // a uniform, so no trig was needed here. I think this may have been causing
@@ -55,11 +55,6 @@ void main(void)
   red = clamp( (zeff - znear) / (zfar - znear ),
                0.0, 1.0 ); // ... distance from camera
   //red = vin.z / 3500.0; // ... elevation
-
-  // float ft = vin.z*100.0/2.54/12.0;
-  // if( abs( float(baseDEMfileE)+ vin.x/float(WDEM-1) -
-  //         -118.18) < 0.0005 )
-  //   red = 1.0;
 
   const float A = (zfar + znear) / (zfar - znear);
   gl_Position = vec4( az * zeff,
