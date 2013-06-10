@@ -96,7 +96,7 @@ int orb_gpxlayer::parsetree(TiXmlNode *parent)
 {
     int t = parent->Type();
 
-    if (t != TiXmlNode::ELEMENT) {
+    if (t != TiXmlNode::TINYXML_ELEMENT) {
         return 0;
     }
 
