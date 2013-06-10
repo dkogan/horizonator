@@ -76,6 +76,11 @@ int main(int argc, char** argv)
                         outfile != NULL /* BGR is we're writing to a file;
                                            cvSaveImage() expects */
                         );
+  if( img == NULL )
+  {
+    fprintf(stderr, "Error rendering the terrain. Giving up\n");
+    return 1;
+  }
 
   if( outfile )
   {
