@@ -23,14 +23,13 @@
 #include "orb_viewport.hpp"
 
 orb_viewport::orb_viewport() :
-    m_z(0),
-    m_x(0),
-    m_y(0),
-    m_w(255),
-    m_h(255)
+  m_z(13),
+  m_x(359941),
+  m_y(835194),
+  m_w(1916),
+  m_h(1130)
 {
     assertpos();
-    z(m_z, m_w/2, m_h/2);
 };
 
 orb_viewport::~orb_viewport()
