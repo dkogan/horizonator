@@ -1,10 +1,9 @@
 LDLIBS += -lGL -lGLEW -lglut
 CPPFLAGS += -MMD
 
-CPPFLAGS += -g -O3
+CPPFLAGS += -ggdb3 -O3
+CFLAGS += -std=gnu99
 CFLAGS += -Wno-missing-field-initializers -Wno-unused-parameter -Wno-unused-function -Wextra -Wall
-
-CFLAGS = -std=gnu99
 
 TARGETS = fit render_terrain
 
