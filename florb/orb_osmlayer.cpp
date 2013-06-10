@@ -24,6 +24,7 @@
 #include <FL/fl_ask.H>
 #include "orb_osmlayer.hpp"
 #include <iostream>
+#include <sys/mman.h>
 
 orb_osmlayer::orb_osmlayer() :
     orb_layer(),
@@ -72,7 +73,8 @@ void orb_osmlayer::draw(const orb_viewport &viewport)
             unsigned char *tbuf;
 
             // Get the tile
-            rc = m_tilecache->get(viewport.z(), tidxx, tidxytmp, &tbuf, NULL);
+            size_t size;
+            rc = m_tilecache->get(viewport.z(), tidxx, tidxytmp, &tbuf, &size);
 
             // Tile has expired or does not exist
             if (rc != 0)
@@ -82,7 +84,7 @@ void orb_osmlayer::draw(const orb_viewport &viewport)
             if ((rc == 0) || (rc == 2)) {
                 Fl_PNG_Memory_Image img(tbuf);
                 img.draw(offsetx, offsetytmp);
-                delete[] tbuf;
+                munmap( tbuf, size );
             }
             offsetytmp += 256;
             tidxytmp += 1;

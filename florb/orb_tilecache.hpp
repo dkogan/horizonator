@@ -21,29 +21,15 @@
 #ifndef _ORB_TILECACHE_HPP
 #define _ORB_TILECACHE_HPP
 
-#include <sqlite3.h>
+#include <stddef.h>
 #include <time.h>
-#include <string>
-#include <pthread.h>
 
 class orb_tilecache
 {
     public:
-        orb_tilecache();
-        ~orb_tilecache();
 
         int get(int z, int x, int y, unsigned char **buf, size_t *nbytes);
         int put(int z, int x, int y, void *buf, size_t nbytes, time_t expires);
-
-    private:
-        static const std::string stmt_checknew;
-        static const std::string stmt_createschema;
-        static const std::string stmt_insert;
-        static const std::string stmt_get;
-        static const std::string stmt_exists;
-        static const std::string stmt_delete;
-
-        sqlite3 *m_db;
 };
 
 #endif // _ORB_TILECACHE_HPP
