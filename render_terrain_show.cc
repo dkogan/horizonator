@@ -7,10 +7,7 @@
 #include <FL/Fl_Scroll.H>
 #include "fltk_annotated_image.hh"
 
-extern "C"
-{
-  #include "render_terrain.h"
-}
+#include "render_terrain.h"
 
   // two different viewpoints for testing
 #if 0
