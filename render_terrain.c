@@ -26,49 +26,45 @@ static int Ntriangles, Nvertices;
 static GLint uniform_aspect;
 
 
-// These are such because of the layout of the SRTM DEMs
-#define WDEM        1201
-#define gridW       1200
-#define gridH       1200
+// Each SRTM file is a grid of 1201x1201 samples; last row/col overlap in neighboring DEMs
+#define WDEM          1201
+#define CELLS_PER_DEG (WDEM - 1) /* -1 because of the overlapping DEM edges */
+
+// We will render a square grid of data that is at most R_RENDER cells away from
+// the viewer in the inf-norm sense
+#define R_RENDER 600
 
 #define FOVY_DEG    30.0 /* vertical field of view of the render */
 
-#define OFFSCREEN_W 2000.0
+#define OFFSCREEN_W 4200.0
 #define OFFSCREEN_H (int)( 0.5 + OFFSCREEN_W / 360.0 * FOVY_DEG)
 
-static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
+static bool loadGeometry( float view_lat, float view_lon,
+                          float* elevation_out )
 {
-  unsigned char* dem;
-
   GLint uniform_view_z;
-  GLint uniform_baseDEMfileN, uniform_baseDEMfileE;
-  GLint uniform_WDEM;
+  GLint uniform_renderStartN, uniform_renderStartE;
+  GLint uniform_DEG_PER_CELL;
   GLint uniform_view_lon, uniform_view_lat;
   GLint uniform_sin_view_lat, uniform_cos_view_lat;
 
 
-  int16_t sampleDEM(int i, int j)
+  // These functions take in coordinates INSIDE THEIR SPECIFIC DEM
+  int16_t sampleDEM(int i, int j, const unsigned char* dem)
   {
-    uint32_t p = i + j*WDEM;
+    // The DEMs are organized north to south, so I flip around the j accessor to
+    // keep all accesses ordered by increasing lat, lon
+    uint32_t p = i + (WDEM-1 -j )*WDEM;
     int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
     return (z < 0) ? 0 : z;
   }
-
-  float getHeight(int i, int j)
+  float getHeight(int i, int j, const unsigned char* dem)
   {
-    // return the largest height in the 4 neighboring cells
-    bool inrange(int i, int j)
-    {
-      return
-        i >= 0 && i < WDEM &&
-        j >= 0 && j < WDEM;
-    }
-
     float z = -1e20f;
-    if( inrange(i,  j  ) ) z = fmax(z, (float) sampleDEM(i,  j  ) );
-    if( inrange(i+1,j  ) ) z = fmax(z, (float) sampleDEM(i+1,j  ) );
-    if( inrange(i,  j+1) ) z = fmax(z, (float) sampleDEM(i,  j+1) );
-    if( inrange(i+1,j+1) ) z = fmax(z, (float) sampleDEM(i+1,j+1) );
+    z = fmax(z, (float) sampleDEM(i,  j,   dem) );
+    z = fmax(z, (float) sampleDEM(i+1,j,   dem) );
+    z = fmax(z, (float) sampleDEM(i,  j+1, dem) );
+    z = fmax(z, (float) sampleDEM(i+1,j+1, dem) );
 
     return z;
   }
@@ -81,71 +77,132 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
   // directly on a grid value, then the cell of the seam is poorly defined. In
   // that scenario, I nudge the viewer to one side to unambiguously pick the seam
   // cell
-  float cell_idx         = view_lon * WDEM;
-  float cell_idx_rounded = floor( cell_idx + 0.5f );
-  float diff = fabs( cell_idx - cell_idx_rounded );
+  {
+    float cell_idx         = (view_lon - floor(view_lon)) * CELLS_PER_DEG;
+    float cell_idx_rounded = round( cell_idx );
 
-  // want at least 0.1 cells of separation
-  if( diff < 0.1 * 2.0 )
-    view_lon -= 0.1/WDEM;
+    // want at least 0.1 cells of separation
+    if( fabs( cell_idx - cell_idx_rounded ) < 0.1 )
+    {
+      if( cell_idx > cell_idx_rounded ) view_lon += 0.1/CELLS_PER_DEG;
+      else                              view_lon -= 0.1/CELLS_PER_DEG;
+    }
+  }
 
-  int baseDEMfileN = (int)floor( view_lat );
-  int baseDEMfileE = (int)floor( view_lon );
-
-
+  // I render a square with radius R_RENDER centered at the view point. There
+  // are (2*R_RENDER)**2 cells in the render. In all likelihood this will
+  // encompass multiple DEMs. The base DEM is the one that contains the
+  // viewpoint. I compute the latlon coords of the base DEM origin and of the
+  // render origin. I also compute the grid coords of the base DEM origin (grid
+  // coords of the render origin are 0,0 by definition)
+  //
   // grid starts at the NW corner, and traverses along the latitude first.
   // DEM tile is named from the SW point
-  float lat_from_idx(int j)
+
+  int   baseDEMfileE,           baseDEMfileN;
+  int   renderStartDEMfileE,    renderStartDEMfileN;
+  int   renderStartDEMcoords_i, renderStartDEMcoords_j;
+  float renderStartE,           renderStartN;
+  int   renderEndDEMfileE,      renderEndDEMfileN;
+
   {
-    return (float)baseDEMfileN + 1.0f - (float)j/(float)(WDEM-1);
+    baseDEMfileE = (int)floor( view_lon );
+    baseDEMfileN = (int)floor( view_lat );
+
+    // latlon of the render origin
+    float renderStartE_unaligned = view_lon - (float)R_RENDER/CELLS_PER_DEG;
+    float renderStartN_unaligned = view_lat - (float)R_RENDER/CELLS_PER_DEG;
+
+    renderStartDEMfileE = floor(renderStartE_unaligned);
+    renderStartDEMfileN = floor(renderStartN_unaligned);
+
+    renderStartDEMcoords_i = round( (renderStartE_unaligned - renderStartDEMfileE) * CELLS_PER_DEG );
+    renderStartDEMcoords_j = round( (renderStartN_unaligned - renderStartDEMfileN) * CELLS_PER_DEG );
+
+    renderStartE = renderStartDEMfileE + (float)renderStartDEMcoords_i / (float)CELLS_PER_DEG;
+    renderStartN = renderStartDEMfileN + (float)renderStartDEMcoords_j / (float)CELLS_PER_DEG;
+
+    // 2*R_RENDER - 1 is the last cell.
+    renderEndDEMfileE = renderStartDEMfileE + (renderStartDEMcoords_i + 2*R_RENDER-1 ) / CELLS_PER_DEG;
+    renderEndDEMfileN = renderStartDEMfileN + (renderStartDEMcoords_j + 2*R_RENDER-1 ) / CELLS_PER_DEG;
+
+    // If the last cell is the first on in a DEM, I can stay at the previous
+    // DEM, since there's 1 row/col overlap between each adjacent pairs of DEMs
+    if( (renderStartDEMcoords_i + 2*R_RENDER-1) % CELLS_PER_DEG == 0 )
+      renderEndDEMfileE--;
+    if( (renderStartDEMcoords_j + 2*R_RENDER-1) % CELLS_PER_DEG == 0 )
+      renderEndDEMfileN--;
   }
 
-  float lon_from_idx(int i)
+  // I now load my DEMs. Each dems[] is a pointer to an mmap-ed source file.
+  // The ordering of dems[] is increasing latlon, with lon varying faster
+  int Ndems_i = renderEndDEMfileE - renderStartDEMfileE + 1;
+  int Ndems_j = renderEndDEMfileN - renderStartDEMfileN + 1;
+
+  unsigned char* dems      [Ndems_i][Ndems_j];
+  size_t         mmap_sizes[Ndems_i][Ndems_j];
+  int            mmap_fd   [Ndems_i][Ndems_j];
+
+  memset( dems, 0, Ndems_i*Ndems_j*sizeof(dems[0][0]) );
+
+  void unmmap_all_dems(void)
   {
-    return (float)baseDEMfileE        + (float)i/(float)(WDEM-1);
+    for( int i=0; i<Ndems_i; i++)
+      for( int j=0; j<Ndems_j; j++)
+        if( dems[i][j] != NULL && dems[i][j] != MAP_FAILED )
+        {
+          munmap( dems[i][j], mmap_sizes[i][j] );
+          close( mmap_fd[i][j] );
+        }
   }
 
-  int floor_idx_from_lat(float lat)
+  for( int j = 0; j < Ndems_j; j++ )
   {
-    return floor( ((float)baseDEMfileN + 1.0f - lat) * (float)(WDEM-1) );
+    for( int i = 0; i < Ndems_i; i++ )
+    {
+      // This function will try to download the DEM if it's not found
+      const char* filename = getDEM_filename( j + renderStartDEMfileN,
+                                              i + renderStartDEMfileE);
+      if( filename == NULL )
+        return false;
+
+      struct stat sb;
+      mmap_fd[i][j] = open( filename, O_RDONLY );
+      if( mmap_fd[i][j] <= 0 )
+      {
+        unmmap_all_dems();
+        fprintf(stderr, "couldn't open DEM file '%s'\n", filename );
+        return false;
+      }
+
+      assert( fstat(mmap_fd[i][j], &sb) == 0 );
+
+      dems      [i][j] = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, mmap_fd[i][j], 0);
+      mmap_sizes[i][j] = sb.st_size;
+
+      if( dems[i][j] == MAP_FAILED )
+      {
+        unmmap_all_dems();
+        return false;
+      }
+
+      if( WDEM*WDEM*2 != sb.st_size )
+      {
+        unmmap_all_dems();
+        return false;
+      }
+    }
   }
 
-  int floor_idx_from_lon(float lon)
-  {
-    return floor( (-(float)baseDEMfileE        + lon) * (float)(WDEM-1) );
-  }
-
-
-
-
-
-  // This function will try to download the DEM if it's not found
-  const char* filename = getDEM_filename( baseDEMfileN, baseDEMfileE );
-  if( filename == NULL )
-    return false;
-
-  struct stat sb;
-  int fd = open( filename, O_RDONLY );
-  assert(fd > 0);
-  assert( fstat(fd, &sb) == 0 );
-  dem = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  if( dem == MAP_FAILED )
-    return false;
-
-  if( WDEM*WDEM*2 != sb.st_size )
-  {
-    munmap( dem, sb.st_size );
-    return false;
-  }
-
-
-
-  Nvertices = (gridW + 1) * (gridH + 1);
-  Ntriangles = gridW*gridH*2;
+  Nvertices = (2*R_RENDER) * (2*R_RENDER);
+  Ntriangles = (2*R_RENDER - 1)*(2*R_RENDER - 1) * 2;
 
   // seam business
   int Lseam = 0;
   int view_i, view_j;
+  int view_i_DEMcoords, view_j_DEMcoords;
+
+  float viewer_z;
   {
     // if we're doing a mercator projection, we must take care of the seam. The
     // camera always looks north, so the seam is behind us. Behind me are two
@@ -158,12 +215,16 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
     //
     // Furthermore, I do not render the two triangles that span the cell that
     // the camera is in
-    view_i = floor_idx_from_lon(view_lon);
-    view_j = floor_idx_from_lat(view_lat);
+    view_i           = floor( ( view_lon - (float)renderStartE) * CELLS_PER_DEG );
+    view_j           = floor( ( view_lat - (float)renderStartN) * CELLS_PER_DEG );
+    view_i_DEMcoords = (view_i + renderStartDEMcoords_i) % CELLS_PER_DEG;
+    view_j_DEMcoords = (view_j + renderStartDEMcoords_j) % CELLS_PER_DEG;
 
-    *viewer_z = getHeight(view_i, view_j);
+    // look in the center DEM
+    viewer_z = getHeight( view_i_DEMcoords, view_j_DEMcoords,
+                          dems[baseDEMfileE - renderStartDEMfileE][baseDEMfileN - renderStartDEMfileN] );
 
-    Lseam = gridH - view_j;
+    Lseam = view_j+1;
 
 #if NOSEAM == 0
     Nvertices  += Lseam*2;      // double-up the seam vertices
@@ -187,14 +248,39 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
     glVertexPointer(3, GL_SHORT, 0, NULL);
 
     GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-    int idx = 0;
-    for( int j=0; j<=gridH; j++ )
+    int vertex_buf_idx = 0;
+
     {
-      for( int i=0; i<=gridW; i++ )
+      int j_dem    = renderStartDEMcoords_j;
+      int DEMfileN = renderStartDEMfileN;
+
+      for( int j=0; j<2*R_RENDER; j++ )
       {
-        vertices[idx++] = i;
-        vertices[idx++] = j;
-        vertices[idx++] = sampleDEM(i,j);
+        int i_dem    = renderStartDEMcoords_i;
+        int DEMfileE = renderStartDEMfileE;
+
+        for( int i=0; i<2*R_RENDER; i++ )
+        {
+          // it would be more efficient to do this one DEM at a time (mmap one at
+          // a time), but that would complicate the code, and not make any
+          // observable difference
+          vertices[vertex_buf_idx++] = i;
+          vertices[vertex_buf_idx++] = j;
+          vertices[vertex_buf_idx++] = sampleDEM(i_dem, j_dem,
+                                                 dems[DEMfileE - renderStartDEMfileE][DEMfileN - renderStartDEMfileN] );
+
+          if( ++i_dem >= CELLS_PER_DEG )
+          {
+            i_dem = 0;
+            DEMfileE++;
+          }
+        }
+
+        if( ++j_dem >= CELLS_PER_DEG )
+        {
+          j_dem = 0;
+          DEMfileN++;
+        }
       }
     }
 
@@ -202,29 +288,41 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
     // add the extra seam vertices
     if( Lseam )
     {
-      for( int j=view_j+1; j<=gridH; j++ )
+      int j_dem    = renderStartDEMcoords_j;
+      int DEMfileN = renderStartDEMfileN;
+
+      for( int j=0; j<Lseam; j++ )
       {
         // These duplicates have the same geometry as the originals, but the
         // shader will project them differently, by moving the resulting angle
         // by 2*pi
 
-        // left side
-        vertices[idx++] = view_i;
-        vertices[idx++] = j - 2*WDEM; // negative to indicate that this is a duplicate for the left seam
-        vertices[idx++] = sampleDEM(view_i,j);
+        // left side; negative to indicate that this is a duplicate for the left seam
+        vertices[vertex_buf_idx++] = view_i;
+        vertices[vertex_buf_idx++] = -j;
+        vertices[vertex_buf_idx++] = sampleDEM(view_i_DEMcoords, j_dem,
+                                               dems[baseDEMfileE - renderStartDEMfileE][DEMfileN - renderStartDEMfileN]);
 
-        // right side
-        vertices[idx++] = view_i+1 - 2*WDEM; // negative to indicate that this is a duplicate for the right seam
-        vertices[idx++] = j;
-        vertices[idx++] = sampleDEM(view_i+1,j);
+
+        // right side; negative to indicate that this is a duplicate for the right
+        // seam
+        vertices[vertex_buf_idx++] = -(view_i+1);
+        vertices[vertex_buf_idx++] = j;
+        vertices[vertex_buf_idx++] = sampleDEM(view_i_DEMcoords+1, j_dem,
+                                               dems[baseDEMfileE - renderStartDEMfileE][DEMfileN - renderStartDEMfileN]);
+
+        if( ++j_dem >= CELLS_PER_DEG )
+        {
+          j_dem = 0;
+          DEMfileN++;
+        }
       }
     }
 #endif
 
     assert( glUnmapBuffer(GL_ARRAY_BUFFER) == GL_TRUE );
-    assert( idx == Nvertices*3 );
+    assert( vertex_buf_idx == Nvertices*3 );
   }
-  close(fd);
 
   // indices
   {
@@ -235,9 +333,9 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 
     GLuint* indices = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
     int idx = 0;
-    for( int j=0; j<gridH; j++ )
+    for( int j=0; j<(2*R_RENDER-1); j++ )
     {
-      for( int i=0; i<gridW; i++ )
+      for( int i=0; i<(2*R_RENDER-1); i++ )
       {
         // seam?
         if( i == view_i)
@@ -246,30 +344,29 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
           if( j == view_j )
             continue;
 
-          if( j >= view_j+1 )
+          if( j < Lseam )
           {
 #if NOSEAM == 0
             // seam. I add two sets of triangles here; one for the left edge of
             // the screen and one for the right
-            int jseam = j - (view_j + 1);
 
             // left edge:
-            indices[idx++] = (gridH+1)*(gridW+1) +  jseam     *2;
-            indices[idx++] = (gridH+1)*(gridW+1) + (jseam + 1)*2;
-            indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
+            indices[idx++] = (2*R_RENDER)*(2*R_RENDER) +  j     *2;
+            indices[idx++] = (j + 1)     *(2*R_RENDER) + (i + 1);
+            indices[idx++] = (2*R_RENDER)*(2*R_RENDER) + (j + 1)*2;
 
-            indices[idx++] = (gridH+1)*(gridW+1) +  jseam     *2;
-            indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
-            indices[idx++] = (j + 0)*(gridW+1) + (i + 1);
+            indices[idx++] = (2*R_RENDER)*(2*R_RENDER) +  j*2;
+            indices[idx++] = (j + 0)     *(2*R_RENDER) + (i + 1);
+            indices[idx++] = (j + 1)     *(2*R_RENDER) + (i + 1);
 
             // right edge:
-            indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
-            indices[idx++] = (j + 1)*(gridW+1) + (i + 0);
-            indices[idx++] = (gridH+1)*(gridW+1) + (jseam + 1)*2 + 1;
+            indices[idx++] = (j + 0)     *(2*R_RENDER) + (i + 0);
+            indices[idx++] = (2*R_RENDER)*(2*R_RENDER) + (j + 1)*2 + 1;
+            indices[idx++] = (j + 1)     *(2*R_RENDER) + (i + 0);
 
-            indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
-            indices[idx++] = (gridH+1)*(gridW+1) + (jseam + 1)*2 + 1;
-            indices[idx++] = (gridH+1)*(gridW+1) +  jseam     *2 + 1;
+            indices[idx++] = (j + 0)     *(2*R_RENDER) + (i + 0);
+            indices[idx++] = (2*R_RENDER)*(2*R_RENDER) +  j     *2 + 1;
+            indices[idx++] = (2*R_RENDER)*(2*R_RENDER) + (j + 1)*2 + 1;
 #endif
 
             continue;
@@ -277,13 +374,13 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
         }
 
         // non-seam
-        indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
-        indices[idx++] = (j + 1)*(gridW+1) + (i + 0);
-        indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
+        indices[idx++] = (j + 0)*(2*R_RENDER) + (i + 0);
+        indices[idx++] = (j + 1)*(2*R_RENDER) + (i + 1);
+        indices[idx++] = (j + 1)*(2*R_RENDER) + (i + 0);
 
-        indices[idx++] = (j + 0)*(gridW+1) + (i + 0);
-        indices[idx++] = (j + 1)*(gridW+1) + (i + 1);
-        indices[idx++] = (j + 0)*(gridW+1) + (i + 1);
+        indices[idx++] = (j + 0)*(2*R_RENDER) + (i + 0);
+        indices[idx++] = (j + 0)*(2*R_RENDER) + (i + 1);
+        indices[idx++] = (j + 1)*(2*R_RENDER) + (i + 1);
       }
     }
     assert( glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER) == GL_TRUE );
@@ -335,19 +432,19 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
 
 
     uniform_view_z       = glGetUniformLocation(program, "view_z"      ); assert( glGetError() == GL_NO_ERROR );
-    uniform_baseDEMfileN = glGetUniformLocation(program, "baseDEMfileN"); assert( glGetError() == GL_NO_ERROR );
-    uniform_baseDEMfileE = glGetUniformLocation(program, "baseDEMfileE"); assert( glGetError() == GL_NO_ERROR );
-    uniform_WDEM         = glGetUniformLocation(program, "WDEM"        ); assert( glGetError() == GL_NO_ERROR );
+    uniform_renderStartN = glGetUniformLocation(program, "renderStartN"); assert( glGetError() == GL_NO_ERROR );
+    uniform_renderStartE = glGetUniformLocation(program, "renderStartE"); assert( glGetError() == GL_NO_ERROR );
+    uniform_DEG_PER_CELL = glGetUniformLocation(program, "DEG_PER_CELL"); assert( glGetError() == GL_NO_ERROR );
     uniform_view_lat     = glGetUniformLocation(program, "view_lat"    ); assert( glGetError() == GL_NO_ERROR );
     uniform_view_lon     = glGetUniformLocation(program, "view_lon"    ); assert( glGetError() == GL_NO_ERROR );
     uniform_sin_view_lat = glGetUniformLocation(program, "sin_view_lat"); assert( glGetError() == GL_NO_ERROR );
     uniform_cos_view_lat = glGetUniformLocation(program, "cos_view_lat"); assert( glGetError() == GL_NO_ERROR );
     uniform_aspect       = glGetUniformLocation(program, "aspect"      ); assert( glGetError() == GL_NO_ERROR );
 
-    glUniform1f( uniform_view_z,       *viewer_z);
-    glUniform1i( uniform_baseDEMfileN, baseDEMfileN);
-    glUniform1i( uniform_baseDEMfileE, baseDEMfileE);
-    glUniform1i( uniform_WDEM,         WDEM);
+    glUniform1f( uniform_view_z,       viewer_z);
+    glUniform1f( uniform_renderStartN, renderStartN);
+    glUniform1f( uniform_renderStartE, renderStartE);
+    glUniform1f( uniform_DEG_PER_CELL, 1.0f/ (float)CELLS_PER_DEG );
 
     glUniform1f( uniform_view_lon,     view_lon * M_PI / 180.0f );
     glUniform1f( uniform_view_lat,     view_lat * M_PI / 180.0f );
@@ -355,7 +452,10 @@ static bool loadGeometry( float view_lat, float view_lon, float* viewer_z )
     glUniform1f( uniform_cos_view_lat, cos( M_PI / 180.0f * view_lat ));
   }
 
-  munmap( dem, sb.st_size );
+  unmmap_all_dems();
+
+  if( elevation_out )
+    *elevation_out = viewer_z;
 
   return true;
 }
@@ -399,7 +499,9 @@ static void window_display(void)
   glutSwapBuffers();
 }
 
-static void window_keyPressed(unsigned char key, int x, int y)
+static void window_keyPressed(unsigned char key,
+                              int x __attribute__((unused)) ,
+                              int y __attribute__((unused)) )
 {
   static GLenum winding = GL_CCW;
 
@@ -443,7 +545,7 @@ static IplImage* readOffscreenPixels( bool do_bgr )
 
 static bool setup_gl( bool doRenderToScreen,
                       float view_lat, float view_lon,
-                      float* viewer_z )
+                      float* elevation_out )
 {
   void DoFeatureChecks(void)
   {
@@ -545,7 +647,7 @@ static bool setup_gl( bool doRenderToScreen,
   glEnable(GL_NORMALIZE);
   glClearColor(0, 0, 1, 0);
 
-  return loadGeometry( view_lat, view_lon, viewer_z );
+  return loadGeometry( view_lat, view_lon, elevation_out );
 }
 
 // returns the rendered opencv image. NULL on error. It is the caller's
@@ -553,13 +655,8 @@ static bool setup_gl( bool doRenderToScreen,
 IplImage* render_terrain( float view_lat, float view_lon, float* elevation,
                           bool do_bgr )
 {
-  static float viewer_z = -1.0;
-  float viewer_z_new;
-  if( !setup_gl( false, view_lat, view_lon, &viewer_z_new ) )
+  if( !setup_gl( false, view_lat, view_lon, elevation ) )
     return NULL;
-
-
-  viewer_z = *elevation = viewer_z_new;
 
   window_reshape(OFFSCREEN_W, OFFSCREEN_H);
   do_draw();
@@ -571,8 +668,7 @@ IplImage* render_terrain( float view_lat, float view_lon, float* elevation,
 
 bool render_terrain_to_window( float view_lat, float view_lon )
 {
-  float viewer_z_new;
-  if( setup_gl( true, view_lat, view_lon, &viewer_z_new ) )
+  if( setup_gl( true, view_lat, view_lon, NULL ) )
   {
     glutMainLoop();
     return true;

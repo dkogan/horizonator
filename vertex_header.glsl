@@ -2,8 +2,8 @@
 #version 110
 
 uniform float view_z;
-uniform int   baseDEMfileN, baseDEMfileE;
-uniform int   WDEM;
+uniform float renderStartN, renderStartE;
+uniform float DEG_PER_CELL;
 uniform float view_lon;
 uniform float view_lat;
 uniform float sin_view_lat, cos_view_lat;
