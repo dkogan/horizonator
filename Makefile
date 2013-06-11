@@ -3,7 +3,7 @@ CPPFLAGS += -MMD
 
 CPPFLAGS += -ggdb3 -O3
 CFLAGS += -std=gnu99
-CFLAGS += -Wno-missing-field-initializers -Wno-unused-parameter -Wno-unused-function -Wextra -Wall
+CFLAGS += -Wno-missing-field-initializers -Wno-unused-function -Wextra -Wall
 
 TARGETS = fit render_terrain
 
