@@ -172,7 +172,7 @@ static void cb_slippymap(Fl_Widget* widget,
     if( !widgetImage )
     {
       render_scroll->begin();
-      widgetImage = new CvFltkWidget_annotated(0, 0, img->width, img->height,
+      widgetImage = new CvFltkWidget_annotated(render_scroll->x(), render_scroll->y(), img->width, img->height,
                                                WIDGET_COLOR);
       render_scroll->end();
     }
