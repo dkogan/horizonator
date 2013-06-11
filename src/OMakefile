@@ -16,6 +16,7 @@ LDFLAGS = \
 	$(shell pkg-config --libs sqlite3) \
 	$(shell pkg-config --libs tinyxml) \
     -lboost_filesystem \
+    -lboost_system \
     -lboost_thread
 
 # Phony targets
