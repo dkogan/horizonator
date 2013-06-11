@@ -1,7 +1,7 @@
 #ifndef FLTK_ANNOTATED_IMAGE_HH
 #define FLTK_ANNOTATED_IMAGE_HH
 
-#include <cvFltkWidget.hh>
+#include "cvFltkWidget.hh"
 
 extern "C" {
 #include "points_of_interest.h"
