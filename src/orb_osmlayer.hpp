@@ -22,7 +22,7 @@
 #define _ORB_OSMLAYER_HPP
 
 #include <string>
-#include <orb_layer.hpp>
+#include "orb_layer.hpp"
 #include "orb_viewport.hpp"
 #include "orb_tileserver.hpp"
 #include "orb_tilecache.hpp"
