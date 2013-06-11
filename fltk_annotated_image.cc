@@ -2,10 +2,11 @@
 #include <stdlib.h>
 #include "fltk_annotated_image.hh"
 
-#define LABEL_COLOR       FL_YELLOW
-#define LABEL_CROSSHAIR_R 3
-#define LABEL_FONT        FL_HELVETICA
-#define LABEL_FONT_SIZE   8
+#define LABEL_COLOR          FL_YELLOW
+#define LABEL_CROSSHAIR_R    3
+#define LABEL_FONT           FL_HELVETICA
+#define LABEL_FONT_SIZE      8
+#define DIRECTIONS_FONT_SIZE 16
 
 #define TEXT_MARGIN       2
 
@@ -170,6 +171,15 @@ void CvFltkWidget_annotated::draw()
   fl_color( LABEL_COLOR );
   for( int i=0; i<poi_N; i++ )
     drawLabel( &poi[ poi_indices[i]] );
+
+  // mark the cardinal directions
+  fl_font( LABEL_FONT, DIRECTIONS_FONT_SIZE );
+  fl_draw( "S", x() + 1,                          y() + h() - 2 );
+  fl_draw( "W", x() + 1*w()/4,                    y() + h() - 2 );
+  fl_draw( "N", x() + 2*w()/4,                    y() + h() - 2 );
+  fl_draw( "E", x() + 3*w()/4,                    y() + h() - 2 );
+  fl_draw( "S", x() + w() - DIRECTIONS_FONT_SIZE, y() + h() - 2 );
+
 
 #if 0
   // testing code to save an annotated image to a file
