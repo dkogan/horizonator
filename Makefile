@@ -1,9 +1,30 @@
-LDLIBS += -lGL -lGLEW -lglut
 CPPFLAGS += -MMD
+CPPFLAGS += -ggdb3 -O0
+CFLAGS   += -std=gnu99
+CPPFLAGS += -Wno-missing-field-initializers -Wno-unused-function -Wextra -Wall
 
-CPPFLAGS += -ggdb3 -O3
-CFLAGS += -std=gnu99
-CFLAGS += -Wno-missing-field-initializers -Wno-unused-function -Wextra -Wall
+
+# renderer libraries
+LDLIBS += -lGL -lGLEW -lglut
+
+# slippy-map libraries
+LDLIBS_HORIZON := \
+ $(shell fltk-config --use-images --ldflags) \
+ $(shell curl-config --libs) \
+ $(shell pkg-config --libs libpng) \
+ $(shell pkg-config --libs tinyxml) \
+ -lboost_filesystem \
+ -lboost_system \
+ -lboost_thread
+
+# slippy-map compile time stuff
+CXXFLAGS_HORIZON += \
+ -Iflorb -Iflorb/Fl \
+ $(shell fltk-config --use-images --cxxflags) \
+ $(shell curl-config --cflags) \
+ $(shell pkg-config --cflags libpng) \
+ $(shell pkg-config --cflags tinyxml)
+
 
 TARGETS = fit render_terrain
 
@@ -12,8 +33,20 @@ all: $(TARGETS)
 CPPFLAGS += -I/usr/include/opencv2
 LDLIBS   += -lopencv_imgproc -lopencv_highgui -lopencv_core
 
-render_terrain: render_terrain.o render_terrain_show.o points_of_interest.o fltk_annotated_image.o dem_downloader.o
-render_terrain: LDLIBS += -lfltk
+
+
+
+
+
+FLORB_SOURCES := $(wildcard $(addprefix florb/,*.cpp *.cc Fl/*.cpp))
+
+FLORB_OBJECTS   := $(addsuffix .o,$(basename $(FLORB_SOURCES)))
+HORIZON_OBJECTS := render_terrain.o render_terrain_show.o points_of_interest.o fltk_annotated_image.o dem_downloader.o
+
+
+render_terrain: $(HORIZON_OBJECTS) $(FLORB_OBJECTS)
+render_terrain: LDLIBS   += $(LDLIBS_HORIZON)
+render_terrain: CXXFLAGS += $(CXXFLAGS_HORIZON)
 
 render_terrain.o: vertex.glsl.h fragment.glsl.h
 
@@ -26,7 +59,7 @@ features_generated.h: CA_Features_20130404.txt parse_features.pl
 points_of_interest.o: features_generated.h
 
 clean:
-	rm -rf $(TARGETS) features_generated.h .o *.glsl.h *.d
+	rm -rf $(TARGETS) features_generated.h *.o *.glsl.h *.d florb/*.o florb/*.d
 
 .PHONY: clean
 
