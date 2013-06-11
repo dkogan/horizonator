@@ -1,4 +1,3 @@
-# Compiler and linker flags
 CXXFLAGS := -g -Wall -O2 \
 	-I$(abspath .) -I$(abspath Fl) \
 	$(shell fltk-config --use-images --cxxflags) \
@@ -15,20 +14,11 @@ LDFLAGS := \
     -lboost_system \
     -lboost_thread
 
-.SECONDARY: $(patsubst %.fl,%.cpp,$(wildcard fluid/*.fl))
-
-florb: $(patsubst %.cpp,%.o,$(wildcard *.cpp)) $(patsubst %.fl,%.o,$(wildcard fluid/*.fl)) $(patsubst %.cpp,%.o,$(wildcard Fl/*.cpp))
+slippy: $(patsubst %.cpp,%.o,$(wildcard *.cpp *.cc Fl/*.cpp))
 	$(CXX) -o $@ $(LDLIBS) $(LDFLAGS) $^
-
-# Rule for generating CPP code from fluid sources
-%.hpp %.cpp: %.fl
-	fluid -c -o $*.cpp -h $(@:%.cpp=%.hpp) $^
-
-
-fluid/orb_ui.o: | fluid/orb_layers.hpp fluid/orb_dlg_settings.hpp fluid/orb_about.hpp
 
 
 # clean target
 clean:
-	rm -f florb *.o $(patsubst %.cpp,%.o,$(wildcard *.cpp)) fluid/*.cpp fluid/*.hpp fluid/*.o Fl/*.o
+	rm -f slippy *.o Fl/*.o
 .PHONY: clean
