@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "fltk_annotated_image.hh"
 
-#define LABEL_COLOR       FL_BLACK
+#define LABEL_COLOR       FL_YELLOW
 #define LABEL_CROSSHAIR_R 3
 #define LABEL_FONT        FL_HELVETICA
 #define LABEL_FONT_SIZE   8
