@@ -618,12 +618,6 @@ static bool setup_gl( bool doRenderToScreen,
   }
 
 
-
-  static bool already_setup = false;
-  if( already_setup )
-    return false;
-  already_setup = true;
-
   glutInit(&(int){1}, &(char*){"exec"});
   glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH | ( doRenderToScreen ? GLUT_DOUBLE : 0 ));
 
