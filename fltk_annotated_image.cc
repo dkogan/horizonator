@@ -5,7 +5,7 @@
 #define LABEL_COLOR          FL_YELLOW
 #define LABEL_CROSSHAIR_R    3
 #define LABEL_FONT           FL_HELVETICA
-#define LABEL_FONT_SIZE      8
+#define LABEL_FONT_SIZE      10
 #define DIRECTIONS_FONT_SIZE 16
 
 #define TEXT_MARGIN       2
