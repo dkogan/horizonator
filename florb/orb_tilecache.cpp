@@ -36,8 +36,20 @@ int orb_tilecache::put(int z, int x, int y, void *buf, size_t nbytes, time_t exp
     if ((z < 0) || (x < 0) || (y < 0))
         return 1;
 
+    char path[1024];
+    snprintf(path, sizeof(path),
+             "/home/dima/documents/n900/root/home/user/MyDocs/.maps/OpenStreetMap I/%d/%d/%d.png", z, x, y);
 
-    // not implemented yet
+    int fd = open( path, O_CREAT | O_WRONLY, 0777  );
+    if( fd <= 0 )
+    {
+      fprintf(stderr, "Couldn't open '%s' for writing\n", path );
+      return 1;
+    }
+
+    write( fd, buf, nbytes );
+    close(fd);
+
     return 0;
 }
 
