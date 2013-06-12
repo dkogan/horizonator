@@ -186,5 +186,6 @@ static void cb_slippymap(Fl_Widget* widget,
                                     elevation,
                                     mercator,
                                     0,0,0,0 );
+    widgetImage->redrawNewFrame();
   }
 }
