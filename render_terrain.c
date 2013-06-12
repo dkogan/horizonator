@@ -32,7 +32,7 @@ static GLint uniform_aspect;
 
 // We will render a square grid of data that is at most R_RENDER cells away from
 // the viewer in the inf-norm sense
-#define R_RENDER 600
+#define R_RENDER 800
 
 #define FOVY_DEG    30.0 /* vertical field of view of the render */
 
