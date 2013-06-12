@@ -10,6 +10,7 @@
 #include "Fl_Scroll_Draggable.hh"
 #include "fltk_annotated_image.hh"
 #include "orb_osmlayer.hpp"
+#include "orb_renderviewlayer.hh"
 #include "orb_mapctrl.hpp"
 
 #include "render_terrain.h"
@@ -91,9 +92,8 @@ int main(int argc, char** argv)
     return 0;
   }
 
-  // start up the GUI
-  orb_mapctrl* mapctrl;
-  orb_layer*   layer;
+  std::vector<orb_layer*> layers;
+  orb_mapctrl*            mapctrl;
 
   Fl_Double_Window* window = new Fl_Double_Window( WINDOW_W, WINDOW_H, "Horizonator" );
   const int         map_h  = window->h()/2;
@@ -109,17 +109,14 @@ int main(int argc, char** argv)
     mapctrl->labelcolor(FL_FOREGROUND_COLOR);
     mapctrl->align(Fl_Align(FL_ALIGN_CENTER));
 
-    // Create the OSM base layer
-    layer = new orb_osmlayer();
+    orb_renderviewlayer* renderviewlayer = new orb_renderviewlayer;
+    layers.push_back(new orb_osmlayer);
+    layers.push_back(renderviewlayer);
 
-    std::vector<orb_layer*> layers;
-    layers.push_back(layer);
-
-    // Set the OSM base layer
     mapctrl->layers(layers);
 
     // callback for the right mouse button
-    mapctrl->callback( &cb_slippymap, NULL );
+    mapctrl->callback( &cb_slippymap, renderviewlayer );
   }
   {
     render_scroll = new Fl_Scroll_Draggable( 0, map_h, window->w(), window->h() - map_h );
@@ -133,15 +130,12 @@ int main(int argc, char** argv)
 
   Fl::run();
 
-  delete window;
-  delete layer;
-
   return 0;
 }
 
 
 static void cb_slippymap(Fl_Widget* widget,
-                         void*      cookie __attribute__((unused)) )
+                         void*      cookie )
 {
   if( Fl::event()        == FL_PUSH &&
       Fl::event_button() == FL_RIGHT_MOUSE )
@@ -156,6 +150,9 @@ static void cb_slippymap(Fl_Widget* widget,
 
     float view_lat = (float)gps.get_y();
     float view_lon = (float)gps.get_x();
+
+    orb_renderviewlayer* renderviewlayer = reinterpret_cast<orb_renderviewlayer*>(cookie);
+    renderviewlayer->setlatlon( view_lat, view_lon );
 
     float elevation;
     IplImage* img = render_terrain( view_lat, view_lon, &elevation,
