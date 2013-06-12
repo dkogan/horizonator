@@ -24,6 +24,7 @@ static Fl_Scroll_Draggable*    render_scroll;
 static CvFltkWidget_annotated* widgetImage;
 
 static void cb_slippymap( Fl_Widget* widget, void* cookie );
+static void redraw_slippymap( void* mapctrl );
 
 int main(int argc, char** argv)
 {
@@ -110,8 +111,11 @@ int main(int argc, char** argv)
     mapctrl->labelcolor(FL_FOREGROUND_COLOR);
     mapctrl->align(Fl_Align(FL_ALIGN_CENTER));
 
-    renderviewlayer = new orb_renderviewlayer;
-    layers.push_back(new orb_osmlayer);
+    renderviewlayer        = new orb_renderviewlayer;
+    orb_osmlayer* osmlayer = new orb_osmlayer;
+    osmlayer->callback( &redraw_slippymap, mapctrl );
+
+    layers.push_back(osmlayer);
     layers.push_back(renderviewlayer);
 
     mapctrl->layers(layers);
@@ -133,6 +137,11 @@ int main(int argc, char** argv)
   Fl::run();
 
   return 0;
+}
+
+static void redraw_slippymap( void* mapctrl )
+{
+  reinterpret_cast<orb_mapctrl*>(mapctrl)->redraw();
 }
 
 
