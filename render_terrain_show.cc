@@ -157,12 +157,10 @@ static void cb_slippymap(Fl_Widget* widget,
     float view_lon = (float)gps.get_x();
 
     float elevation;
-    IplImage* img;
-
-    img = render_terrain( view_lat, view_lon, &elevation,
-                          false /* BGR is we're writing to a file;
-                                   cvSaveImage() expects */
-                         );
+    IplImage* img = render_terrain( view_lat, view_lon, &elevation,
+                                    false /* BGR is we're writing to a file;
+                                             cvSaveImage() expects */
+                                    );
     if( img == NULL )
     {
       fl_alert( "Error rendering the terrain....\n");
