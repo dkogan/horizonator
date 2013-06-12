@@ -6,7 +6,8 @@
 #include <FL/Fl.H>
 #include <FL/fl_ask.H>
 #include <FL/Fl_Double_Window.H>
-#include <FL/Fl_Scroll.H>
+
+#include "Fl_Scroll_Draggable.hh"
 #include "fltk_annotated_image.hh"
 #include "orb_osmlayer.hpp"
 #include "orb_mapctrl.hpp"
@@ -18,7 +19,7 @@
 #define WINDOW_W 800
 #define WINDOW_H 600
 
-static Fl_Scroll*              render_scroll;
+static Fl_Scroll_Draggable*    render_scroll;
 static CvFltkWidget_annotated* widgetImage;
 
 static void cb_slippymap( Fl_Widget* widget, void* cookie );
@@ -121,7 +122,7 @@ int main(int argc, char** argv)
     mapctrl->callback( &cb_slippymap, NULL );
   }
   {
-    render_scroll = new Fl_Scroll( 0, map_h, window->w(), window->h() - map_h );
+    render_scroll = new Fl_Scroll_Draggable( 0, map_h, window->w(), window->h() - map_h );
     render_scroll->end();
   }
 
