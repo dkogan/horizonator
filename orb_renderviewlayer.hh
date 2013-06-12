@@ -13,6 +13,8 @@ public:
 
 private:
   float lat, lon;
+  float left, right; // left and right edges of the viewable panorama; in
+                     // degrees
 
 public:
 
@@ -21,4 +23,7 @@ public:
     lat = _lat;
     lon = _lon;
   }
+
+  // return true if the new view is really new, and should be drawn
+  bool setview( float _left, float _right );
 };

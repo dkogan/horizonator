@@ -6,6 +6,41 @@ int Fl_Scroll_Draggable::handle(int event)
   int x,y,w,h;
   bbox(x,y,w,h); // inside-scroll-area geometry
 
+
+  // if any event at all happens, I update the slippy map with the current
+  // observable world. If it's different enough, I redraw that layer
+  {
+    // I look through all my children to find the opencv widget child
+    if( render == NULL )
+    {
+      int N = children();
+      for( int i=0; i<N; i++ )
+      {
+        render = dynamic_cast<CvFltkWidget*>( child(i) );
+        if( render != NULL )
+          break;
+      }
+    }
+    if( render != NULL )
+    {
+      int left  = x - render->x();
+      if( left < 0 )
+        left = 0;
+
+      int right = x + w-1 - render->x();
+      if( right >= render->w() )
+        right = render->w()-1;
+
+      if( renderviewlayer->setview( (float)left  / (float)(render->w()-1) * 360.0,
+                                    (float)right / (float)(render->w()-1) * 360.0 ) )
+      {
+        mapctrl->redraw();
+      }
+    }
+  }
+
+
+
   switch( event )
   {
   case FL_PUSH:

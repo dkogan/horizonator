@@ -94,6 +94,7 @@ int main(int argc, char** argv)
 
   std::vector<orb_layer*> layers;
   orb_mapctrl*            mapctrl;
+  orb_renderviewlayer*    renderviewlayer;
 
   Fl_Double_Window* window = new Fl_Double_Window( WINDOW_W, WINDOW_H, "Horizonator" );
   const int         map_h  = window->h()/2;
@@ -109,7 +110,7 @@ int main(int argc, char** argv)
     mapctrl->labelcolor(FL_FOREGROUND_COLOR);
     mapctrl->align(Fl_Align(FL_ALIGN_CENTER));
 
-    orb_renderviewlayer* renderviewlayer = new orb_renderviewlayer;
+    renderviewlayer = new orb_renderviewlayer;
     layers.push_back(new orb_osmlayer);
     layers.push_back(renderviewlayer);
 
@@ -119,7 +120,8 @@ int main(int argc, char** argv)
     mapctrl->callback( &cb_slippymap, renderviewlayer );
   }
   {
-    render_scroll = new Fl_Scroll_Draggable( 0, map_h, window->w(), window->h() - map_h );
+    render_scroll = new Fl_Scroll_Draggable( 0, map_h, window->w(), window->h() - map_h,
+                                             renderviewlayer, mapctrl );
     render_scroll->end();
   }
 
