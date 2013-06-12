@@ -27,6 +27,8 @@
 #include <sys/fcntl.h>
 #include <unistd.h>
 
+static const char* basepath = "/home/dima/documents/n900/root/home/user/MyDocs/.maps/OpenStreetMap I";
+
 int orb_tilecache::put(int z, int x, int y, void *buf, size_t nbytes, time_t expires)
 {
     if (buf == NULL)
@@ -37,8 +39,12 @@ int orb_tilecache::put(int z, int x, int y, void *buf, size_t nbytes, time_t exp
         return 1;
 
     char path[1024];
-    snprintf(path, sizeof(path),
-             "/home/dima/documents/n900/root/home/user/MyDocs/.maps/OpenStreetMap I/%d/%d/%d.png", z, x, y);
+    mkdir( basepath, 0777 );
+    snprintf(path, sizeof(path), "%s/%d", basepath, z);
+    mkdir( path, 0777 );
+    snprintf(path, sizeof(path), "%s/%d/%d", basepath, z, x);
+    mkdir( path, 0777 );
+    snprintf(path, sizeof(path), "%s/%d/%d/%d.png", basepath, z, x, y);
 
     int fd = open( path, O_CREAT | O_WRONLY, 0777  );
     if( fd <= 0 )
@@ -61,8 +67,7 @@ int orb_tilecache::get(int z, int x, int y, unsigned char **buf, size_t *nbytes)
         return 1;
 
     char path[1024];
-    snprintf(path, sizeof(path),
-             "/home/dima/documents/n900/root/home/user/MyDocs/.maps/OpenStreetMap I/%d/%d/%d.png", z, x, y);
+    snprintf(path, sizeof(path), "%s/%d/%d/%d.png", basepath, z, x, y);
 
     struct stat filestat;
     if( stat( path, &filestat ) != 0 )
