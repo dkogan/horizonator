@@ -29,7 +29,9 @@
 
 static const char* basepath = "/home/dima/documents/n900/root/home/user/MyDocs/.maps/OpenStreetMap I";
 
-int orb_tilecache::put(int z, int x, int y, void *buf, size_t nbytes, time_t expires)
+int orb_tilecache::put(int z, int x, int y, void *buf, size_t nbytes,
+                       time_t expires __attribute__((unused))
+                       )
 {
     if (buf == NULL)
         return 1;
