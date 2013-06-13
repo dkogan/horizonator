@@ -126,7 +126,7 @@ void orb_tileserver::entry()
 
         curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void*)&ud);
         curl_easy_setopt(curl_handle, CURLOPT_WRITEHEADER, (void*)&ud); 
-        curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "florb/0.1");
+        curl_easy_setopt(curl_handle, CURLOPT_USERAGENT, "horizonator");
 
         // Perform download
         rc = curl_easy_perform(curl_handle);
