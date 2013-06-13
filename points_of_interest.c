@@ -55,18 +55,18 @@ static void addToActive( int ipoi )
 
 void initPOIs( float lat, float lon )
 {
-  if( active_pois )
-    free(active_pois);
+  // alloc an upper-bound amount of memory. It's probably too much, but I know
+  // we'll never run out
+  int Npois = sizeof(pois) / sizeof(pois[0]);
+
+  if( active_pois == NULL )
+    active_pois = malloc(Npois * sizeof(active_pois[0]) );
 
   lat0         = lat;
   lon0         = lon;
   cos_lat0_sq  = cosf( lon );
   cos_lat0_sq *= cos_lat0_sq;
 
-  // alloc an upper-bound amount of memory. It's probably too much, but I know
-  // we'll never run out
-  int Npois = sizeof(pois) / sizeof(pois[0]);
-  active_pois = malloc(Npois * sizeof(active_pois[0]) );
   N_active_pois = 0;
 
   for( int i=0; i<Npois; i++ )
