@@ -40,8 +40,6 @@ orb_settings::orb_settings()
     // Set some important base options
     setopt("osm::tileserver", "http://tile.openstreetmap.org/");
     setopt("osm::tilecache", std::string(m_cfgdir + "/cache.db"));
-    setopt("gpx::linecolor", 0xff0000);
-    setopt("gpx::linewidth", 2);
     setopt("osm::zoommin", 0);
     setopt("osm::zoommax", 18);
 

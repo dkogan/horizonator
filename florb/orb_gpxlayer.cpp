@@ -21,7 +21,6 @@
 #include <cmath>
 #include <FL/x.H>
 #include <FL/fl_draw.H>
-#include "orb_settings.hpp"
 #include "orb_gpxlayer.hpp"
 
 orb_gpxlayer::orb_gpxlayer(const std::string &path) :
@@ -43,12 +42,9 @@ orb_gpxlayer::~orb_gpxlayer()
 void orb_gpxlayer::draw(const orb_viewport &viewport)
 {
     unsigned int lastx = 0, lasty = 0;
-    orb_settings &settings = orb_settings::get_instance();
 
-    // Get track color and pixel width from the settings
-    int trk_color, trk_width;
-    settings.getopt(std::string("gpx::linecolor"), trk_color);
-    settings.getopt(std::string("gpx::linewidth"), trk_width);
+    int trk_color = 0xff0000; // red
+    int trk_width = 2;
 
     // Set track color and width
     Fl_Color old_color = fl_color();
