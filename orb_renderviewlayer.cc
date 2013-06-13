@@ -47,8 +47,13 @@ bool orb_renderviewlayer::setview( float _left, float _right )
   float dl = left  - _left;
   float dr = right - _right;
 
-  left  = _left;
-  right = _right;
+  // if there's a large-enough change then redraw and update the saved state
+  if( fabsf(dl) > 0.1 || fabsf(dr > 0.1) )
+  {
+    left  = _left;
+    right = _right;
+    return true;
+  }
 
-  return fabsf(dl) > 0.1 || fabsf(dr > 0.1);
+  return false;
 }
