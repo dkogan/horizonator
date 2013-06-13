@@ -174,11 +174,11 @@ void CvFltkWidget_annotated::draw()
 
   // mark the cardinal directions
   fl_font( LABEL_FONT, DIRECTIONS_FONT_SIZE );
-  fl_draw( "S", x() + 1,                          y() + h() - 2 );
-  fl_draw( "W", x() + 1*w()/4,                    y() + h() - 2 );
-  fl_draw( "N", x() + 2*w()/4,                    y() + h() - 2 );
-  fl_draw( "E", x() + 3*w()/4,                    y() + h() - 2 );
-  fl_draw( "S", x() + w() - DIRECTIONS_FONT_SIZE, y() + h() - 2 );
+  fl_draw( "S", x() + 1,                                y() + h() - 2 );
+  fl_draw( "W", x() + 1*w()/4 - DIRECTIONS_FONT_SIZE/2, y() + h() - 2 );
+  fl_draw( "N", x() + 2*w()/4 - DIRECTIONS_FONT_SIZE/2, y() + h() - 2 );
+  fl_draw( "E", x() + 3*w()/4 - DIRECTIONS_FONT_SIZE/2, y() + h() - 2 );
+  fl_draw( "S", x() + w() - DIRECTIONS_FONT_SIZE,       y() + h() - 2 );
 
 
 #if 0
