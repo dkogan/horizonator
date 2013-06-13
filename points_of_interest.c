@@ -9,7 +9,7 @@ static struct poi_t pois[] = {
 #include "features_generated.h"
 };
 
-#define MAX_MARKER_DIST 20000.0
+#define MAX_MARKER_DIST 25000.0
 #define MIN_MARKER_DIST 50.0
 
 const float Rearth = 6371000.0;
