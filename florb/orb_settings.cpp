@@ -31,15 +31,14 @@ orb_settings::orb_settings()
 
     // Construct florb directory path
     std::ostringstream oss;
-    oss << home << "/.florb";
+    oss << home << "/.horizonator";
     m_cfgdir = oss.str();
 
-    // Create ".florb" in the user's home directory if needed
+    // Create ".horizonator" in the user's home directory if needed
     boost::filesystem::create_directory(m_cfgdir);
 
     // Set some important base options
     setopt("osm::tileserver", "http://tile.openstreetmap.org/");
-    setopt("osm::tilecache", std::string(m_cfgdir + "/cache.db"));
     setopt("osm::zoommin", 0);
     setopt("osm::zoommax", 18);
 
