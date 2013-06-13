@@ -52,7 +52,7 @@ render_terrain: CXXFLAGS += $(CXXFLAGS_HORIZON)
 
 render_terrain.o: vertex.glsl.h fragment.glsl.h
 
-%.glsl.h: %_header.glsl %.glsl
+%.glsl.h: %.glsl
 	sed 's/.*/"&\\n"/g' $^ > $@
 
 features_generated.h: CA_Features_20130404.txt parse_features.pl
