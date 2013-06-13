@@ -34,7 +34,7 @@ static GLint uniform_aspect;
 // the viewer in the inf-norm sense
 #define R_RENDER 800
 
-#define FOVY_DEG    30.0 /* vertical field of view of the render */
+#define FOVY_DEG 50.0 /* vertical field of view of the render */
 
 #define OFFSCREEN_W 6000.0
 #define OFFSCREEN_H (int)( 0.5 + OFFSCREEN_W / 360.0 * FOVY_DEG)
