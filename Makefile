@@ -1,5 +1,5 @@
 CPPFLAGS += -MMD
-CPPFLAGS += -ggdb3 -O0
+CPPFLAGS += -ggdb3 -O3
 CFLAGS   += -std=gnu99
 CPPFLAGS += -Wno-missing-field-initializers -Wno-unused-function -Wextra -Wall
 
