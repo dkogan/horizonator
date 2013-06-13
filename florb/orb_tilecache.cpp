@@ -21,13 +21,21 @@
 #include "orb_tilecache.hpp"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/fcntl.h>
 #include <unistd.h>
 
-static const char* basepath = "/home/dima/documents/n900/root/home/user/MyDocs/.maps/OpenStreetMap I";
+static const char* basepath_homerelative = ".horizonator/tiles";
+static char basepath[1024] = {'\0'};
+
+static void make_basepath(void)
+{
+  if( !basepath[0] )
+    snprintf(basepath, sizeof(basepath), "%s/%s", getenv("HOME"), basepath_homerelative );
+}
 
 int orb_tilecache::put(int z, int x, int y, void *buf, size_t nbytes,
                        time_t expires __attribute__((unused))
@@ -39,6 +47,8 @@ int orb_tilecache::put(int z, int x, int y, void *buf, size_t nbytes,
         return 1;
     if ((z < 0) || (x < 0) || (y < 0))
         return 1;
+
+    make_basepath();
 
     char path[1024];
     mkdir( basepath, 0777 );
@@ -67,6 +77,8 @@ int orb_tilecache::get(int z, int x, int y, unsigned char **buf, size_t *nbytes)
         return 1;
     if ((z < 0) || (x < 0) || (y < 0))
         return 1;
+
+    make_basepath();
 
     char path[1024];
     snprintf(path, sizeof(path), "%s/%d/%d/%d.png", basepath, z, x, y);
