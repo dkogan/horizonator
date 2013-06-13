@@ -14,7 +14,12 @@ varying float red;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
-const float znear  = 100.0, zfar = 30000.0;
+
+// these define the front and back clipping planes, in meters
+const float znear  = 100.0, zfar = 300000.0;
+
+// Past this distance the render color doesn't change, in meters
+const float zfar_color = 40000.0;
 
 
 void main(void)
@@ -66,7 +71,7 @@ void main(void)
   else if( at_right_seam ) az += 2.0;
 
   // coloring by...
-  red = clamp( (zeff - znear) / (zfar - znear ),
+  red = clamp( (zfar_color - zeff) / (zfar_color - znear ),
                0.0, 1.0 ); // ... distance from camera
   //red = vin.z / 3500.0; // ... elevation
 
