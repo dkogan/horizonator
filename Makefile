@@ -13,6 +13,7 @@ LDLIBS_HORIZON := \
  $(shell curl-config --libs) \
  $(shell pkg-config --libs libpng) \
  $(shell pkg-config --libs tinyxml) \
+ $(shell pkg-config --libs libzip) \
  -lboost_filesystem \
  -lboost_system \
  -lboost_thread
@@ -23,7 +24,8 @@ CXXFLAGS_HORIZON += \
  $(shell fltk-config --use-images --cxxflags) \
  $(shell curl-config --cflags) \
  $(shell pkg-config --cflags libpng) \
- $(shell pkg-config --cflags tinyxml)
+ $(shell pkg-config --cflags tinyxml) \
+ $(shell pkg-config --cflags libzip)
 
 
 TARGETS = fit render_terrain
