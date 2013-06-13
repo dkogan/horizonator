@@ -98,3 +98,17 @@ int Fl_Scroll_Draggable::handle(int event)
 
   return Fl_Scroll::handle(event);
 }
+
+void Fl_Scroll_Draggable::draw(void)
+{
+  // This causes the whole frame to be redrawn ever time. This isn't efficient,
+  // but allows the center indicator to always be updated correctly
+  redraw();
+  Fl_Scroll::draw();
+
+  int x,y,w,h;
+  bbox(x,y,w,h); // inside-scroll-area geometry
+
+  fl_color( FL_BLACK );
+  fl_yxline( x+w/2, y, y + h - 1 );
+}

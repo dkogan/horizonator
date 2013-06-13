@@ -27,6 +27,8 @@ public:
   }
 
   int handle(int event);
+
+  void draw(void);
 };
 
 #endif
