@@ -3,14 +3,14 @@
 #include "orb_renderviewlayer.hh"
 
 orb_renderviewlayer::orb_renderviewlayer()
-  : lat(-1000.0), lon(-1000.0)
+  : lat(-1000.0), lon(-1000.0), left(-1000.0), right(-1000.0)
 {
   name(std::string("Render-view layer"));
 };
 
 void orb_renderviewlayer::draw(const orb_viewport &viewport)
 {
-  if( lat < -500 || lon < -500 )
+  if( lat < -500 || lon < -500 || left < -500 || right < -500 )
     return;
 
   fl_color( FL_BLUE );
