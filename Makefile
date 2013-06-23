@@ -3,12 +3,10 @@ CPPFLAGS += -ggdb3 -O3
 CFLAGS   += -std=gnu99
 CPPFLAGS += -Wno-missing-field-initializers -Wno-unused-function -Wextra -Wall
 
-
-# renderer libraries
-LDLIBS += -lGL -lGLEW -lglut
-
 # slippy-map libraries
 LDLIBS_HORIZON := \
+ $(shell pkg-config --libs glu) \
+ $(shell pkg-config --libs glew) \
  $(shell fltk-config --use-images --ldflags) \
  $(shell curl-config --libs) \
  $(shell pkg-config --libs libpng) \
@@ -19,8 +17,10 @@ LDLIBS_HORIZON := \
  -lboost_thread
 
 # slippy-map compile time stuff
-CXXFLAGS_HORIZON += \
+CXXFLAGS_HORIZON := \
  -Iflorb -Iflorb/Fl \
+ $(shell pkg-config --cflags glu) \
+ $(shell pkg-config --cflags glew) \
  $(shell fltk-config --use-images --cxxflags) \
  $(shell curl-config --cflags) \
  $(shell pkg-config --cflags libpng) \
