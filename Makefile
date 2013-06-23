@@ -1,11 +1,12 @@
 CPPFLAGS += -MMD
+CPPFLAGS += -pthread
 CPPFLAGS += -ggdb3 -O3
 CFLAGS   += -std=gnu99
 CPPFLAGS += -Wno-missing-field-initializers -Wno-unused-function -Wextra -Wall
 
 
 # renderer libraries
-LDLIBS += -lGL -lGLEW -lglut
+LDLIBS += -lGL -lGLEW -lglut -lX11 -pthread -lm
 
 # slippy-map libraries
 LDLIBS_HORIZON := \
@@ -35,7 +36,8 @@ all: $(TARGETS)
 CPPFLAGS += -I/usr/include/opencv2
 LDLIBS   += -lopencv_imgproc -lopencv_highgui -lopencv_core
 
-
+# Magic to get Make to use g++ instead of cc to link
+LINK.o = $(LINK.cc)
 
 
 
