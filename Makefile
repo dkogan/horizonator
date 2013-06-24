@@ -4,7 +4,9 @@ CFLAGS   += -std=gnu99
 CPPFLAGS += -Wno-missing-field-initializers -Wno-unused-function -Wextra -Wall
 
 # slippy-map libraries
+# I need -lX11 because of http://bugs.debian.org/713933
 LDLIBS_HORIZON := \
+ -lX11 \
  $(shell pkg-config --libs glu) \
  $(shell pkg-config --libs glew) \
  $(shell fltk-config --use-images --ldflags) \
