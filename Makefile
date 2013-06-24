@@ -9,6 +9,7 @@ LDLIBS_HORIZON := \
  -lX11 \
  $(shell pkg-config --libs glu) \
  $(shell pkg-config --libs glew) \
+ -lglut -lm \
  $(shell fltk-config --use-images --ldflags) \
  $(shell curl-config --libs) \
  $(shell pkg-config --libs libpng) \
