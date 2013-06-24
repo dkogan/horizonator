@@ -17,7 +17,8 @@ LDLIBS_HORIZON := \
  $(shell pkg-config --libs libzip) \
  -lboost_filesystem \
  -lboost_system \
- -lboost_thread
+ -lboost_thread \
+ -pthread
 
 # slippy-map compile time stuff
 CXXFLAGS_HORIZON := \
@@ -52,6 +53,7 @@ HORIZON_OBJECTS := render_terrain.o render_terrain_show.o points_of_interest.o f
 render_terrain: $(HORIZON_OBJECTS) $(FLORB_OBJECTS)
 render_terrain: LDLIBS   += $(LDLIBS_HORIZON)
 render_terrain: CXXFLAGS += $(CXXFLAGS_HORIZON)
+render_terrain: LINK.o := g++
 
 render_terrain.o: vertex.glsl.h fragment.glsl.h
 
