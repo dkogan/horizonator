@@ -60,7 +60,7 @@ render_terrain.o: vertex.glsl.h fragment.glsl.h
 %.glsl.h: %.glsl
 	sed 's/.*/"&\\n"/g' $^ > $@
 
-features_generated.h: CA_Features_20130404.txt parse_features.pl
+features_generated.h: $(wildcard *Features*.txt) parse_features.pl
 	./parse_features.pl $< > $@
 
 points_of_interest.o: features_generated.h
