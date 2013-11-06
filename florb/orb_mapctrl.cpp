@@ -110,10 +110,8 @@ int orb_mapctrl::handle(int event)
             m_mousepos.set_y(Fl::event_y()-y());
             return 1;
         case FL_ENTER:
-            fl_cursor(FL_CURSOR_HAND);
             return 1;
         case FL_LEAVE:
-            fl_cursor(FL_CURSOR_DEFAULT);
             return 1;
         case FL_PUSH:
             if (Fl::event_button() == FL_RIGHT_MOUSE)
