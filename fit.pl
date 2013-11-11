@@ -240,7 +240,7 @@ sub correlate_conj
     my $Npoints = $mounted[0]->dim(1) * $mounted[0]->dim(2);
 
     my @fft = dog cplx fft2 real cat @mounted;
-    my $corr = cplx ifft2( real( $fft[0] * Cconj( $fft[1] )) ) / $Npoints;
+    my $corr = cplx ifft2( real( $fft[0] * Cconj( $fft[1] )) );
 
 
     my ($corr_max, @corr_offset ) = max2d_ind( $corr->re );
