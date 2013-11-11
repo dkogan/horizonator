@@ -155,7 +155,7 @@ if($ARGV{'--plot'} =~ /alignpair/ )
 if($ARGV{'--plot'} eq 'regions')
 {
   my @mounted = mount_images( $image{img}{edges}, $image{pano}{edges} );
-  $mounted[1] = $mounted[1]->range( [0,$dx,$dy], [$mounted[1]->dims], 'p' );
+  $mounted[0] = $mounted[0]->range( [0,-$dx,-$dy], [$mounted[1]->dims], 'p' );
 
   $mounted[0] = cplx $mounted[0];
   $mounted[1] = cplx $mounted[1];
