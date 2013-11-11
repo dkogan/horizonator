@@ -6,8 +6,6 @@ use feature qw(say);
 set_autopthread_targ(2);
 set_autopthread_size(0);
 
-use blib '/home/dima/projects/PDL-FFTW3';
-
 use PDL;
 use PDL::IO::GD;
 use PDL::Graphics::Gnuplot;
