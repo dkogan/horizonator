@@ -29,17 +29,17 @@ void orb_renderviewlayer::draw(const orb_viewport &viewport)
   float mid = (left + right) / 2.0f;
 
   fl_line( x, y,
-           x - 1000*sinf( left * M_PI / 180.0 ),
-           y + 1000*cosf( left * M_PI / 180.0 ) );
+           x - 10000*sinf( left * M_PI / 180.0 ),
+           y + 10000*cosf( left * M_PI / 180.0 ) );
   fl_line( x, y,
-           x - 1000*sinf( right * M_PI / 180.0 ),
-           y + 1000*cosf( right * M_PI / 180.0 ) );
+           x - 10000*sinf( right * M_PI / 180.0 ),
+           y + 10000*cosf( right * M_PI / 180.0 ) );
 
   fl_color( FL_BLACK );
 
   fl_line( x, y,
-           x - 1000*sinf( mid * M_PI / 180.0 ),
-           y + 1000*cosf( mid * M_PI / 180.0 ) );
+           x - 10000*sinf( mid * M_PI / 180.0 ),
+           y + 10000*cosf( mid * M_PI / 180.0 ) );
 }
 
 bool orb_renderviewlayer::setview( float _left, float _right )
