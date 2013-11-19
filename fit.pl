@@ -27,7 +27,7 @@ if( defined $ARGV{'--cache'} )
 {
   say STDERR "Reading cache";
 
-  $cache = retrieve $ARGV{'--cache'};
+  $cache = retrieve 'cache';
 
   %image        = %{ $cache->{image} };
   @cache_stage2 = @{ $cache->{stage2} } if defined $cache->{stage2} && !$ARGV{'--only1'};
@@ -354,34 +354,27 @@ fit - prototype for the image aligner
 
 =head1 REQUIRED ARGUMENTS
 
+=head1 OPTIONS
+
 =over
 
 =item --pano <pano>
 
-Panorama render image
+Panorama render image. Required if no --cache
 
 =for Euclid:
   pano.type: readable
 
 =item --photo <photo>
 
-Photo being annotated
+Photo being annotated.  Required if no --cache
 
 =for Euclid:
   photo.type: readable
 
-=back
+=item --cache
 
-=head1 OPTIONS
-
-=over
-
-=item --cache <file>
-
-File to read cached data from
-
-=for Euclid:
-    file.type:        readable
+Read cache data from a file 'cache'
 
 =item --only1
 
