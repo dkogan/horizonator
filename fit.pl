@@ -182,6 +182,15 @@ sub readImages
 
   my $img  = PDL::IO::GD->new( $ARGV{'--photo'} )->to_pdl->float / 255.0;
   my $pano = PDL::IO::GD->new( $ARGV{'--pano'}  )->to_pdl->float / 255.0;
+
+
+  if( !$ARGV{'--doremap'} )
+  {
+    return ($img, $pano);
+  }
+
+
+  # remap!
   my $px_per_rad = $pano->dim(0) / (2.0 * $pi);
 
   my @fov        = map { list atan( $_ / 2.0 / $focal ) * 2.0 } @sensorsize;
@@ -416,6 +425,10 @@ This must be an odd integer >= 3
 =item --forcerightanswer
 
 Pretend I found the right solution for my Iron-mt photo
+
+=item --doremap
+
+Convert the photo projection to the cylindrical projection in the pano
 
 =item --help
 
