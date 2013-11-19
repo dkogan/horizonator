@@ -305,7 +305,22 @@ sub debugPlot
         $plotoptions->{yrange} = [ reverse @{$plotoptions->{yrange}}];
       }
 
-      push @options, %$plotoptions;
+      # this i just 'push @options, %$plotoptions', however
+      # PDL::Graphics::Gnuplot has a bug where xrange has to appear first. with
+      # just that line, the range specs could end up anywhere, confusing PGG
+      {
+        my %opts_norange = %$plotoptions;
+        delete $opts_norange{xrange};
+        delete $opts_norange{yrange};
+        push @options, %opts_norange;
+
+        my %opts_range = %$plotoptions;
+        for (keys %opts_range)
+        {
+          delete $opts_range{$_} unless /range/;
+        }
+        push @options, %opts_range;
+      }
     }
     else
     {
