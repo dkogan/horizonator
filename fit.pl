@@ -132,7 +132,9 @@ store { image  => \%image,
 
 if ( $ARGV{'--forcerightanswer'} )
 {
-  ($dx,$dy)=(718,24);
+  # works with this command:
+  #  ./fit.pl --pano pano.png --smoothradius 7 --photo ironcut.png
+  ($dx,$dy)=(642,86);
 }
 
 
