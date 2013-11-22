@@ -10,14 +10,16 @@ use PDL;
 use PDL::IO::GD;
 use PDL::Graphics::Gnuplot;
 use PDL::NiceSlice;
-use PDL::OpenCV qw(Smooth Sobel Remap %cvdef);
+use PDL::OpenCV qw(Smooth Sobel Remap Rodrigues2 %cvdef);
 use PDL::LinearAlgebra;
 use PDL::Complex;
 use PDL::FFTW3;
 use PDL::Image2D;
 use PDL::IO::Storable;
+use PDL::Constants qw(PI);
 use Storable qw(store retrieve);
 use Getopt::Euclid;
+use Algorithm::LBFGS;
 
 
 my $cache;
@@ -136,6 +138,10 @@ if ( $ARGV{'--forcerightanswer'} )
   #  ./fit.pl --pano pano.png --smoothradius 7 --photo ironcut.png
   ($dx,$dy)=(642,86);
 }
+
+fullOptimization( $image{img}, $image{pano}, $dx, $dy );
+
+
 
 
 if($ARGV{'--plot'} =~ /alignpair/ )
@@ -268,6 +274,257 @@ sub correlate_conj
     shift @mounted_size;
     return (@corr_offset, @mounted_size);
   }
+}
+
+sub fullOptimization
+{
+  my ($img, $pano, $dx, $dy) = @_;
+
+
+
+  sub evalfunc
+  {
+    my ($state, $step, $cookie) = @_;
+
+    my ($img, $pano) = map {real $_} @{$cookie}{qw(img pano)};
+
+    my ($imgW,  $imgH)  = $img ->shape->(1:2)->list;
+    my ($panoW, $panoH) = $pano->shape->(1:2)->list;
+
+
+    # assume the panorama is a full 360-deg span
+    my $pano_px_per_rad = $panoW / (2 * PI);
+
+    # $img and $pano are complex piddles that contain the edge images. I want to
+    # maximize re(corr($img(delta),$pano)), so I want to maximize
+    #   sum( re0*re1 - im0*im1 )
+    my $focal = $state->[0];
+    my $r     = pdl( @{$state}[1..3] );
+
+    # pixelcoords referenced from the center of the $img
+    my $pxcoords_centerref = $img((0),:,:)->ndcoords - (pdl($imgW,$imgH) - pdl(1,1))/2;
+
+    # the image (x,y,f) tuples
+    my $x = $pxcoords_centerref->glue(0, $focal*ones($imgW, $imgH)->dummy(0));
+
+    my $R  = zeros(3,3);
+    my $dR = zeros(3,9);
+    Rodrigues2( my $retval, $r, $R, $dR );
+
+    my $v = $x x $R->transpose;
+
+    # unroll the az
+    my $az_rad = atan2( $v(0), $v(2) )-> squeeze;
+    if( $az_rad->max > 0.9*PI && $az_rad->min < -0.9*PI )
+    {
+      $az_rad->where($az_rad < 0) += PI*2;
+    }
+
+    my $az = $pano_px_per_rad * $az_rad;
+    my $el = $pano_px_per_rad * asin ( $v((1)) / sqrt(inner($x,$x)) ) -> squeeze;
+
+    my $cellindex = cat($el->zeros, long(floor($az)), long(floor($el)))->mv(-1,0);
+    my $azoffset  = $az - $cellindex((1),:,:);
+    my $eloffset  = $el - $cellindex((2),:,:);
+
+    # I make sure the mapped data is in-bounds of my rendered pano. The az is
+    # always in-bounds since it's periodic. This is not true of the el, however
+    # my $valididx =
+    #   $cellindex((1),:,:) >= 3 &&
+    #   $cellindex((1),:,:) < $panoH-3;
+    # my $Nvalid = $valididx->sum;
+
+
+
+    # bilinear interpolation
+    my $pano00 = $pano;
+    my $pano10 = $pano->range(pdl(0,1,0) , $pano->shape, 'fp');
+    my $pano01 = $pano->range(pdl(0,0,1) , $pano->shape, 'fp');
+    my $pano11 = $pano->range(pdl(0,1,1) , $pano->shape, 'fp');
+
+
+    my $pano_interpolated =
+      $pano00->range($cellindex, pdl(2,1,1), 'fpt')->sever * (1 - $azoffset) * (1 - $eloffset ) +
+      $pano10->range($cellindex, pdl(2,1,1), 'fpt')->sever * (    $azoffset) * (1 - $eloffset ) +
+      $pano01->range($cellindex, pdl(2,1,1), 'fpt')->sever * (1 - $azoffset) * (    $eloffset ) +
+      $pano11->range($cellindex, pdl(2,1,1), 'fpt')->sever * (    $azoffset) * (    $eloffset );
+    $pano_interpolated = $pano_interpolated->squeeze->mv(-1,0);
+
+
+    # store [$img,$pano,$pano00,$pano01,$pano10,$pano11,$azoffset,$eloffset,$cellindex,$az,$el,$pano_interpolated,$x,$R,$dR,$v], 'dat';
+    # exit;
+
+
+
+    # once again, I want to match up sum( re0*re1 - im0*im1 ). I'm already lined
+    # up, so I sum up everything
+    my $f = Cmul(cplx($img), cplx($pano_interpolated))->re->sum;
+
+
+
+    # Now I get the gradients
+    # d(sum( re0*re1 - im0*im1 )) = sum( re0 dre1 - im0 dim1 )
+    # (re1,im1) is pano_interpolated
+    #
+    # dpano_interpolated = pano00 * ( (1-azoffset) * (-deloffset) + (-dazoffset) * (1-deloffset) ) +
+    #                      pano10 * ( (  azoffset) * (-deloffset) + ( dazoffset) * (1-deloffset) ) +
+    #                      pano01 * ( (1-azoffset) * ( deloffset) + (-dazoffset) * (  deloffset) ) +
+    #                      pano11 * ( (  azoffset) * ( deloffset) + ( dazoffset) * (  deloffset) );
+    #
+    # so all I need is d_azoffset and d_eloffset
+    #
+    # d_azoffset = pano_px_per_rad * d_az
+    # d_eloffset = pano_px_per_rad * d_el
+
+    # d_az_dr = (x y f ) * (dr0_dr * v2 - dr2_dr * v0) / (v2^2 * v0^2)
+    # d_az_df = (r02*v2 - v0*r22) / (v2^2 * v0^2)
+    # d_el_dr = (x y f ) dr1_dr       /        sqrt(|x|^2 - v1^2)
+    # d_el_df = (|x|^2*r12(r) - f*v1) / (|x|^2*sqrt(|x|^2 - v1^2))
+
+    my $dr0_dr = $dR(:,0:2);
+    my $dr1_dr = $dR(:,3:5);
+    my $dr2_dr = $dR(:,6:8);
+
+    my $d_az_dr =
+      PDL::squeeze
+        ($x->dummy(1) x ($dr0_dr * $v(2,:,:)->dummy(0) -
+                         $dr2_dr * $v(0,:,:)->dummy(0)))
+        / ($v(2,:,:) * $v(2,:,:) + $v(0,:,:) * $v(0,:,:));
+
+    my $d_az_df =
+      ($R(2,0; -) * $v(2,:,:) - $R(2,2; -) * $v(0,:,:)) /
+      ($v(2,:,:) * $v(2,:,:) + $v(0,:,:) * $v(0,:,:) );
+
+    my $d_el_dr =
+      PDL::squeeze($x->dummy(1) x $dr1_dr) /
+      sqrt( inner($x,$x) - $v((1),:,:)*$v((1),:,:) )->dummy(0);
+
+    my $d_el_df =
+      dummy( (inner($x,$x) * $R(2,1;-) - $focal*$v((1),:,:)) /
+             (inner($x,$x)*sqrt( inner($x,$x) - $v((1),:,:)*$v((1),:,:) )), 0);
+
+    # makde d_azel_offset dimensions (imwidth, imheight, 4)
+    my $d_azoffset = $pano_px_per_rad * $d_az_df->glue(0, $d_az_dr)->mv(0,-1);
+    my $d_eloffset = $pano_px_per_rad * $d_el_df->glue(0, $d_el_dr)->mv(0,-1);
+
+    # dpano_interpolated dims are (imwidth, imheight, 4, 2)
+    my $dpano_interpolated =
+      $pano00->range($cellindex, pdl(2,1,1), 'fpt')->sever->squeeze->dummy(2) *
+      ( (- $d_azoffset) * (1 - $eloffset ) + (1 - $azoffset) * (- $d_eloffset ) ) +
+      $pano10->range($cellindex, pdl(2,1,1), 'fpt')->sever->squeeze->dummy(2) *
+      ( (  $d_azoffset) * (1 - $eloffset ) + (    $azoffset) * (- $d_eloffset ) ) +
+      $pano01->range($cellindex, pdl(2,1,1), 'fpt')->sever->squeeze->dummy(2) *
+      ( (- $d_azoffset) * (    $eloffset ) + (1 - $azoffset) * (  $d_eloffset ) ) +
+      $pano11->range($cellindex, pdl(2,1,1), 'fpt')->sever->squeeze->dummy(2) *
+      ( (  $d_azoffset) * (    $eloffset ) + (    $azoffset) * (  $d_eloffset ));
+
+    my $j =
+      [list sumover(sumover($img((0),:,:) * $dpano_interpolated(:,:,:,(0)) -
+                            $img((1),:,:) * $dpano_interpolated(:,:,:,(1)) )) ];
+
+
+    # I want to maximize my $f, but the solver wants to minimize. Flip all the
+    # signs
+    $f *= -1;
+    $j = [ map {$_ * -1} @$j ];
+    say sprintf "callback returning cost %g", $f;
+    return ($f, $j);
+  }
+
+  sub testGradient
+  {
+    my ($testvar, $state, $img, $pano) = @_;
+
+    $state = $state->copy;
+
+    my ($f0, $j0) = evalfunc( [$state->list], 10, {img  => $img ->{edges},
+                                                   pano => $pano->{edges}} );
+
+    my $delta = 1e-8;
+
+    $state($testvar) += $delta;
+    my ($f1, $j1) = evalfunc( [$state->list], 10, {img  => $img ->{edges},
+                                                   pano => $pano->{edges}} );
+
+    my $j_observed = ($f1 - $f0) / $delta;
+    my $j_expected = $j0->[$testvar];
+    say "observed gradient: $j_observed";
+    say "expected gradient: $j_expected";
+    say "relative error: " . ($j_observed - $j_expected) / ( (abs($j_observed) + abs($j_expected))/2);
+  }
+
+
+
+
+
+  # (dx,dy) is the coords of the top-left corner of the photo mapped into pano
+  # pixel coords. This is mod mounted->dims. I construct my rotation to properly
+  # map the center pixel of the photo. The full projection effects are utilized
+  # from this point on, so the un-distorted fit I just did won't map 100%
+
+  my $delta      = pdl($dx, $dy);
+  my $photo_size = $img ->{edges}->shape->(1:2) ;
+  my $pano_size  = $pano->{edges}->shape->(1:2) ;
+
+  # first map the coords to [-h,h] from [0,2h].
+  my $mounted_size = 2*pdl($pano_size((0)), $photo_size((1)));
+
+  $delta -= $mounted_size * ($delta >= $mounted_size/2);
+
+  # center pixel of the photo, in pano coords
+  my $center_px = $delta + $photo_size/2;
+
+  # pano has full 360-deg horiz view. Assume constant px/rad value
+  my $pano_px_per_rad = $pano_size((0)) / (2 * PI);
+
+  my $center_rad = $center_px / $pano_px_per_rad;
+
+  # I need to rotate around y by $center_px(0) and around x by $center_px(1);
+  my ($saz,$sel) = sin($center_rad)->list;
+  my ($caz,$cel) = cos($center_rad)->list;
+
+  my $Raz = pdl( [ $caz, 0,  $saz],
+                 [   0,  1, 0    ],
+                 [-$saz, 0,  $caz] );
+
+  my $Rel = pdl( [ 1,   0,      0],
+                 [ 0,  $cel, $sel],
+                 [ 0, -$sel, $cel] );
+
+  my $rref = zeros(3);
+  my $R    = $Raz x $Rel;
+  Rodrigues2( my $retval, $R, $rref, null );
+
+  my $focal = $pano_px_per_rad * 0.99;
+
+  # These are tests:
+  #
+  # say "these should be the same (center pixel azel):";
+  # my $v = pdl(0,0,$focal) x $R->transpose;
+  # my $az_check = $pano_px_per_rad * atan2( $v(0), $v(2) )               -> squeeze;
+  # my $el_check = $pano_px_per_rad * asin ( $v(1) / sqrt(inner($v,$v)) ) -> squeeze;
+  # say pdl($az_check, $el_check);
+  # say $center_px;
+  # say "center-top pixel azel:";
+  # $v = pdl(0,-$photo_size((1))/2,$focal) x $R->transpose;
+  # $az_check = $pano_px_per_rad * atan2( $v(0), $v(2) )               -> squeeze;
+  # $el_check = $pano_px_per_rad * asin ( $v(1) / sqrt(inner($v,$v)) ) -> squeeze;
+  # say pdl($az_check, $el_check);
+
+
+  my $state = pdl( $focal, $rref->list );
+
+  # testGradient( $_, $state, $img, $pano ) for 0..3;
+  # exit;
+
+
+  say "starting state: $state";
+  my $lbfgs = Algorithm::LBFGS->new;
+  my $out = $lbfgs->fmin( \&evalfunc, [$state->list],
+                          undef, {img  => $img ->{edges},
+                                  pano => $pano->{edges}} );
+  say "ending state: " . pdl($out);
+  exit;
 }
 
 sub mount_images
