@@ -135,27 +135,36 @@ if ( $ARGV{'--forcerightanswer'} )
   ($dx,$dy)=(642,86);
 }
 
-fullOptimization( $image{img}, $image{pano}, $dx, $dy );
+my $solvedstate = fullOptimization( $image{img}{edges}, $image{pano}{edges}, $dx, $dy );
 
 
 
 
 if($ARGV{'--plot'} =~ /alignpair/ )
 {
-  # plot the aligned images
-  my $which = $ARGV{'--plot'} =~ /smoothed/ ? 'smoothed' : 'orig';
-  my $img_orig  = $image{img} { $which };
-  my $pano_orig = $image{pano}{ $which };
+  if( defined $solvedstate )
+  {
+    visualizeState( $solvedstate,
+                    $image{img}{orig}, $image{pano}{orig} );
+  }
+  else
+  {
+    # plot the aligned images
+    my $which = $ARGV{'--plot'} =~ /smoothed/ ? 'smoothed' : 'orig';
+    my $img_orig  = $image{img} { $which };
+    my $pano_orig = $image{pano}{ $which };
 
-  my $img0_gray = real $img_orig ->mv(-1,0)->average;
-  my $img1_gray = real $pano_orig->(:,:,(0));
-  my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
+    my $img0_gray = real $img_orig ->mv(-1,0)->average;
+    my $img1_gray = real $pano_orig->(:,:,(0));
+    my @mounted = map { $_->range( [0,0], \@mounted_size, 'e') } ( $img0_gray, $img1_gray );
 
-  debugPlot( {clut => 'gray',
-              xrange => [0,$img_orig->dim(0)-1],
-              yrange => [0,$img_orig->dim(1)-1] },
-             $mounted[0], $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' ) );
+    debugPlot( {clut => 'gray',
+                xrange => [0,$img_orig->dim(0)-1],
+                yrange => [0,$img_orig->dim(1)-1] },
+               $mounted[0], $mounted[1]->range( [$dx,$dy], [$mounted[1]->dims], 'p' ) );
+  }
 }
+
 if($ARGV{'--plot'} eq 'regions')
 {
   my @mounted = mount_images( $image{img}{edges}, $image{pano}{edges} );
@@ -298,7 +307,7 @@ sub fullOptimization
     my $r     = pdl( @{$state}[1..3] );
 
     # pixelcoords referenced from the center of the $img
-    my $pxcoords_centerref = $img((0),:,:)->ndcoords - (pdl($imgW,$imgH) - pdl(1,1))/2;
+    my $pxcoords_centerref = $img((0),:,:)->ndcoords - (pdl($imgW,$imgH) - 1)/2;
 
     # the image (x,y,f) tuples
     my $x = $pxcoords_centerref->glue(0, $focal*ones($imgW, $imgH)->dummy(0));
@@ -317,7 +326,8 @@ sub fullOptimization
     }
 
     my $az = $pano_px_per_rad * $az_rad;
-    my $el = $pano_px_per_rad * asin ( $v((1)) / sqrt(inner($x,$x)) ) -> squeeze;
+    my $el = $pano_px_per_rad * asin ( $v((1)) / sqrt(inner($x,$x)) ) -> squeeze +
+      ($panoH-1)/2;
 
     my $cellindex = cat($el->zeros, long(floor($az)), long(floor($el)))->mv(-1,0);
     my $azoffset  = $az - $cellindex((1),:,:);
@@ -514,14 +524,14 @@ sub fullOptimization
 
     $state = $state->copy;
 
-    my ($f0, $j0) = evalfunc( [$state->list], 10, {img  => $img ->{edges},
-                                                   pano => $pano->{edges}} );
+    my ($f0, $j0) = evalfunc( [$state->list], 10, {img  => $img,
+                                                   pano => $pano} );
 
     my $delta = 1e-8;
 
     $state($testvar) += $delta;
-    my ($f1, $j1) = evalfunc( [$state->list], 10, {img  => $img ->{edges},
-                                                   pano => $pano->{edges}} );
+    my ($f1, $j1) = evalfunc( [$state->list], 10, {img  => $img,
+                                                   pano => $pano} );
 
     my $j_observed = ($f1 - $f0) / $delta;
     my $j_expected = $j0->[$testvar];
@@ -540,16 +550,17 @@ sub fullOptimization
   # from this point on, so the un-distorted fit I just did won't map 100%
 
   my $delta      = pdl($dx, $dy);
-  my $photo_size = $img ->{edges}->shape->(1:2) ;
-  my $pano_size  = $pano->{edges}->shape->(1:2) ;
+  my $photo_size = $img ->shape->(1:2) ;
+  my $pano_size  = $pano->shape->(1:2) ;
 
   # first map the coords to [-h,h] from [0,2h].
   my $mounted_size = 2*pdl($pano_size((0)), $photo_size((1)));
 
   $delta -= $mounted_size * ($delta >= $mounted_size/2);
 
-  # center pixel of the photo, in pano coords
-  my $center_px = $delta + $photo_size/2;
+  # center pixel of the photo, in pano coords, referenced from the pano 0 point,
+  # which is at the left edge of the pano, centered vertically.
+  my $center_px = $delta + ($photo_size-1)/2 - pdl(0, ($pano_size((1))-1)/2);
 
   # pano has full 360-deg horiz view. Assume constant px/rad value
   my $pano_px_per_rad = $pano_size((0)) / (2 * PI);
@@ -572,37 +583,102 @@ sub fullOptimization
   my $R    = $Raz x $Rel;
   Rodrigues2( my $retval, $R, $rref, null );
 
-  my $focal = $pano_px_per_rad * 0.99;
+  my $focal = $pano_px_per_rad;
+  my $state = pdl( $focal, $rref->list );
+
+  say "initial state: $state";
 
   # These are tests:
   #
-  # say "these should be the same (center pixel azel):";
-  # my $v = pdl(0,0,$focal) x $R->transpose;
-  # my $az_check = $pano_px_per_rad * atan2( $v(0), $v(2) )               -> squeeze;
-  # my $el_check = $pano_px_per_rad * asin ( $v(1) / sqrt(inner($v,$v)) ) -> squeeze;
-  # say pdl($az_check, $el_check);
-  # say $center_px;
-  # say "center-top pixel azel:";
-  # $v = pdl(0,-$photo_size((1))/2,$focal) x $R->transpose;
-  # $az_check = $pano_px_per_rad * atan2( $v(0), $v(2) )               -> squeeze;
-  # $el_check = $pano_px_per_rad * asin ( $v(1) / sqrt(inner($v,$v)) ) -> squeeze;
-  # say pdl($az_check, $el_check);
+  # {
+  #   say "these should be the same (center pixel azel):";
+  #   my $v = pdl(0,0,$focal) x $R->transpose;
+  #   my $az_check = $pano_px_per_rad * atan2( $v(0), $v(2) )               -> squeeze;
+  #   my $el_check = $pano_px_per_rad * asin ( $v(1) / sqrt(inner($v,$v)) ) -> squeeze;
+  #   say "px coords: " . pdl($az_check, $el_check + ($pano_size((1))-1)/2);
+  #   say $center_px + pdl(0, ($pano_size((1))-1)/2);
+  #   say '';
 
+  #   say "center-top pixel azel:";
+  #   $v = pdl(0,-$photo_size((1))/2,$focal) x $R->transpose;
+  #   $az_check = $pano_px_per_rad * atan2( $v(0), $v(2) )               -> squeeze;
+  #   $el_check = $pano_px_per_rad * asin ( $v(1) / sqrt(inner($v,$v)) ) -> squeeze;
+  #   say "px coords: " . pdl($az_check, $el_check + ($pano_size((1))-1)/2);
+  #   say '';
 
-  my $state = pdl( $focal, $rref->list );
+  #   say "baden-powell peak pixel azel:";
+  #   $v = PDL::glue(0,
+  #                  pdl(179,50) - ($photo_size - 1)/2, $focal) x $R->transpose;
+  #   $az_check = $pano_px_per_rad * atan2( $v(0), $v(2) )               -> squeeze;
+  #   $el_check = $pano_px_per_rad * asin ( $v(1) / sqrt(inner($v,$v)) ) -> squeeze;
+  #   say "px coords: " . pdl($az_check, $el_check + ($pano_size((1))-1)/2);
+  #   exit;
+  # }
 
   # testGradient( $_, $state, $img, $pano ) for 0..3;
   # exit;
 
 
-  say "starting state: $state";
   my $lbfgs = Algorithm::LBFGS->new;
-  my $out = $lbfgs->fmin( \&evalfunc, [$state(0)->list],
-                          'verbose', {img  => $img ->{edges},
-                                      pano => $pano->{edges}} );
+  my $solvedstate = $lbfgs->fmin( \&evalfunc, [$state->list],
+                                  'verbose',
+                                  {img  => $img,
+                                   pano => $pano} );
   say $lbfgs->get_status;
-  say "ending state: " . pdl($out);
-  exit;
+
+  say "ending state: " . pdl($solvedstate);
+  return pdl($solvedstate);
+}
+
+sub visualizeState
+{
+  my ($state, $img, $pano) = @_;
+
+  ($img, $pano) = map {real $_} ($img, $pano);
+
+  my $focal = $state(0;-);
+  my $R = zeros(3,3);
+  Rodrigues2( my $retval, $state(1:3), $R, null );
+
+  my $photo_size = $img ->shape->(0:1);
+  my $pano_size  = $pano->shape->(0:1);
+
+  # assume the panorama is a full 360-deg span
+  my $pano_px_per_rad = $pano_size((0)) / (2 * PI);
+
+
+  # this is copied from fullOptimization(). Should probably consolidate
+  my ($az,$el);
+  {
+    my $pxcoords_centerref = $img(:,:,(0))->ndcoords - ($photo_size - 1)/2;
+
+    # the image (x,y,f) tuples
+    my $x = $pxcoords_centerref->glue(0, $focal*ones($photo_size->list)->dummy(0));
+
+    my $v = $x x $R->transpose;
+
+    # unroll the az
+    my $az_rad = atan2( $v(0), $v(2) )-> squeeze;
+    if ( $az_rad->max > 0.9*PI && $az_rad->min < -0.9*PI )
+    {
+      $az_rad->where($az_rad < 0) += PI*2;
+    }
+
+    $az = $pano_px_per_rad * $az_rad;
+    $el = $pano_px_per_rad * asin ( $v((1)) / sqrt(inner($x,$x)) ) -> squeeze +
+      ($pano_size((1))-1)/2;
+  }
+
+  my $img_remapped = $img->float->copy;
+  Remap( $pano->float,
+         $img_remapped,
+         $az->float, $el->float,
+         1 + 9,                 # CV_INTER_LINEAR+CV_WARP_FILL_OUTLIERS
+         zeros(float,4) );
+
+  # plot the aligned images
+  debugPlot( {},
+             $img, $img_remapped );
 }
 
 sub mount_images
