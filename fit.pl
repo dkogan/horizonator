@@ -516,9 +516,10 @@ sub fullOptimization
 
   say "starting state: $state";
   my $lbfgs = Algorithm::LBFGS->new;
-  my $out = $lbfgs->fmin( \&evalfunc, [$state->list],
-                          undef, {img  => $img ->{edges},
-                                  pano => $pano->{edges}} );
+  my $out = $lbfgs->fmin( \&evalfunc, [$state(0)->list],
+                          'verbose', {img  => $img ->{edges},
+                                      pano => $pano->{edges}} );
+  say $lbfgs->get_status;
   say "ending state: " . pdl($out);
   exit;
 }
