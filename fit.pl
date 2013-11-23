@@ -333,17 +333,16 @@ sub fullOptimization
 
 
     # bilinear interpolation
-    my $pano00 = $pano;
-    my $pano10 = $pano->range(pdl(0,1,0) , $pano->shape, 'fp');
-    my $pano01 = $pano->range(pdl(0,0,1) , $pano->shape, 'fp');
-    my $pano11 = $pano->range(pdl(0,1,1) , $pano->shape, 'fp');
-
+    my $pano00 = $pano->range($cellindex + pdl(0,0,0), pdl(2,1,1), 'fpt')->sever;
+    my $pano10 = $pano->range($cellindex + pdl(0,1,0), pdl(2,1,1), 'fpt')->sever;
+    my $pano01 = $pano->range($cellindex + pdl(0,0,1), pdl(2,1,1), 'fpt')->sever;
+    my $pano11 = $pano->range($cellindex + pdl(0,1,1), pdl(2,1,1), 'fpt')->sever;
 
     my $pano_interpolated =
-      $pano00->range($cellindex, pdl(2,1,1), 'fpt')->sever * (1 - $azoffset) * (1 - $eloffset ) +
-      $pano10->range($cellindex, pdl(2,1,1), 'fpt')->sever * (    $azoffset) * (1 - $eloffset ) +
-      $pano01->range($cellindex, pdl(2,1,1), 'fpt')->sever * (1 - $azoffset) * (    $eloffset ) +
-      $pano11->range($cellindex, pdl(2,1,1), 'fpt')->sever * (    $azoffset) * (    $eloffset );
+      $pano00 * (1 - $azoffset) * (1 - $eloffset ) +
+      $pano10 * (    $azoffset) * (1 - $eloffset ) +
+      $pano01 * (1 - $azoffset) * (    $eloffset ) +
+      $pano11 * (    $azoffset) * (    $eloffset );
     $pano_interpolated = $pano_interpolated->squeeze->mv(-1,0);
 
 
@@ -405,14 +404,14 @@ sub fullOptimization
 
     # dpano_interpolated dims are (imwidth, imheight, 4, 2)
     my $dpano_interpolated =
-      $pano00->range($cellindex, pdl(2,1,1), 'fpt')->sever->squeeze->dummy(2) *
-      ( (- $d_azoffset) * (1 - $eloffset ) + (1 - $azoffset) * (- $d_eloffset ) ) +
-      $pano10->range($cellindex, pdl(2,1,1), 'fpt')->sever->squeeze->dummy(2) *
-      ( (  $d_azoffset) * (1 - $eloffset ) + (    $azoffset) * (- $d_eloffset ) ) +
-      $pano01->range($cellindex, pdl(2,1,1), 'fpt')->sever->squeeze->dummy(2) *
-      ( (- $d_azoffset) * (    $eloffset ) + (1 - $azoffset) * (  $d_eloffset ) ) +
-      $pano11->range($cellindex, pdl(2,1,1), 'fpt')->sever->squeeze->dummy(2) *
-      ( (  $d_azoffset) * (    $eloffset ) + (    $azoffset) * (  $d_eloffset ));
+      $pano00->squeeze->dummy(2) *
+        ( (- $d_azoffset) * (1 - $eloffset ) + (1 - $azoffset) * (- $d_eloffset ) ) +
+      $pano10->squeeze->dummy(2) *
+        ( (  $d_azoffset) * (1 - $eloffset ) + (    $azoffset) * (- $d_eloffset ) ) +
+      $pano01->squeeze->dummy(2) *
+        ( (- $d_azoffset) * (    $eloffset ) + (1 - $azoffset) * (  $d_eloffset ) ) +
+      $pano11->squeeze->dummy(2) *
+        ( (  $d_azoffset) * (    $eloffset ) + (    $azoffset) * (  $d_eloffset ));
 
     my $j =
       [list sumover(sumover($img((0),:,:) * $dpano_interpolated(:,:,:,(0)) -
