@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use feature qw(say);
+use feature qw(say state);
 
 set_autopthread_targ(2);
 set_autopthread_size(0);
@@ -323,27 +323,110 @@ sub fullOptimization
     my $azoffset  = $az - $cellindex((1),:,:);
     my $eloffset  = $el - $cellindex((2),:,:);
 
-    # I make sure the mapped data is in-bounds of my rendered pano. The az is
-    # always in-bounds since it's periodic. This is not true of the el, however
-    # my $valididx =
-    #   $cellindex((1),:,:) >= 3 &&
-    #   $cellindex((1),:,:) < $panoH-3;
-    # my $Nvalid = $valididx->sum;
+
+    # bicubic interpolation
+    #
+    # Each patch between 4 points is represented as a mixed cubic. Each term is
+    #   aij x^i y^j where i,j are in [0,3]. There are thus 16 unknowns aij
+    #
+    # The constraints I use to solve for aij are the 4 values at each point, the
+    # x,y gradients at each point (8 total) and the 4 mixed xy 2nd derivatives
+    # (grand total of 16 constraints, as it should be)
+    #
+    # Let a be a vector of my unknowns: a = (a00, a10, a20, a30, a01, a11, .... )
+    #
+    # Let pij be the sampled values. Let pxij be the sampled x derivatives and
+    # pyij the sampled y derivatives. pxyij are the sampled xy derivatives. Let
+    # p be a vector of my knowns: p = (p00,p10,p01,p11, px00, .., py00, ..,
+    # pxy00, ...)
+    #
+    # Thus p = A*a
+    state $Ainv;
+    if( !defined $Ainv )
+    {
+      my $A =
+        pdl( [1,          ((0) x 15)             ],  # p00
+             [1, 1, 1, 1, ((0) x 12)             ],  # p10
+             [(1, 0, 0, 0) x 4                   ],  # p01
+             [(1) x 16                           ],  # p11
+             [0, 1,       ((0) x 14)             ],  # px00
+             [0, 1, 2, 3, ((0) x 12)             ],  # px10
+             [(0,1,0,0) x 4                      ],  # px01
+             [(0,1,2,3) x 4                      ],  # px11
+             [0,0,0,0, 1,0,0,0,      ((0) x 8)   ],  # py00
+             [0,0,0,0, 1,1,1,1,      ((0) x 8)   ],  # py10
+             [0,0,0,0, 1,0,0,0, 2,0,0,0, 3,0,0,0 ],  # py01
+             [(0) x 4, (1) x 4, (2) x 4, (3) x 4 ],  # py11
+             [0,0,0,0, 0,1,0,0,      ((0) x 8)   ],  # pxy00
+             [0,0,0,0, 0,1,2,3,      ((0) x 8)   ],  # pxy10
+             [0,0,0,0, 0,1,0,0, 0,2,0,0, 0,3,0,0 ],  # pxy01
+             [(0) x 4, 0,1,2,3, 0,2,4,6, 0,3,6,9 ]); # pxy11
+
+      $Ainv = $A->minv;
+    }
+
+    # For each pixel in the photo, I want to sample the panorama. The below are
+    # all panorama samples, but have dimensions (photowidth,photoheight,2) since
+    # these are all corresponding to each photo pixel
+
+    my $pano_1_1 = $pano->range($cellindex + pdl(0,-1,-1), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano0_1  = $pano->range($cellindex + pdl(0, 0,-1), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano1_1  = $pano->range($cellindex + pdl(0, 1,-1), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano2_1  = $pano->range($cellindex + pdl(0, 2,-1), pdl(2,1,1), 'fpt')->sever->squeeze;
+
+    my $pano_10  = $pano->range($cellindex + pdl(0,-1, 0), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano00   = $pano->range($cellindex + pdl(0, 0, 0), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano10   = $pano->range($cellindex + pdl(0, 1, 0), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano20   = $pano->range($cellindex + pdl(0, 2, 0), pdl(2,1,1), 'fpt')->sever->squeeze;
+
+    my $pano_11  = $pano->range($cellindex + pdl(0,-1, 1), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano01   = $pano->range($cellindex + pdl(0, 0, 1), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano11   = $pano->range($cellindex + pdl(0, 1, 1), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano21   = $pano->range($cellindex + pdl(0, 2, 1), pdl(2,1,1), 'fpt')->sever->squeeze;
+
+    my $pano_12  = $pano->range($cellindex + pdl(0,-1, 2), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano02   = $pano->range($cellindex + pdl(0, 0, 2), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano12   = $pano->range($cellindex + pdl(0, 1, 2), pdl(2,1,1), 'fpt')->sever->squeeze;
+    my $pano22   = $pano->range($cellindex + pdl(0, 2, 2), pdl(2,1,1), 'fpt')->sever->squeeze;
 
 
+    # the derivatives use central differences
+    my $panodx00 = ($pano10 - $pano_10) / 2;
+    my $panodx10 = ($pano20 - $pano00)  / 2;
+    my $panodx01 = ($pano11 - $pano_11) / 2;
+    my $panodx11 = ($pano21 - $pano01)  / 2;
 
-    # bilinear interpolation
-    my $pano00 = $pano->range($cellindex + pdl(0,0,0), pdl(2,1,1), 'fpt')->sever;
-    my $pano10 = $pano->range($cellindex + pdl(0,1,0), pdl(2,1,1), 'fpt')->sever;
-    my $pano01 = $pano->range($cellindex + pdl(0,0,1), pdl(2,1,1), 'fpt')->sever;
-    my $pano11 = $pano->range($cellindex + pdl(0,1,1), pdl(2,1,1), 'fpt')->sever;
+    my $panody00 = ($pano01 - $pano0_1) / 2;
+    my $panody10 = ($pano11 - $pano1_1) / 2;
+    my $panody01 = ($pano02 - $pano00)  / 2;
+    my $panody11 = ($pano12 - $pano10)  / 2;
 
-    my $pano_interpolated =
-      $pano00 * (1 - $azoffset) * (1 - $eloffset ) +
-      $pano10 * (    $azoffset) * (1 - $eloffset ) +
-      $pano01 * (1 - $azoffset) * (    $eloffset ) +
-      $pano11 * (    $azoffset) * (    $eloffset );
-    $pano_interpolated = $pano_interpolated->squeeze->mv(-1,0);
+    my $panodxy00 = ($pano_1_1 + $pano11 - $pano1_1 - $pano_11) / 4;
+    my $panodxy10 = ($pano0_1  + $pano21 - $pano2_1 - $pano01 ) / 4;
+    my $panodxy01 = ($pano_10  + $pano12 - $pano10  - $pano_12) / 4;
+    my $panodxy11 = ($pano00   + $pano22 - $pano20  - $pano02)  / 4;
+
+    # Each pano sample has dims (photowidth,photoheight,2). I organize the lower
+    # dimensions to be able to multiply by $Ainv. $p has dims
+    # (1,16,photowidth,photoheight,2)
+    my $p = PDL::cat( $pano00,    $pano10,    $pano01,    $pano11,
+                      $panodx00,  $panodx10,  $panodx01,  $panodx11,
+                      $panody00,  $panody10,  $panody01,  $panody11,
+                      $panodxy00, $panodxy10, $panodxy01, $panodxy11 )->mv(-1,0)->dummy(0);
+    my $a = PDL::squeeze($Ainv x $p); # 16 x photowidth x photowidth x 2
+
+    # I now have the bicubic interpolation coefficients for each patch. $a has
+    # dims (1,16,photowidth,photoheight,2). Each patch has domain [0,1]. The
+    # indices into this domain are ($azoffset, $eloffset)
+    #
+    # I now sample the interpolated surface. Note that here I assume that 0^0 =
+    # 1, which PDL appears to agree with
+    my $powers  = sequence(4)->cat(sequence(4)->transpose)->clump(2)->mv(-1,0); # 2x16
+    my $xy      = PDL::cat($azoffset, $eloffset)->mv(-1,0)->dummy(1);           # 2x1x...
+    my $domain  = prodover($xy ** $powers);                                     # 16x...
+    my $samples = inner($domain, $a); # photowidth x photoheight x 2
+
+    my $pano_interpolated = $samples->mv(-1,0);
 
 
     # store [$img,$pano,$pano00,$pano01,$pano10,$pano11,$azoffset,$eloffset,$cellindex,$az,$el,$pano_interpolated,$x,$R,$dR,$v], 'dat';
@@ -361,12 +444,10 @@ sub fullOptimization
     # d(sum( re0*re1 - im0*im1 )) = sum( re0 dre1 - im0 dim1 )
     # (re1,im1) is pano_interpolated
     #
-    # dpano_interpolated = pano00 * ( (1-azoffset) * (-deloffset) + (-dazoffset) * (1-deloffset) ) +
-    #                      pano10 * ( (  azoffset) * (-deloffset) + ( dazoffset) * (1-deloffset) ) +
-    #                      pano01 * ( (1-azoffset) * ( deloffset) + (-dazoffset) * (  deloffset) ) +
-    #                      pano11 * ( (  azoffset) * ( deloffset) + ( dazoffset) * (  deloffset) );
+    # pano_interpolated = inner($domain, $a)
+    # so dpano_interpolated = inner($d_domain, $a)
     #
-    # so all I need is d_azoffset and d_eloffset
+    # d_domain depends only on d_azoffset and d_eloffset
     #
     # d_azoffset = pano_px_per_rad * d_az
     # d_eloffset = pano_px_per_rad * d_el
@@ -398,20 +479,21 @@ sub fullOptimization
       dummy( (inner($x,$x) * $R(2,1;-) - $focal*$v((1),:,:)) /
              (inner($x,$x)*sqrt( inner($x,$x) - $v((1),:,:)*$v((1),:,:) )), 0);
 
-    # makde d_azel_offset dimensions (imwidth, imheight, 4)
+    # make d_azel_offset dimensions (imwidth, imheight, 4)
     my $d_azoffset = $pano_px_per_rad * $d_az_df->glue(0, $d_az_dr)->mv(0,-1);
     my $d_eloffset = $pano_px_per_rad * $d_el_df->glue(0, $d_el_dr)->mv(0,-1);
 
+    # I have domain       = (az^0*el^0 az^1*el^0 az^2*el^0 ....)
+    # I want d_domain_daz, d_domain_del
+    my $powers_daz = PDL::cat(pdl(0,0,1,2), pdl(0,1,2,3)->transpose)->clump(2)->mv(-1,0);    # 2x16
+    my $powers_del = PDL::cat(pdl(0,1,2,3), pdl(0,0,1,2)->transpose)->clump(2)->mv(-1,0);    # 2x16
+    my $domain_daz = prodover($xy ** $powers_daz) * pdl((0,1,2,3) x 4);                      # 16x...
+    my $domain_del = prodover($xy ** $powers_del) * pdl((0) x 4, (1) x 4, (2) x 4, (3) x 4); # 16x...
+
     # dpano_interpolated dims are (imwidth, imheight, 4, 2)
     my $dpano_interpolated =
-      $pano00->squeeze->dummy(2) *
-        ( (- $d_azoffset) * (1 - $eloffset ) + (1 - $azoffset) * (- $d_eloffset ) ) +
-      $pano10->squeeze->dummy(2) *
-        ( (  $d_azoffset) * (1 - $eloffset ) + (    $azoffset) * (- $d_eloffset ) ) +
-      $pano01->squeeze->dummy(2) *
-        ( (- $d_azoffset) * (    $eloffset ) + (1 - $azoffset) * (  $d_eloffset ) ) +
-      $pano11->squeeze->dummy(2) *
-        ( (  $d_azoffset) * (    $eloffset ) + (    $azoffset) * (  $d_eloffset ));
+      inner($domain_daz, $a)->dummy(2) * $d_azoffset +
+      inner($domain_del, $a)->dummy(2) * $d_eloffset;
 
     my $j =
       [list sumover(sumover($img((0),:,:) * $dpano_interpolated(:,:,:,(0)) -
