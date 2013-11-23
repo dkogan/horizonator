@@ -182,8 +182,8 @@ sub readImages
   my $focal      = 5.1;
 
 
-  my $img  = PDL::IO::GD->new( $ARGV{'--photo'} )->to_pdl->float / 255.0;
-  my $pano = PDL::IO::GD->new( $ARGV{'--pano'}  )->to_pdl->float / 255.0;
+  my $img  = PDL::IO::GD->new( $ARGV{'--photo'} )->to_pdl->double / 255.0;
+  my $pano = PDL::IO::GD->new( $ARGV{'--pano'}  )->to_pdl->double / 255.0;
 
 
   if( !$ARGV{'--doremap'} )
@@ -198,7 +198,7 @@ sub readImages
   my @fov        = map { list atan( $_ / 2.0 / $focal ) * 2.0 } @sensorsize;
   my @remap_size = map { $_ * $px_per_rad } @fov;
 
-  my $img_remapped = float zeros( @remap_size, 3 );
+  my $img_remapped = double zeros( @remap_size, 3 );
 
   # I remap my photo (from a perspective camera) to an az-el image. $map is a
   # piddle corresponding to the target az-el image; values of $map are indices
@@ -215,13 +215,13 @@ sub readImages
   my $sxy = pdl( @sensorsize );
 
   my $map = cat( tan($az), tan($el)/cos($az) );
-  $map = float( ($map * $focal / $sxy->dummy(0)->dummy(0) + 0.5) * ($wh->dummy(0)->dummy(0) - 1));
+  $map = double( ($map * $focal / $sxy->dummy(0)->dummy(0) + 0.5) * ($wh->dummy(0)->dummy(0) - 1));
 
   Remap( $img,
          $img_remapped,
          $map->dog,
          1 + 9,                 # CV_INTER_LINEAR+CV_WARP_FILL_OUTLIERS
-         zeros(4)->float );
+         zeros(4)->double );
 
   if( $ARGV{'--saveremapped'} )
   {
