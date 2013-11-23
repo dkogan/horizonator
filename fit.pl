@@ -69,10 +69,6 @@ if( !%image )
     $image{$name}{size}     = [$img->dims];
     pop $image{$name}{size};
 
-    # edges looking at each channel separately
-    $image{$name}{edgecomponents}{x} = $gradx;
-    $image{$name}{edgecomponents}{y} = $grady;
-
     Sobel( $img_smoothed, $gradx, 1, 0, $cvdef{CV_SCHARR} );
     Sobel( $img_smoothed, $grady, 0, 1, $cvdef{CV_SCHARR} );
 
