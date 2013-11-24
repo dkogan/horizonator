@@ -56,12 +56,16 @@ if( !%image )
       # don't smooth the panorama image, since it's perfect
       $img_smoothed = $img->copy;
     }
-    else
+    elsif( $ARGV{'--smoothradius'} >= 3 )
     {
       Smooth( $img, $img_smoothed, $cvdef{CV_GAUSSIAN},
               $ARGV{'--smoothradius'},
               $ARGV{'--smoothradius'}, 0, 0 );
       $img_smoothed /= 3*3;
+    }
+    else
+    {
+      $img_smoothed = $img;
     }
 
     $image{$name}{orig}     = $img;
@@ -819,10 +823,11 @@ C<regions> to show which regions of the image aligned the best in the best-case 
 =item --s[moothradius] <smoothradius>
 
 The radius of the initial smoothing filter. The default is smoothradius.default.
-This must be an odd integer >= 3
+This must be an odd integer >= 3, or <= 0 to indicate that no smoothing should
+be done
 
 =for Euclid:
-    smoothradius.type:       int, smoothradius >= 3 && smoothradius % 2 == 1
+    smoothradius.type:       int, (smoothradius >= 3 && smoothradius % 2 == 1) || smoothradius <= 0
     smoothradius.type.error: smoothradius must be odd integer >= 3
     smoothradius.default:    7
 
