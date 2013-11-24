@@ -57,6 +57,8 @@ render_terrain: LINK.o := g++
 
 render_terrain.o: vertex.glsl.h fragment.glsl.h
 
+tstcanny: LDLIBS += -lfltk
+
 %.glsl.h: %.glsl
 	sed 's/.*/"&\\n"/g' $^ > $@
 
