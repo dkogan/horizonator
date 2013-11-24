@@ -139,7 +139,12 @@ if ( $ARGV{'--forcerightanswer'} )
   ($dx,$dy)=(642,86);
 }
 
-my $solvedstate = fullOptimization( $image{img}{edges}, $image{pano}{edges}, $dx, $dy );
+my $solvedstate;
+
+if( !$ARGV{'--nooptimization'} )
+{
+  $solvedstate = fullOptimization( $image{img}{edges}, $image{pano}{edges}, $dx, $dy );
+}
 
 
 
@@ -830,6 +835,11 @@ be done
     smoothradius.type:       int, (smoothradius >= 3 && smoothradius % 2 == 1) || smoothradius <= 0
     smoothradius.type.error: smoothradius must be odd integer >= 3
     smoothradius.default:    7
+
+=item --nooptimization
+
+Only run the correlation, do not run the optimization routine
+
 
 =item --forcerightanswer
 
