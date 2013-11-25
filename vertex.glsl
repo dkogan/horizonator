@@ -35,7 +35,7 @@ void main(void)
   }
   else if( vin.y < 0.0 )
   {
-    vin.y *= -1.0;
+    vin.y = -vin.y - 1.0; // extra 1 because I can't assume that -0 < 0
     at_right_seam = true;
   }
 

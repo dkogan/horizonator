@@ -310,7 +310,7 @@ static bool loadGeometry( float view_lat, float view_lon,
 
         // left side; negative to indicate that this is a duplicate for the left seam
         vertices[vertex_buf_idx++] = view_i;
-        vertices[vertex_buf_idx++] = -j;
+        vertices[vertex_buf_idx++] = -(j+1); // extra 1 because I can't assume that -0 < 0
         vertices[vertex_buf_idx++] = sampleDEM(view_i_DEMcoords, j_dem,
                                                dems[baseDEMfileE - renderStartDEMfileE][DEMfileN - renderStartDEMfileN]);
 
