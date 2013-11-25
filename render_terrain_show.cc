@@ -28,19 +28,21 @@ static void redraw_slippymap( void* mapctrl );
 
 int main(int argc, char** argv)
 {
-  Fl::lock();
+  int   doBatch = 0;
+  char* batchFileOutput = NULL;
 
-  int   doGlonly = 0;
-  float glonly_view_lat, glonly_view_lon;
+  float batch_view_lat, batch_view_lon;
 
   const char* usage =
-    "%s [--glonly lat,lon] [--help]\n"
-    "  --glonly renders to a OpenGL window. No annotations\n"
-    "  otherwise the full FLTK app is launched; annotations and all\n";
+    "%s [--batch lat,lon] [--output file.png] [--help]\n"
+    "  --batch just does a render and exits. No annotations.\n"
+    "  If --output is also given, the render goes to a file; otherwise to a window.\n"
+    "  With no --batch, the full FLTK app is launched; annotations and all\n";
 
   struct option long_options[] =
     {
-      {"glonly",   required_argument, NULL, 'g' },
+      {"batch",    required_argument, NULL, 'b' },
+      {"output",   required_argument, NULL, 'o' },
       {"help",     no_argument,       NULL, 'h' },
       {}
     };
@@ -62,8 +64,8 @@ int main(int argc, char** argv)
       fprintf(stdout, usage, argv[0]);
       return 0;
 
-    case 'g':
-      doGlonly = 1;
+    case 'b':
+      doBatch = 1;
       lat = strtok( optarg, "," );
       if( lat == NULL )
       {
@@ -71,7 +73,7 @@ int main(int argc, char** argv)
         fprintf(stderr, usage, argv[0]);
         return 1;
       }
-      glonly_view_lat = atof( lat );
+      batch_view_lat = atof( lat );
 
       lon = strtok( NULL,   "," );
       if( lon == NULL )
@@ -80,18 +82,45 @@ int main(int argc, char** argv)
         fprintf(stderr, usage, argv[0]);
         return 1;
       }
-      glonly_view_lon = atof( lon );
+      batch_view_lon = atof( lon );
+      break;
+
+    case 'o':
+      batchFileOutput = optarg;
       break;
 
     default: ;
     }
   } while(getopt_res != -1);
 
-  if( doGlonly )
+  if( batchFileOutput && !doBatch )
   {
-    render_terrain_to_window( glonly_view_lat, glonly_view_lon );
+    fprintf(stderr, "--output makes sense ONLY with --batch. Giving up\n");
+    return 1;
+  }
+
+  if( doBatch )
+  {
+    if( !batchFileOutput )
+      render_terrain_to_window( batch_view_lat, batch_view_lon );
+    else
+    {
+      IplImage* img = render_terrain( batch_view_lat, batch_view_lon, NULL, true );
+      cvSaveImage( batchFileOutput, img );
+      cvReleaseImage( &img );
+    }
     return 0;
   }
+
+
+
+
+
+
+
+
+
+  Fl::lock();
 
   std::vector<orb_layer*> layers;
   orb_mapctrl*            mapctrl;
