@@ -28,20 +28,27 @@ static void redraw_slippymap( void* mapctrl );
 
 int main(int argc, char** argv)
 {
-  int   doBatch = 0;
+  int   doBatch         = 0;
+  int   render_width    = -1;
+  float render_fovy_deg = -1.0f;
   char* batchFileOutput = NULL;
 
   float batch_view_lat, batch_view_lon;
 
   const char* usage =
-    "%s [--batch lat,lon] [--output file.png] [--help]\n"
+    "%s [--batch lat,lon] [--output file.png] [--width w] [--fov angle]\n"
+    "   [--help]\n"
     "  --batch just does a render and exits. No annotations.\n"
     "  If --output is also given, the render goes to a file; otherwise to a window.\n"
+    "  If specified, --width and --fov control the render parameters.\n"
+    "  Angle is the vertical view angle, in degrees.\n"
     "  With no --batch, the full FLTK app is launched; annotations and all\n";
 
   struct option long_options[] =
     {
       {"batch",    required_argument, NULL, 'b' },
+      {"width",    required_argument, NULL, 'w' },
+      {"fov",      required_argument, NULL, 'f' },
       {"output",   required_argument, NULL, 'o' },
       {"help",     no_argument,       NULL, 'h' },
       {}
@@ -89,6 +96,14 @@ int main(int argc, char** argv)
       batchFileOutput = optarg;
       break;
 
+    case 'w':
+      render_width = atoi(optarg);
+      break;
+
+    case 'f':
+      render_fovy_deg = atof(optarg);
+      break;
+
     default: ;
     }
   } while(getopt_res != -1);
@@ -105,7 +120,9 @@ int main(int argc, char** argv)
       render_terrain_to_window( batch_view_lat, batch_view_lon );
     else
     {
-      IplImage* img = render_terrain( batch_view_lat, batch_view_lon, NULL, true );
+      IplImage* img = render_terrain( batch_view_lat, batch_view_lon, NULL,
+                                      render_width, render_fovy_deg,
+                                      true );
       cvSaveImage( batchFileOutput, img );
       cvReleaseImage( &img );
     }
@@ -196,6 +213,7 @@ static void cb_slippymap(Fl_Widget* widget,
 
     float elevation;
     IplImage* img = render_terrain( view_lat, view_lon, &elevation,
+                                    -1, -1.0f,
                                     false /* BGR is we're writing to a file;
                                              cvSaveImage() expects */
                                     );
