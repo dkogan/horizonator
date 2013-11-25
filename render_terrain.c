@@ -34,10 +34,16 @@ static GLint uniform_aspect;
 // the viewer in the inf-norm sense
 #define R_RENDER 1000
 
-#define FOVY_DEG 50.0 /* vertical field of view of the render */
+#define FOVY_DEG_DEFAULT    50.0f /* vertical field of view of the render */
+#define OFFSCREEN_W_DEFAULT 6000
 
-#define OFFSCREEN_W 6000.0
-#define OFFSCREEN_H (int)( 0.5 + OFFSCREEN_W / 360.0 * FOVY_DEG)
+#define OFFSCREEN_H(width, fovy_deg) (int)( 0.5 + width / 360.0 * fovy_deg)
+#define OFFSCREEN_H_DEFAULT OFFSCREEN_H(OFFSCREEN_W_DEFAULT, FOVY_DEG_DEFAULT)
+
+static int offscreen_w = OFFSCREEN_W_DEFAULT;
+static int offscreen_h = OFFSCREEN_H_DEFAULT;
+
+
 
 static bool loadGeometry( float view_lat, float view_lon,
                           float* elevation_out )
@@ -529,14 +535,14 @@ static void window_keyPressed(unsigned char key,
 
 static IplImage* readOffscreenPixels( bool do_bgr )
 {
-  CvSize size = { .width  = OFFSCREEN_W,
-                  .height = OFFSCREEN_H };
+  CvSize size = { .width  = offscreen_w,
+                  .height = offscreen_h };
 
   IplImage* img = cvCreateImage(size, 8, 3);
   assert( img );
 
   glDrawBuffer(GL_COLOR_ATTACHMENT0);
-  glReadPixels(0,0, OFFSCREEN_W, OFFSCREEN_H,
+  glReadPixels(0,0, offscreen_w, offscreen_h,
                do_bgr ? GL_BGR : GL_RGB,
                GL_UNSIGNED_BYTE, img->imageData);
   cvFlip(img, NULL, 0);
@@ -590,7 +596,7 @@ static bool setup_gl( bool doRenderToScreen,
       glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
       assert( glGetError() == GL_NO_ERROR );
 
-      glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, OFFSCREEN_W, OFFSCREEN_H);
+      glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, offscreen_w, offscreen_h);
       assert( glGetError() == GL_NO_ERROR );
 
       glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
@@ -606,7 +612,7 @@ static bool setup_gl( bool doRenderToScreen,
       glBindRenderbuffer(GL_RENDERBUFFER, depthBufID);
       assert( glGetError() == GL_NO_ERROR );
 
-      glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, OFFSCREEN_W, OFFSCREEN_H);
+      glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, offscreen_w, offscreen_h);
       assert( glGetError() == GL_NO_ERROR );
 
       glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
@@ -647,12 +653,19 @@ static bool setup_gl( bool doRenderToScreen,
 // returns the rendered opencv image. NULL on error. It is the caller's
 // responsibility to free this image's memory
 IplImage* render_terrain( float view_lat, float view_lon, float* elevation,
+                          int width, float fovy_deg, // render parameters. negative to take defaults
                           bool do_bgr )
 {
+  if( width    <= 0 ) width    = OFFSCREEN_W_DEFAULT;
+  if( fovy_deg <= 0 ) fovy_deg = FOVY_DEG_DEFAULT;
+
+  offscreen_w = width;
+  offscreen_h = OFFSCREEN_H(width, fovy_deg);
+
   if( !setup_gl( false, view_lat, view_lon, elevation ) )
     return NULL;
 
-  window_reshape(OFFSCREEN_W, OFFSCREEN_H);
+  window_reshape(offscreen_w, offscreen_h);
   do_draw();
 
   IplImage* img = readOffscreenPixels( do_bgr );
