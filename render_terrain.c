@@ -224,8 +224,8 @@ static bool loadGeometry( float view_lat, float view_lon,
     // for one row and angle > pi for the other), and render the seam twice,
     // once for each side.
     //
-    // Furthermore, I do not render the two triangles that span the cell that
-    // the camera is in
+    // The square I'm sitting on demands special treatment. I construct a
+    // 6-triangle tiling that fully covers my window
     view_i           = floor( ( view_lon - (float)renderStartE) * CELLS_PER_DEG );
     view_j           = floor( ( view_lat - (float)renderStartN) * CELLS_PER_DEG );
     view_i_DEMcoords = (view_i + renderStartDEMcoords_i) % CELLS_PER_DEG;
@@ -240,11 +240,15 @@ static bool loadGeometry( float view_lat, float view_lon,
 #if NOSEAM == 0
     Nvertices  += Lseam*2;      // double-up the seam vertices
     Ntriangles += (Lseam-1)*2;  // Seam rendered twice. This is the extra one
+    Ntriangles -= 2;            // Don't render the normal thing at the viewer square
+    Ntriangles += 6;            // tiling at the viewer square
+    Nvertices  += 2;            // the vertices in the bottom-left and
+                                // bottom-right of the image. used for the
+                                // viewer square
 #else
     Ntriangles -= (Lseam-1)*2;
+    Ntriangles -= 2;            // Don't render anything at the viewer square
 #endif
-
-    Ntriangles -= 2;            // Don't render the triangles AT the viewer
   }
 
   // vertices
@@ -329,6 +333,19 @@ static bool loadGeometry( float view_lat, float view_lon,
         }
       }
     }
+
+    // Now two magic extra vertices used for the square I'm on: the bottom-left
+    // of screen and the bottom-right of screen. The vertex coordinates here are
+    // bogus. They are just meant to indicate to the shader to use hard-coded
+    // transformed coords. (neg neg neg) means bottom-left. (neg neg pos) means
+    // bottom-right
+    vertices[vertex_buf_idx++] = -1.0;
+    vertices[vertex_buf_idx++] = -1.0;
+    vertices[vertex_buf_idx++] = -1.0;
+
+    vertices[vertex_buf_idx++] = -1.0;
+    vertices[vertex_buf_idx++] = -1.0;
+    vertices[vertex_buf_idx++] =  1.0;
 #endif
 
     assert( glUnmapBuffer(GL_ARRAY_BUFFER) == GL_TRUE );
@@ -351,9 +368,56 @@ static bool loadGeometry( float view_lat, float view_lon,
         // seam?
         if( i == view_i)
         {
-          // do not render the triangles the camera is sitting on
           if( j == view_j )
+          {
+#if NOSEAM == 0
+            // square camera is sitting on gets special treatment
+
+#define BEHIND_LEFT_NOT_MIRRORED              (j + 0)*(2*R_RENDER) + (i + 0)
+#define BEHIND_RIGHT_NOT_MIRRORED             (j + 0)*(2*R_RENDER) + (i + 1)
+#define FRONT_LEFT                            (j + 1)*(2*R_RENDER) + (i + 0)
+#define FRONT_RIGHT                           (j + 1)*(2*R_RENDER) + (i + 1)
+#define BEHIND_LEFT_MIRRORED_PAST_RIGHT_EDGE  (2*R_RENDER)*(2*R_RENDER) + j*2
+#define BEHIND_RIGHT_MIRRORED_PAST_LEFT_EDGE  (2*R_RENDER)*(2*R_RENDER) + j*2 + 1
+#define BOTTOM_LEFT_OF_IMAGE                  Nvertices - 2
+#define BOTTOM_RIGHT_OF_IMAGE                 Nvertices - 1
+
+            indices[idx++] = BEHIND_RIGHT_MIRRORED_PAST_LEFT_EDGE;
+            indices[idx++] = BOTTOM_LEFT_OF_IMAGE;
+            indices[idx++] = BEHIND_LEFT_NOT_MIRRORED;
+
+            indices[idx++] = BEHIND_LEFT_NOT_MIRRORED;
+            indices[idx++] = BOTTOM_LEFT_OF_IMAGE;
+            indices[idx++] = FRONT_LEFT;
+
+            indices[idx++] = FRONT_LEFT;
+            indices[idx++] = BOTTOM_LEFT_OF_IMAGE;
+            indices[idx++] = BOTTOM_RIGHT_OF_IMAGE;
+
+            indices[idx++] = FRONT_LEFT;
+            indices[idx++] = BOTTOM_RIGHT_OF_IMAGE;
+            indices[idx++] = FRONT_RIGHT;
+
+            indices[idx++] = FRONT_RIGHT;
+            indices[idx++] = BOTTOM_RIGHT_OF_IMAGE;
+            indices[idx++] = BEHIND_RIGHT_NOT_MIRRORED;
+
+            indices[idx++] = BEHIND_RIGHT_NOT_MIRRORED;
+            indices[idx++] = BOTTOM_RIGHT_OF_IMAGE;
+            indices[idx++] = BEHIND_LEFT_MIRRORED_PAST_RIGHT_EDGE;
+
+#undef FRONT_LEFT
+#undef FRONT_RIGHT
+#undef BEHIND_LEFT_NOT_MIRRORED
+#undef BEHIND_RIGHT_NOT_MIRRORED
+#undef BEHIND_LEFT_MIRRORED_PAST_RIGHT_EDGE
+#undef BEHIND_RIGHT_MIRRORED_PAST_LEFT_EDGE
+#undef BOTTOM_LEFT_OF_IMAGE
+#undef BOTTOM_RIGHT_OF_IMAGE
+
+#endif
             continue;
+          }
 
           if( j < Lseam )
           {
