@@ -2,8 +2,8 @@
 
 #version 110
 
-varying float red;
+varying float red, green;
 void main(void)
 {
-  gl_FragColor = vec4(red, 0.0 ,0.0, 0.0);
+  gl_FragColor = vec4(red, green ,0.0, 0.0);
 }
