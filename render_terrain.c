@@ -64,13 +64,18 @@ static bool loadGeometry( float view_lat, float view_lon,
     int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
     return (z < 0) ? 0 : z;
   }
-  float getHeight(int i, int j, const unsigned char* dem)
+  float getViewerHeight(int i, int j, const unsigned char* dem)
   {
+#warning this function shouldnt be per-DEM. What if the viewer is on a DEM boundary?
     float z = -1e20f;
-    z = fmax(z, (float) sampleDEM(i,  j,   dem) );
-    z = fmax(z, (float) sampleDEM(i+1,j,   dem) );
-    z = fmax(z, (float) sampleDEM(i,  j+1, dem) );
-    z = fmax(z, (float) sampleDEM(i+1,j+1, dem) );
+
+    for( int di=-1; di<=1; di++ )
+      for( int dj=-1; dj<=1; dj++ )
+      {
+        if( i+di >= 0 && i+di < WDEM &&
+            j+dj >= 0 && j+dj < WDEM )
+          z = fmax(z, (float) sampleDEM(i+di, j+dj, dem) );
+      }
 
     return z;
   }
@@ -226,9 +231,9 @@ static bool loadGeometry( float view_lat, float view_lon,
     view_i_DEMcoords = (view_i + renderStartDEMcoords_i) % CELLS_PER_DEG;
     view_j_DEMcoords = (view_j + renderStartDEMcoords_j) % CELLS_PER_DEG;
 
-    // look in the center DEM
-    viewer_z = getHeight( view_i_DEMcoords, view_j_DEMcoords,
-                          dems[baseDEMfileE - renderStartDEMfileE][baseDEMfileN - renderStartDEMfileN] );
+    // The viewer elevation
+    viewer_z = getViewerHeight( view_i_DEMcoords, view_j_DEMcoords,
+                                dems[baseDEMfileE - renderStartDEMfileE][baseDEMfileN - renderStartDEMfileN] );
 
     Lseam = view_j+1;
 
