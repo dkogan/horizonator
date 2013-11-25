@@ -425,7 +425,7 @@ static bool loadGeometry( float view_lat, float view_lon,
             // seam. I add two sets of triangles here; one for the left edge of
             // the screen and one for the right
 
-            // left edge:
+            // right edge:
             indices[idx++] = (2*R_RENDER)*(2*R_RENDER) +  j     *2;
             indices[idx++] = (j + 1)     *(2*R_RENDER) + (i + 1);
             indices[idx++] = (2*R_RENDER)*(2*R_RENDER) + (j + 1)*2;
@@ -434,7 +434,7 @@ static bool loadGeometry( float view_lat, float view_lon,
             indices[idx++] = (j + 0)     *(2*R_RENDER) + (i + 1);
             indices[idx++] = (j + 1)     *(2*R_RENDER) + (i + 1);
 
-            // right edge:
+            // left edge:
             indices[idx++] = (j + 0)     *(2*R_RENDER) + (i + 0);
             indices[idx++] = (2*R_RENDER)*(2*R_RENDER) + (j + 1)*2 + 1;
             indices[idx++] = (j + 1)     *(2*R_RENDER) + (i + 0);
