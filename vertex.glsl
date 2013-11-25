@@ -16,7 +16,7 @@ const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
 
 // these define the front and back clipping planes, in meters
-const float znear  = 100.0, zfar = 300000.0;
+const float znear  = 10.0, zfar = 300000.0;
 
 // Past this distance the render color doesn't change, in meters
 const float zfar_color = 40000.0;
