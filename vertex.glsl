@@ -10,7 +10,7 @@ uniform float view_lat;
 uniform float sin_view_lat, cos_view_lat;
 
 uniform float aspect;
-varying float red;
+varying float red, green;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
@@ -73,7 +73,7 @@ void main(void)
   // coloring by...
   red = clamp( (zfar_color - zeff) / (zfar_color - znear ),
                0.0, 1.0 ); // ... distance from camera
-  //red = vin.z / 3500.0; // ... elevation
+  green = vin.z / 3500.0; // ... elevation
 
   const float A = (zfar + znear) / (zfar - znear);
   gl_Position = vec4( az * zeff,
