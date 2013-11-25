@@ -753,10 +753,8 @@ sub debugPlot
         push @options, %opts_range;
       }
     }
-    else
-    {
-      push @options, (extracmds => 'set yrange [*:*] reverse');
-    }
+
+    push @options, (extracmds => 'set yrange [*:*] reverse');
 
     $w[-1]->plot( @options, $x );
   }
