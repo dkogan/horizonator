@@ -87,18 +87,23 @@ static bool loadGeometry( float view_lat, float view_lon,
   // Viewer is looking north, the seam is behind (to the south). If the viewer is
   // directly on a grid value, then the cell of the seam is poorly defined. In
   // that scenario, I nudge the viewer to one side to unambiguously pick the seam
-  // cell
+  // cell. I do this in both lat and lon directions to resolve ambiguity.
+  void nudgeCoord( float* view )
   {
-    float cell_idx         = (view_lon - floor(view_lon)) * CELLS_PER_DEG;
+    float cell_idx         = (*view - floor(*view)) * CELLS_PER_DEG;
     float cell_idx_rounded = round( cell_idx );
 
     // want at least 0.1 cells of separation
     if( fabs( cell_idx - cell_idx_rounded ) < 0.1 )
     {
-      if( cell_idx > cell_idx_rounded ) view_lon += 0.1/CELLS_PER_DEG;
-      else                              view_lon -= 0.1/CELLS_PER_DEG;
+      if( cell_idx > cell_idx_rounded ) *view += 0.1/CELLS_PER_DEG;
+      else                              *view -= 0.1/CELLS_PER_DEG;
     }
   }
+  nudgeCoord( &view_lat );
+  nudgeCoord( &view_lon );
+
+
 
   // I render a square with radius R_RENDER centered at the view point. There
   // are (2*R_RENDER)**2 cells in the render. In all likelihood this will
