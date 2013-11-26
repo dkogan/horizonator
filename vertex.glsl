@@ -37,15 +37,16 @@ void main(void)
     if( vin.z < 0.0 )
     {
       gl_Position = vec4( -1.0, -1.0,
-                          -1.0, 1.0 );
+                          -1.0, 1.0 ); // is this right? not at all sure the
+                                       // last 2 args are correct
     }
     else
     {
       gl_Position = vec4( +1.0, -1.0,
                           -1.0, 1.0 );
     }
-    red   = 1.0;
-    green = 0.0;
+    red   = 0.0;
+    green = 0.5;
   }
   else
   {
