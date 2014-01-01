@@ -63,7 +63,7 @@ tstcanny: LDLIBS += -lfltk
 	sed 's/.*/"&\\n"/g' $^ > $@
 
 features_generated.h: $(wildcard *Features*.txt) parse_features.pl
-	./parse_features.pl $< > $@
+	./parse_features.pl $(filter-out %.pl,$^) > $@
 
 points_of_interest.o: features_generated.h
 
