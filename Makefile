@@ -37,7 +37,7 @@ TARGETS = fit render_terrain
 all: $(TARGETS)
 
 CPPFLAGS += -I/usr/include/opencv2
-LDLIBS   += -lopencv_imgproc -lopencv_highgui -lopencv_core
+LDLIBS   += -lopencv_imgproc -lopencv_highgui -lopencv_core -lopencv_legacy
 
 
 
