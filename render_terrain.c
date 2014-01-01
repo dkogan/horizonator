@@ -35,7 +35,7 @@ static GLint uniform_aspect;
 #define R_RENDER 1000
 
 #define FOVY_DEG_DEFAULT    50.0f /* vertical field of view of the render */
-#define OFFSCREEN_W_DEFAULT 6000
+#define OFFSCREEN_W_DEFAULT 4000
 
 #define OFFSCREEN_H(width, fovy_deg) (int)( 0.5 + width / 360.0 * fovy_deg)
 #define OFFSCREEN_H_DEFAULT OFFSCREEN_H(OFFSCREEN_W_DEFAULT, FOVY_DEG_DEFAULT)
