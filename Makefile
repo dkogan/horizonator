@@ -47,7 +47,7 @@ LDLIBS   += -lopencv_imgproc -lopencv_highgui -lopencv_core -lopencv_legacy
 FLORB_SOURCES := $(wildcard $(addprefix florb/,*.cpp *.cc Fl/*.cpp))
 
 FLORB_OBJECTS   := $(addsuffix .o,$(basename $(FLORB_SOURCES)))
-HORIZON_OBJECTS := render_terrain.o render_terrain_show.o points_of_interest.o fltk_annotated_image.o dem_downloader.o orb_renderviewlayer.o Fl_Scroll_Draggable.o
+HORIZON_OBJECTS := render_terrain.o main.o points_of_interest.o fltk_annotated_image.o dem_downloader.o orb_renderviewlayer.o Fl_Scroll_Draggable.o
 
 
 render_terrain: $(HORIZON_OBJECTS) $(FLORB_OBJECTS)
