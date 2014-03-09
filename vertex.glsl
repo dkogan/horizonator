@@ -12,6 +12,15 @@ uniform float sin_view_lat, cos_view_lat;
 uniform float aspect;
 varying float red, green;
 
+uniform float TEXTUREMAP_LON0;
+uniform float TEXTUREMAP_LON1;
+uniform float TEXTUREMAP_LAT0;
+uniform float TEXTUREMAP_LAT1;
+uniform float TEXTUREMAP_LAT2;
+uniform int NtilesX, NtilesY;
+uniform int start_osmTileX;
+uniform int start_osmTileY;
+
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
 
@@ -21,6 +30,25 @@ const float znear  = 10.0, zfar = 300000.0;
 // Past this distance the render color doesn't change, in meters
 const float zfar_color = 40000.0;
 
+
+// OSM tiles (and everybody else's tool) use the spherical mercator
+// projection to map corners of each tile to lat/lon coords. Inside each
+// tile, the pixel coords are linear with lat/lon.
+//
+// Spherical mercator is linear in the longitude direction, so there's
+// nothing interesting here. It is NOT linear in the latitude direction. I
+// estimate it with 2nd-order interpolation. This is close-enough for my
+// purposes
+float get_xtexture( float lon )
+{
+    float x_texture = TEXTUREMAP_LON1 * lon + TEXTUREMAP_LON0;
+    return (x_texture - float(start_osmTileX)) / float(NtilesX);
+}
+float get_ytexture( float dlat )
+{
+    float y_texture = dlat * (dlat*TEXTUREMAP_LAT2 + TEXTUREMAP_LAT1) + TEXTUREMAP_LAT0;
+    return (y_texture - float(start_osmTileY)) / float(NtilesY);
+}
 
 void main(void)
 {
@@ -39,11 +67,13 @@ void main(void)
       gl_Position = vec4( -1.0, -1.0,
                           -1.0, 1.0 ); // is this right? not at all sure the
                                        // last 2 args are correct
+      gl_TexCoord[0].xy = vec2(get_xtexture(view_lon), get_ytexture(0.0));
     }
     else
     {
       gl_Position = vec4( +1.0, -1.0,
                           -1.0, 1.0 );
+      gl_TexCoord[0].xy = vec2(get_xtexture(view_lon), get_ytexture(0.0));
     }
     red   = 0.0;
     green = 0.5;
@@ -61,15 +91,20 @@ void main(void)
       at_right_seam = true;
     }
 
-    float lon = radians( float(renderStartE) + vin.x * DEG_PER_CELL );
-    float lat = radians( float(renderStartN) + vin.y * DEG_PER_CELL );
+    float lon  = radians( float(renderStartE) + vin.x * DEG_PER_CELL );
+    float lat  = radians( float(renderStartN) + vin.y * DEG_PER_CELL );
+    float dlat = lat - view_lat;
+
+    float x_texture = get_xtexture( lon );
+    float y_texture = get_ytexture( dlat );
+    gl_TexCoord[0].xy = vec2(x_texture, y_texture);
 
     // Here I compute 4 sin/cos. Previously I was sending sincos( view_lat/lon) as
     // a uniform, so no trig was needed here. I think this may have been causing
     // roundoff issues, so I'm not doing that anymore. Specifically, sin(+eps) was
     // being slightly negative
-    float sin_dlat = sin( lat - view_lat );
-    float cos_dlat = cos( lat - view_lat );
+    float sin_dlat = sin( dlat );
+    float cos_dlat = cos( dlat );
     float sin_dlon = sin( lon - view_lon );
     float cos_dlon = cos( lon - view_lon );
 
