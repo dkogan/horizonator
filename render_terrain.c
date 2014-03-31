@@ -209,7 +209,7 @@ static bool loadGeometry( float view_lat, float view_lon,
     }
   }
 
-  Nvertices = (2*R_RENDER) * (2*R_RENDER);
+  Nvertices  = (2*R_RENDER) * (2*R_RENDER);
   Ntriangles = (2*R_RENDER - 1)*(2*R_RENDER - 1) * 2;
 
   // seam business
@@ -642,7 +642,7 @@ static bool loadGeometry( float view_lat, float view_lon,
 
     char msg[1024];
     int len;
-    GLuint program =glCreateProgram();
+    GLuint program = glCreateProgram();
     assert( glGetError() == GL_NO_ERROR );
 
 
