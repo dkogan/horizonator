@@ -212,6 +212,8 @@ static void cb_slippymap(Fl_Widget* widget,
     renderviewlayer->setlatlon( view_lat, view_lon );
 
     float elevation;
+
+    printf("rendering latlon: %f/%f\n", view_lat, view_lon);
     IplImage* img = render_terrain( view_lat, view_lon, &elevation,
                                     -1, -1.0f,
                                     false /* BGR is we're writing to a file;
