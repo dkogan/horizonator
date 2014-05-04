@@ -21,7 +21,7 @@ LDLIBS_HORIZON := \
  -pthread
 
 # slippy-map compile time stuff
-CXXFLAGS_HORIZON := \
+CPPFLAGS_HORIZON := \
  -Iflorb -Iflorb/Fl \
  $(shell pkg-config --cflags glu) \
  $(shell pkg-config --cflags glew) \
@@ -52,7 +52,8 @@ HORIZON_OBJECTS := render_terrain.o main.o points_of_interest.o fltk_annotated_i
 
 render_terrain: $(HORIZON_OBJECTS) $(FLORB_OBJECTS)
 render_terrain: LDLIBS   += $(LDLIBS_HORIZON)
-render_terrain: CXXFLAGS += $(CXXFLAGS_HORIZON)
+render_terrain: CXXFLAGS += $(CPPFLAGS_HORIZON)
+render_terrain: CFLAGS   += $(CPPFLAGS_HORIZON)
 render_terrain: LINK.o := g++
 
 render_terrain.o: vertex.glsl.h fragment.glsl.h
