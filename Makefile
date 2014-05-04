@@ -56,7 +56,10 @@ render_terrain: CXXFLAGS += $(CPPFLAGS_HORIZON)
 render_terrain: CFLAGS   += $(CPPFLAGS_HORIZON)
 render_terrain: LINK.o := g++
 
-render_terrain.o: vertex.glsl.h fragment.glsl.h
+render_terrain.o: \
+	vertex.textured.glsl.h fragment.textured.glsl.h \
+	vertex.colored.glsl.h fragment.colored.glsl.h
+
 
 tstcanny: LDLIBS += -lfltk
 

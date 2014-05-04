@@ -17,6 +17,16 @@
 
 #include "dem_downloader.h"
 
+
+
+static int dotexture = 0;
+
+
+
+
+
+
+
 // can be used for testing/debugging to turn off the seam rendering
 #define NOSEAM 0
 
@@ -261,6 +271,7 @@ static bool loadGeometry( float view_lat, float view_lon,
   int start_osmTileX, start_osmTileY;
   float TEXTUREMAP_LON0, TEXTUREMAP_LON1;
   float TEXTUREMAP_LAT0, TEXTUREMAP_LAT1, TEXTUREMAP_LAT2;
+  if(dotexture)
   {
       GLuint texID;
       glGenTextures(1, &texID);
@@ -632,12 +643,18 @@ static bool loadGeometry( float view_lat, float view_lon,
     // The shader transforms the VBO vertices into the view coord system. Each VBO
     // point is a 16-bit integer tuple (ilon,ilat,height). The first 2 args are
     // indices into the DEM. The height is in meters
-    const GLchar* vertexShaderSource =
-#include "vertex.glsl.h"
+      const GLchar* vertexShaderSource =
+          dotexture ?
+#include "vertex.textured.glsl.h"
+          :
+#include "vertex.colored.glsl.h"
       ;
 
     const GLchar* fragmentShaderSource =
-#include "fragment.glsl.h"
+          dotexture ?
+#include "fragment.textured.glsl.h"
+          :
+#include "fragment.colored.glsl.h"
       ;
 
     char msg[1024];
@@ -671,24 +688,33 @@ static bool loadGeometry( float view_lat, float view_lon,
     glUseProgram(program);  assert( glGetError() == GL_NO_ERROR );
 
 
-    GLint uniform_view_z          = glGetUniformLocation(program, "view_z"      );    assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_renderStartN    = glGetUniformLocation(program, "renderStartN");    assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_renderStartE    = glGetUniformLocation(program, "renderStartE");    assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_DEG_PER_CELL    = glGetUniformLocation(program, "DEG_PER_CELL");    assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_view_lat        = glGetUniformLocation(program, "view_lat"    );    assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_view_lon        = glGetUniformLocation(program, "view_lon"    );    assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_sin_view_lat    = glGetUniformLocation(program, "sin_view_lat");    assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_cos_view_lat    = glGetUniformLocation(program, "cos_view_lat");    assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_TEXTUREMAP_LON1 = glGetUniformLocation(program, "TEXTUREMAP_LON1"); assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_TEXTUREMAP_LON0 = glGetUniformLocation(program, "TEXTUREMAP_LON0"); assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_TEXTUREMAP_LAT0 = glGetUniformLocation(program, "TEXTUREMAP_LAT0"); assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_TEXTUREMAP_LAT1 = glGetUniformLocation(program, "TEXTUREMAP_LAT1"); assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_TEXTUREMAP_LAT2 = glGetUniformLocation(program, "TEXTUREMAP_LAT2"); assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_NtilesX         = glGetUniformLocation(program, "NtilesX" );        assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_NtilesY         = glGetUniformLocation(program, "NtilesY" );        assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_start_osmTileX  = glGetUniformLocation(program, "start_osmTileX" ); assert( glGetError() == GL_NO_ERROR );
-    GLint uniform_start_osmTileY  = glGetUniformLocation(program, "start_osmTileY" ); assert( glGetError() == GL_NO_ERROR );
-          uniform_aspect          = glGetUniformLocation(program, "aspect"      );    assert( glGetError() == GL_NO_ERROR );
+    GLint uniform_view_z;
+    GLint uniform_renderStartN;
+    GLint uniform_renderStartE;
+    GLint uniform_DEG_PER_CELL;
+    GLint uniform_view_lat;
+    GLint uniform_view_lon;
+    GLint uniform_sin_view_lat;
+    GLint uniform_cos_view_lat;
+    GLint uniform_TEXTUREMAP_LON1;
+    GLint uniform_TEXTUREMAP_LON0;
+    GLint uniform_TEXTUREMAP_LAT0;
+    GLint uniform_TEXTUREMAP_LAT1;
+    GLint uniform_TEXTUREMAP_LAT2;
+    GLint uniform_NtilesX;
+    GLint uniform_NtilesY;
+    GLint uniform_start_osmTileX;
+    GLint uniform_start_osmTileY;
+
+    uniform_view_z          = glGetUniformLocation(program, "view_z"      );    assert( glGetError() == GL_NO_ERROR );
+    uniform_renderStartN    = glGetUniformLocation(program, "renderStartN");    assert( glGetError() == GL_NO_ERROR );
+    uniform_renderStartE    = glGetUniformLocation(program, "renderStartE");    assert( glGetError() == GL_NO_ERROR );
+    uniform_DEG_PER_CELL    = glGetUniformLocation(program, "DEG_PER_CELL");    assert( glGetError() == GL_NO_ERROR );
+    uniform_view_lat        = glGetUniformLocation(program, "view_lat"    );    assert( glGetError() == GL_NO_ERROR );
+    uniform_view_lon        = glGetUniformLocation(program, "view_lon"    );    assert( glGetError() == GL_NO_ERROR );
+    uniform_sin_view_lat    = glGetUniformLocation(program, "sin_view_lat");    assert( glGetError() == GL_NO_ERROR );
+    uniform_cos_view_lat    = glGetUniformLocation(program, "cos_view_lat");    assert( glGetError() == GL_NO_ERROR );
+    uniform_aspect          = glGetUniformLocation(program, "aspect"      );    assert( glGetError() == GL_NO_ERROR );
 
     glUniform1f( uniform_view_z,       viewer_z);
     glUniform1f( uniform_renderStartN, renderStartN);
@@ -700,15 +726,28 @@ static bool loadGeometry( float view_lat, float view_lon,
     glUniform1f( uniform_sin_view_lat, sin( M_PI / 180.0f * view_lat ));
     glUniform1f( uniform_cos_view_lat, cos( M_PI / 180.0f * view_lat ));
 
-    glUniform1f( uniform_TEXTUREMAP_LON0, TEXTUREMAP_LON0);
-    glUniform1f( uniform_TEXTUREMAP_LON1, TEXTUREMAP_LON1);
-    glUniform1f( uniform_TEXTUREMAP_LAT0, TEXTUREMAP_LAT0);
-    glUniform1f( uniform_TEXTUREMAP_LAT1, TEXTUREMAP_LAT1);
-    glUniform1f( uniform_TEXTUREMAP_LAT2, TEXTUREMAP_LAT2);
-    glUniform1i( uniform_NtilesX,         NtilesX);
-    glUniform1i( uniform_NtilesY,         NtilesY);
-    glUniform1i( uniform_start_osmTileX,  start_osmTileX);
-    glUniform1i( uniform_start_osmTileY,  start_osmTileY);
+    if( dotexture )
+    {
+        uniform_TEXTUREMAP_LON1 = glGetUniformLocation(program, "TEXTUREMAP_LON1"); assert( glGetError() == GL_NO_ERROR );
+        uniform_TEXTUREMAP_LON0 = glGetUniformLocation(program, "TEXTUREMAP_LON0"); assert( glGetError() == GL_NO_ERROR );
+        uniform_TEXTUREMAP_LAT0 = glGetUniformLocation(program, "TEXTUREMAP_LAT0"); assert( glGetError() == GL_NO_ERROR );
+        uniform_TEXTUREMAP_LAT1 = glGetUniformLocation(program, "TEXTUREMAP_LAT1"); assert( glGetError() == GL_NO_ERROR );
+        uniform_TEXTUREMAP_LAT2 = glGetUniformLocation(program, "TEXTUREMAP_LAT2"); assert( glGetError() == GL_NO_ERROR );
+        uniform_NtilesX         = glGetUniformLocation(program, "NtilesX" );        assert( glGetError() == GL_NO_ERROR );
+        uniform_NtilesY         = glGetUniformLocation(program, "NtilesY" );        assert( glGetError() == GL_NO_ERROR );
+        uniform_start_osmTileX  = glGetUniformLocation(program, "start_osmTileX" ); assert( glGetError() == GL_NO_ERROR );
+        uniform_start_osmTileY  = glGetUniformLocation(program, "start_osmTileY" ); assert( glGetError() == GL_NO_ERROR );
+
+        glUniform1f( uniform_TEXTUREMAP_LON0, TEXTUREMAP_LON0);
+        glUniform1f( uniform_TEXTUREMAP_LON1, TEXTUREMAP_LON1);
+        glUniform1f( uniform_TEXTUREMAP_LAT0, TEXTUREMAP_LAT0);
+        glUniform1f( uniform_TEXTUREMAP_LAT1, TEXTUREMAP_LAT1);
+        glUniform1f( uniform_TEXTUREMAP_LAT2, TEXTUREMAP_LAT2);
+        glUniform1i( uniform_NtilesX,         NtilesX);
+        glUniform1i( uniform_NtilesY,         NtilesY);
+        glUniform1i( uniform_start_osmTileX,  start_osmTileX);
+        glUniform1i( uniform_start_osmTileY,  start_osmTileY);
+    }
   }
 
   unmmap_all_dems();
