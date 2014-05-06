@@ -13,7 +13,7 @@
 #include "dem_access.h"
 
 
-static int dotexture = 0;
+static int dotexture = 1;
 
 
 
@@ -305,15 +305,11 @@ static bool loadGeometry( float view_lat, float view_lon,
             vertices[vertex_buf_idx++] = sampleDEMs(i,j);
         }
     }
-  }
 
 #if NOSEAM == 0
     // add the extra seam vertices
     if( Lseam )
     {
-      int j_dem    = renderStartDEMcoords_j;
-      int DEMfileN = renderStartDEMfileN;
-
       for( int j=0; j<Lseam; j++ )
       {
         // These duplicates have the same geometry as the originals, but the
@@ -323,22 +319,14 @@ static bool loadGeometry( float view_lat, float view_lon,
         // left side; negative to indicate that this is a duplicate for the left seam
         vertices[vertex_buf_idx++] = view_i;
         vertices[vertex_buf_idx++] = -(j+1); // extra 1 because I can't assume that -0 < 0
-        vertices[vertex_buf_idx++] = sampleDEM(view_i_DEMcoords, j_dem,
-                                               dems[baseDEMfileE - renderStartDEMfileE][DEMfileN - renderStartDEMfileN]);
+        vertices[vertex_buf_idx++] = sampleDEMs(view_i, j);
 
 
         // right side; negative to indicate that this is a duplicate for the right
         // seam
         vertices[vertex_buf_idx++] = -(view_i+1);
         vertices[vertex_buf_idx++] = j;
-        vertices[vertex_buf_idx++] = sampleDEM(view_i_DEMcoords+1, j_dem,
-                                               dems[baseDEMfileE - renderStartDEMfileE][DEMfileN - renderStartDEMfileN]);
-
-        if( ++j_dem >= CELLS_PER_DEG )
-        {
-          j_dem = 0;
-          DEMfileN++;
-        }
+        vertices[vertex_buf_idx++] = sampleDEMs(view_i+1, j);
       }
     }
 
