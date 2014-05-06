@@ -198,7 +198,7 @@ static bool downloadDEM( const char* url, const char* wantedfilename )
   return result;
 }
 
-const char* getDEM_filename( int demfileN, int demfileE )
+const char* dem_downloader_get_filename( int demfileN, int demfileE )
 {
   static char path[1024];
   char filename[1024];

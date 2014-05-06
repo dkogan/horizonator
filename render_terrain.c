@@ -6,17 +6,11 @@
 #include <assert.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#include <sys/fcntl.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <string.h>
 #include <opencv2/highgui/highgui_c.h>
 #include <assert.h>
-
-#include "dem_downloader.h"
-
+#include "dem_access.h"
 
 
 static int dotexture = 0;
@@ -37,13 +31,9 @@ static int Ntriangles, Nvertices;
 static GLint uniform_aspect;
 
 
-// Each SRTM file is a grid of 1201x1201 samples; last row/col overlap in neighboring DEMs
-#define WDEM          1201
-#define CELLS_PER_DEG (WDEM - 1) /* -1 because of the overlapping DEM edges */
-
 // We will render a square grid of data that is at most R_RENDER cells away from
 // the viewer in the inf-norm sense
-#define R_RENDER 1000
+#define R_RENDER 500
 
 #define FOVY_DEG_DEFAULT    50.0f /* vertical field of view of the render */
 #define OFFSCREEN_W_DEFAULT 4000
@@ -64,35 +54,6 @@ static int offscreen_h = OFFSCREEN_H_DEFAULT;
 static bool loadGeometry( float view_lat, float view_lon,
                           float* elevation_out )
 {
-  // These functions take in coordinates INSIDE THEIR SPECIFIC DEM
-  int16_t sampleDEM(int i, int j, const unsigned char* dem)
-  {
-    // The DEMs are organized north to south, so I flip around the j accessor to
-    // keep all accesses ordered by increasing lat, lon
-    uint32_t p = i + (WDEM-1 -j )*WDEM;
-    int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
-    return (z < 0) ? 0 : z;
-  }
-  float getViewerHeight(int i, int j, const unsigned char* dem)
-  {
-#warning this function shouldnt be per-DEM. What if the viewer is on a DEM boundary?
-    float z = -1e20f;
-
-    for( int di=-1; di<=1; di++ )
-      for( int dj=-1; dj<=1; dj++ )
-      {
-        if( i+di >= 0 && i+di < WDEM &&
-            j+dj >= 0 && j+dj < WDEM )
-          z = fmax(z, (float) sampleDEM(i+di, j+dj, dem) );
-      }
-
-    return z;
-  }
-
-
-
-
-
   // Viewer is looking north, the seam is behind (to the south). If the viewer is
   // directly on a grid value, then the cell of the seam is poorly defined. In
   // that scenario, I nudge the viewer to one side to unambiguously pick the seam
@@ -112,120 +73,16 @@ static bool loadGeometry( float view_lat, float view_lon,
   nudgeCoord( &view_lat );
   nudgeCoord( &view_lon );
 
-
-
-  // I render a square with radius R_RENDER centered at the view point. There
-  // are (2*R_RENDER)**2 cells in the render. In all likelihood this will
-  // encompass multiple DEMs. The base DEM is the one that contains the
-  // viewpoint. I compute the latlon coords of the base DEM origin and of the
-  // render origin. I also compute the grid coords of the base DEM origin (grid
-  // coords of the render origin are 0,0 by definition)
-  //
-  // grid starts at the NW corner, and traverses along the latitude first.
-  // DEM tile is named from the SW point
-
-  int   baseDEMfileE,           baseDEMfileN;
-  int   renderStartDEMfileE,    renderStartDEMfileN;
-  int   renderStartDEMcoords_i, renderStartDEMcoords_j;
-  float renderStartE,           renderStartN;
-  int   renderEndDEMfileE,      renderEndDEMfileN;
-
-  {
-    baseDEMfileE = (int)floor( view_lon );
-    baseDEMfileN = (int)floor( view_lat );
-
-    // latlon of the render origin
-    float renderStartE_unaligned = view_lon - (float)R_RENDER/CELLS_PER_DEG;
-    float renderStartN_unaligned = view_lat - (float)R_RENDER/CELLS_PER_DEG;
-
-    renderStartDEMfileE = floor(renderStartE_unaligned);
-    renderStartDEMfileN = floor(renderStartN_unaligned);
-
-    renderStartDEMcoords_i = round( (renderStartE_unaligned - renderStartDEMfileE) * CELLS_PER_DEG );
-    renderStartDEMcoords_j = round( (renderStartN_unaligned - renderStartDEMfileN) * CELLS_PER_DEG );
-
-    renderStartE = renderStartDEMfileE + (float)renderStartDEMcoords_i / (float)CELLS_PER_DEG;
-    renderStartN = renderStartDEMfileN + (float)renderStartDEMcoords_j / (float)CELLS_PER_DEG;
-
-    // 2*R_RENDER - 1 is the last cell.
-    renderEndDEMfileE = renderStartDEMfileE + (renderStartDEMcoords_i + 2*R_RENDER-1 ) / CELLS_PER_DEG;
-    renderEndDEMfileN = renderStartDEMfileN + (renderStartDEMcoords_j + 2*R_RENDER-1 ) / CELLS_PER_DEG;
-
-    // If the last cell is the first on in a DEM, I can stay at the previous
-    // DEM, since there's 1 row/col overlap between each adjacent pairs of DEMs
-    if( (renderStartDEMcoords_i + 2*R_RENDER-1) % CELLS_PER_DEG == 0 )
-      renderEndDEMfileE--;
-    if( (renderStartDEMcoords_j + 2*R_RENDER-1) % CELLS_PER_DEG == 0 )
-      renderEndDEMfileN--;
-  }
-
-  // I now load my DEMs. Each dems[] is a pointer to an mmap-ed source file.
-  // The ordering of dems[] is increasing latlon, with lon varying faster
-  int Ndems_i = renderEndDEMfileE - renderStartDEMfileE + 1;
-  int Ndems_j = renderEndDEMfileN - renderStartDEMfileN + 1;
-
-  unsigned char* dems      [Ndems_i][Ndems_j];
-  size_t         mmap_sizes[Ndems_i][Ndems_j];
-  int            mmap_fd   [Ndems_i][Ndems_j];
-
-  memset( dems, 0, Ndems_i*Ndems_j*sizeof(dems[0][0]) );
-
-  void unmmap_all_dems(void)
-  {
-    for( int i=0; i<Ndems_i; i++)
-      for( int j=0; j<Ndems_j; j++)
-        if( dems[i][j] != NULL && dems[i][j] != MAP_FAILED )
-        {
-          munmap( dems[i][j], mmap_sizes[i][j] );
-          close( mmap_fd[i][j] );
-        }
-  }
-
-  for( int j = 0; j < Ndems_j; j++ )
-  {
-    for( int i = 0; i < Ndems_i; i++ )
-    {
-      // This function will try to download the DEM if it's not found
-      const char* filename = getDEM_filename( j + renderStartDEMfileN,
-                                              i + renderStartDEMfileE);
-      if( filename == NULL )
-        return false;
-
-      struct stat sb;
-      mmap_fd[i][j] = open( filename, O_RDONLY );
-      if( mmap_fd[i][j] <= 0 )
-      {
-        unmmap_all_dems();
-        fprintf(stderr, "couldn't open DEM file '%s'\n", filename );
-        return false;
-      }
-
-      assert( fstat(mmap_fd[i][j], &sb) == 0 );
-
-      dems      [i][j] = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, mmap_fd[i][j], 0);
-      mmap_sizes[i][j] = sb.st_size;
-
-      if( dems[i][j] == MAP_FAILED )
-      {
-        unmmap_all_dems();
-        return false;
-      }
-
-      if( WDEM*WDEM*2 != sb.st_size )
-      {
-        unmmap_all_dems();
-        return false;
-      }
-    }
-  }
+  int view_i, view_j;
+  float renderStartN, renderStartE;
+  dem_init( &view_i, &view_j, &renderStartN, &renderStartE,
+            view_lat, view_lon, R_RENDER );
 
   Nvertices  = (2*R_RENDER) * (2*R_RENDER);
   Ntriangles = (2*R_RENDER - 1)*(2*R_RENDER - 1) * 2;
 
   // seam business
   int Lseam = 0;
-  int view_i, view_j;
-  int view_i_DEMcoords, view_j_DEMcoords;
 
   float viewer_z;
   {
@@ -240,14 +97,9 @@ static bool loadGeometry( float view_lat, float view_lon,
     //
     // The square I'm sitting on demands special treatment. I construct a
     // 6-triangle tiling that fully covers my window
-    view_i           = floor( ( view_lon - (float)renderStartE) * CELLS_PER_DEG );
-    view_j           = floor( ( view_lat - (float)renderStartN) * CELLS_PER_DEG );
-    view_i_DEMcoords = (view_i + renderStartDEMcoords_i) % CELLS_PER_DEG;
-    view_j_DEMcoords = (view_j + renderStartDEMcoords_j) % CELLS_PER_DEG;
 
     // The viewer elevation
-    viewer_z = getViewerHeight( view_i_DEMcoords, view_j_DEMcoords,
-                                dems[baseDEMfileE - renderStartDEMfileE][baseDEMfileN - renderStartDEMfileN] );
+    viewer_z = getViewerHeight( view_i, view_j );
 
     Lseam = view_j+1;
 
@@ -441,39 +293,19 @@ static bool loadGeometry( float view_lat, float view_lon,
     GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
     int vertex_buf_idx = 0;
 
+    for( int j=0; j<2*R_RENDER; j++ )
     {
-      int j_dem    = renderStartDEMcoords_j;
-      int DEMfileN = renderStartDEMfileN;
-
-      for( int j=0; j<2*R_RENDER; j++ )
-      {
-        int i_dem    = renderStartDEMcoords_i;
-        int DEMfileE = renderStartDEMfileE;
-
         for( int i=0; i<2*R_RENDER; i++ )
         {
-          // it would be more efficient to do this one DEM at a time (mmap one at
-          // a time), but that would complicate the code, and not make any
-          // observable difference
-          vertices[vertex_buf_idx++] = i;
-          vertices[vertex_buf_idx++] = j;
-          vertices[vertex_buf_idx++] = sampleDEM(i_dem, j_dem,
-                                                 dems[DEMfileE - renderStartDEMfileE][DEMfileN - renderStartDEMfileN] );
-
-          if( ++i_dem >= CELLS_PER_DEG )
-          {
-            i_dem = 0;
-            DEMfileE++;
-          }
+            // it would be more efficient to do this one DEM at a time (mmap one at
+            // a time), but that would complicate the code, and not make any
+            // observable difference
+            vertices[vertex_buf_idx++] = i;
+            vertices[vertex_buf_idx++] = j;
+            vertices[vertex_buf_idx++] = sampleDEMs(i,j);
         }
-
-        if( ++j_dem >= CELLS_PER_DEG )
-        {
-          j_dem = 0;
-          DEMfileN++;
-        }
-      }
     }
+  }
 
 #if NOSEAM == 0
     // add the extra seam vertices
@@ -750,7 +582,7 @@ static bool loadGeometry( float view_lat, float view_lon,
     }
   }
 
-  unmmap_all_dems();
+  dem_deinit();
 
   if( elevation_out )
     *elevation_out = viewer_z;

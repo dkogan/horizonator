@@ -1,3 +1,3 @@
 #pragma once
 
-const char* getDEM_filename( int demfileN, int demfileE );
+const char* dem_downloader_get_filename( int demfileN, int demfileE );
