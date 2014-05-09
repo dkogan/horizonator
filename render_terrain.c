@@ -60,7 +60,7 @@ static bool loadGeometry( float view_lat, float view_lon,
   // cell. I do this in both lat and lon directions to resolve ambiguity.
   void nudgeCoord( float* view )
   {
-    float cell_idx         = (*view - floor(*view)) * CELLS_PER_DEG;
+    float cell_idx         = *view * CELLS_PER_DEG;
     float cell_idx_rounded = round( cell_idx );
 
     // want at least 0.1 cells of separation

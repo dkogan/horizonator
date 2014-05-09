@@ -58,8 +58,8 @@ bool dem_init(// output
     *renderStartN = renderStartDEMfileN + (float)renderStartDEMcoords_j / (float)CELLS_PER_DEG;
 
     // 2*R_RENDER - 1 is the last cell.
-    int renderEndDEMfileE = renderStartDEMfileE + (renderStartDEMcoords_i + 2*R_RENDER-1 ) / CELLS_PER_DEG;
-    int renderEndDEMfileN = renderStartDEMfileN + (renderStartDEMcoords_j + 2*R_RENDER-1 ) / CELLS_PER_DEG;
+    int renderEndDEMfileE = (renderStartDEMfileE * CELLS_PER_DEG + renderStartDEMcoords_i + 2*R_RENDER-1 ) / CELLS_PER_DEG;
+    int renderEndDEMfileN = (renderStartDEMfileN * CELLS_PER_DEG + renderStartDEMcoords_j + 2*R_RENDER-1 ) / CELLS_PER_DEG;
 
     // If the last cell is the first on in a DEM, I can stay at the previous
     // DEM, since there's 1 row/col overlap between each adjacent pairs of DEMs
