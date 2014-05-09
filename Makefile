@@ -1,3 +1,4 @@
+CC := gcc-4.9
 CPPFLAGS += -MMD
 CPPFLAGS += -ggdb3 -O3
 CFLAGS   += -std=gnu11

@@ -22,18 +22,19 @@ static int            mmap_fd   [max_Ndems_ij][max_Ndems_ij];
 static int            renderStartDEMcoords_i, renderStartDEMcoords_j;
 static int            renderStartDEMfileE,    renderStartDEMfileN;
 static int            Ndems_i, Ndems_j;
+static int            view_i, view_j;
 
 static bool inited = false;
 
 bool dem_init(// output
-              int* view_i, int* view_j,
+              int* _view_i, int* _view_j,
               float* renderStartN, float* renderStartE,
 
               // input
               float view_lat, float view_lon, int R_RENDER )
 {
     if( inited )
-        return false;
+        dem_deinit();
 
     // I render a square with radius R_RENDER centered at the view point. There
     // are (2*R_RENDER)**2 cells in the render. In all likelihood this will
@@ -73,8 +74,8 @@ bool dem_init(// output
     if( Ndems_i > max_Ndems_ij || Ndems_j > max_Ndems_ij )
         return false;
 
-    *view_i = floor( ( view_lon - (float)(*renderStartE)) * CELLS_PER_DEG );
-    *view_j = floor( ( view_lat - (float)(*renderStartN)) * CELLS_PER_DEG );
+    view_i = *_view_i = floor( ( view_lon - (float)(*renderStartE)) * CELLS_PER_DEG );
+    view_j = *_view_j = floor( ( view_lat - (float)(*renderStartN)) * CELLS_PER_DEG );
 
 
     // I now load my DEMs. Each dems[] is a pointer to an mmap-ed source file.
@@ -172,20 +173,15 @@ int16_t sampleDEMs(int i, int j)
 }
 
 // These functions take in coordinates INSIDE THEIR SPECIFIC DEM
-float getViewerHeight(int i, int j)
+float getViewerHeight(void)
 {
     if( !inited )
         return -1.0f;
 
-    float z = -1e20f;
-
-    for( int di=-1; di<=1; di++ )
-        for( int dj=-1; dj<=1; dj++ )
-        {
-            if( i+di >= 0 && i+di < WDEM &&
-                j+dj >= 0 && j+dj < WDEM )
-                z = fmax(z, (float) sampleDEMs(i+di, j+dj) );
-        }
-
-    return z;
+#define MAX(_a,_b) ({__auto_type a = _a; __auto_type b = _b; a > b ? a : b; })
+    return 10.0 + MAX( MAX( MAX( sampleDEMs( view_i,   view_j   ),
+                                 sampleDEMs( view_i+1, view_j   )),
+                                 sampleDEMs( view_i,   view_j+1 )),
+                                 sampleDEMs( view_i+1, view_j+1 ));
+#undef MAX
 }

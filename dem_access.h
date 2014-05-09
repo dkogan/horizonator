@@ -20,4 +20,4 @@ bool dem_init(// output
 
 void dem_deinit(void);
 int16_t sampleDEMs(int i, int j);
-float getViewerHeight(int i, int j);
+float getViewerHeight(void);
