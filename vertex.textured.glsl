@@ -5,8 +5,8 @@
 uniform float view_z;
 uniform float renderStartN, renderStartE;
 uniform float DEG_PER_CELL;
-uniform float view_lon;
-uniform float view_lat;
+uniform float view_lon, view_lat;
+uniform int   view_i, view_j;
 uniform float sin_view_lat, cos_view_lat;
 
 uniform float aspect;
@@ -93,6 +93,18 @@ void main(void)
 
     float lon  = radians( float(renderStartE) + vin.x * DEG_PER_CELL );
     float lat  = radians( float(renderStartN) + vin.y * DEG_PER_CELL );
+
+    // If this point is of a cell directly adjacent to the viewer, I move it to
+    // actually lie next to the viewer. This makes this point less visible,
+    // which is what I want, since nearly points are generally observed to be
+    // very large and the low spatial resolution is very acutely visible
+    if( (int(vin.x) == view_i || int(vin.x) == view_i+1) &&
+        (int(vin.y) == view_j || int(vin.y) == view_j+1) )
+    {
+        lat += 0.9 * (view_lat - lat);
+        lon += 0.9 * (view_lon - lon);
+    }
+
     float dlat = lat - view_lat;
 
     float x_texture = get_xtexture( lon );

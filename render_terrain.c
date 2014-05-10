@@ -64,10 +64,10 @@ static bool loadGeometry( float view_lat, float view_lon,
     float cell_idx_rounded = round( cell_idx );
 
     // want at least 0.1 cells of separation
-    if( fabs( cell_idx - cell_idx_rounded ) < 0.1 )
+    if( fabs( cell_idx - cell_idx_rounded ) < 0.3f )
     {
-      if( cell_idx > cell_idx_rounded ) *view += 0.1/CELLS_PER_DEG;
-      else                              *view -= 0.1/CELLS_PER_DEG;
+      if( cell_idx > cell_idx_rounded ) *view += 0.3f/CELLS_PER_DEG;
+      else                              *view -= 0.3f/CELLS_PER_DEG;
     }
   }
   nudgeCoord( &view_lat );
@@ -512,8 +512,8 @@ static bool loadGeometry( float view_lat, float view_lon,
     GLint uniform_renderStartN;
     GLint uniform_renderStartE;
     GLint uniform_DEG_PER_CELL;
-    GLint uniform_view_lat;
-    GLint uniform_view_lon;
+    GLint uniform_view_lat, uniform_view_lon;
+    GLint uniform_view_i, uniform_view_j;
     GLint uniform_sin_view_lat;
     GLint uniform_cos_view_lat;
     GLint uniform_TEXTUREMAP_LON1;
@@ -526,15 +526,17 @@ static bool loadGeometry( float view_lat, float view_lon,
     GLint uniform_start_osmTileX;
     GLint uniform_start_osmTileY;
 
-    uniform_view_z          = glGetUniformLocation(program, "view_z"      );    assert( glGetError() == GL_NO_ERROR );
-    uniform_renderStartN    = glGetUniformLocation(program, "renderStartN");    assert( glGetError() == GL_NO_ERROR );
-    uniform_renderStartE    = glGetUniformLocation(program, "renderStartE");    assert( glGetError() == GL_NO_ERROR );
-    uniform_DEG_PER_CELL    = glGetUniformLocation(program, "DEG_PER_CELL");    assert( glGetError() == GL_NO_ERROR );
-    uniform_view_lat        = glGetUniformLocation(program, "view_lat"    );    assert( glGetError() == GL_NO_ERROR );
-    uniform_view_lon        = glGetUniformLocation(program, "view_lon"    );    assert( glGetError() == GL_NO_ERROR );
-    uniform_sin_view_lat    = glGetUniformLocation(program, "sin_view_lat");    assert( glGetError() == GL_NO_ERROR );
-    uniform_cos_view_lat    = glGetUniformLocation(program, "cos_view_lat");    assert( glGetError() == GL_NO_ERROR );
-    uniform_aspect          = glGetUniformLocation(program, "aspect"      );    assert( glGetError() == GL_NO_ERROR );
+    uniform_view_z       = glGetUniformLocation(program, "view_z"      );    assert( glGetError() == GL_NO_ERROR );
+    uniform_renderStartN = glGetUniformLocation(program, "renderStartN");    assert( glGetError() == GL_NO_ERROR );
+    uniform_renderStartE = glGetUniformLocation(program, "renderStartE");    assert( glGetError() == GL_NO_ERROR );
+    uniform_DEG_PER_CELL = glGetUniformLocation(program, "DEG_PER_CELL");    assert( glGetError() == GL_NO_ERROR );
+    uniform_view_lat     = glGetUniformLocation(program, "view_lat"    );    assert( glGetError() == GL_NO_ERROR );
+    uniform_view_lon     = glGetUniformLocation(program, "view_lon"    );    assert( glGetError() == GL_NO_ERROR );
+    uniform_view_i       = glGetUniformLocation(program, "view_i"      );    assert( glGetError() == GL_NO_ERROR );
+    uniform_view_j       = glGetUniformLocation(program, "view_j"      );    assert( glGetError() == GL_NO_ERROR );
+    uniform_sin_view_lat = glGetUniformLocation(program, "sin_view_lat");    assert( glGetError() == GL_NO_ERROR );
+    uniform_cos_view_lat = glGetUniformLocation(program, "cos_view_lat");    assert( glGetError() == GL_NO_ERROR );
+    uniform_aspect       = glGetUniformLocation(program, "aspect"      );    assert( glGetError() == GL_NO_ERROR );
 
     glUniform1f( uniform_view_z,       viewer_z);
     glUniform1f( uniform_renderStartN, renderStartN);
@@ -543,6 +545,8 @@ static bool loadGeometry( float view_lat, float view_lon,
 
     glUniform1f( uniform_view_lon,     view_lon * M_PI / 180.0f );
     glUniform1f( uniform_view_lat,     view_lat * M_PI / 180.0f );
+    glUniform1i( uniform_view_i,       view_i );
+    glUniform1i( uniform_view_j,       view_j );
     glUniform1f( uniform_sin_view_lat, sin( M_PI / 180.0f * view_lat ));
     glUniform1f( uniform_cos_view_lat, cos( M_PI / 180.0f * view_lat ));
 
