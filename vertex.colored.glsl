@@ -9,7 +9,7 @@ uniform float view_lon, view_lat;
 uniform int   view_i, view_j;
 uniform float sin_view_lat, cos_view_lat;
 uniform float aspect;
-varying float red, green;
+varying float channel_dist, channel_elevation;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
@@ -44,8 +44,8 @@ void main(void)
       gl_Position = vec4( +1.0, -1.0,
                           -1.0, 1.0 );
     }
-    red   = 0.0;
-    green = 0.5;
+    channel_dist      = 0.0;
+    channel_elevation = 0.5;
   }
   else
   {
@@ -103,9 +103,9 @@ void main(void)
     else if( at_right_seam ) az += 2.0;
 
     // coloring by...
-    red = clamp( (zfar_color - zeff) / (zfar_color - znear ),
-                 0.0, 1.0 ); // ... distance from camera
-    green = vin.z / 3500.0; // ... elevation
+    channel_dist = clamp( (zfar_color - zeff) / (zfar_color - znear ),
+                          0.0, 1.0 ); // ... distance from camera
+    channel_elevation = vin.z / 3500.0;  // ... elevation
 
     const float A = (zfar + znear) / (zfar - znear);
     gl_Position = vec4( az * zeff,
