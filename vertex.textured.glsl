@@ -10,7 +10,7 @@ uniform int   view_i, view_j;
 uniform float sin_view_lat, cos_view_lat;
 
 uniform float aspect;
-varying float channel_dist, channel_elevation;
+varying float channel_dist, channel_elevation, channel_griddist;
 
 uniform float TEXTUREMAP_LON0;
 uniform float TEXTUREMAP_LON1;
@@ -142,7 +142,8 @@ void main(void)
     // coloring by...
     channel_dist = clamp( (zfar_color - zeff) / (zfar_color - znear ),
                           0.0, 1.0 ); // ... distance from camera
-    channel_elevation = vin.z / 3500.0;  // ... elevation
+    channel_elevation = vin.z;        // ... elevation
+    channel_griddist = length(vec2(lon - view_lon, lat - view_lat));
 
     const float A = (zfar + znear) / (zfar - znear);
     gl_Position = vec4( az * zeff,

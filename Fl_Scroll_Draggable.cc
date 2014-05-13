@@ -44,8 +44,10 @@ int Fl_Scroll_Draggable::handle(int event)
   switch( event )
   {
   case FL_PUSH:
-    if( Fl::event_x() >= x && Fl::event_x() < x+w &&
-        Fl::event_y() >= y && Fl::event_y() < y+h )
+    if (Fl::event_button() == FL_RIGHT_MOUSE)
+      do_callback();
+    else if( Fl::event_x() >= x && Fl::event_x() < x+w &&
+             Fl::event_y() >= y && Fl::event_y() < y+h )
     {
       last_x = Fl::event_x();
       last_y = Fl::event_y();
@@ -61,6 +63,8 @@ int Fl_Scroll_Draggable::handle(int event)
     break;
 
   case FL_DRAG:
+    if (Fl::event_button() == FL_RIGHT_MOUSE)
+        return 1;
     if( last_x >= 0 )
     {
       int dx = Fl::event_x() - last_x;

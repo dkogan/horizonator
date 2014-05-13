@@ -3,7 +3,7 @@
 #include "orb_renderviewlayer.hh"
 
 orb_renderviewlayer::orb_renderviewlayer()
-  : lat(-1000.0), lon(-1000.0), left(-1000.0), right(-1000.0)
+  : lat(-1000.0), lon(-1000.0), left(-1000.0), right(-1000.0), have_pick(false)
 {
   name(std::string("Render-view layer"));
 };
@@ -40,6 +40,17 @@ void orb_renderviewlayer::draw(const orb_viewport &viewport)
   fl_line( x, y,
            x - 10000*sinf( mid * M_PI / 180.0 ),
            y + 10000*cosf( mid * M_PI / 180.0 ) );
+
+  if( have_pick )
+  {
+      fl_color( FL_RED );
+      orb_viewport::gps2px(viewport.z(), orb_point<double>(pick_lon, pick_lat), px);
+      x = px.get_x() - viewport.x();
+      y = px.get_y() - viewport.y();
+      fl_begin_polygon();
+      fl_circle( x, y, 5 );
+      fl_end_polygon();
+  }
 }
 
 bool orb_renderviewlayer::setview( float _left, float _right )
@@ -57,3 +68,17 @@ bool orb_renderviewlayer::setview( float _left, float _right )
 
   return false;
 }
+
+void orb_renderviewlayer::set_pick( float lon, float lat )
+{
+    pick_lon = lon;
+    pick_lat = lat;
+    have_pick = true;
+}
+
+
+void orb_renderviewlayer::unset_pick(void)
+{
+    have_pick = false;
+}
+

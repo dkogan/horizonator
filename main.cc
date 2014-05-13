@@ -24,6 +24,8 @@ static Fl_Scroll_Draggable*    render_scroll;
 static CvFltkWidget_annotated* widgetImage;
 
 static void cb_slippymap( Fl_Widget* widget, void* cookie );
+static void cb_render_scroll_clicked(Fl_Widget* widget,
+                                     void*      cookie );
 static void redraw_slippymap( void* mapctrl );
 
 int main(int argc, char** argv)
@@ -173,6 +175,8 @@ int main(int argc, char** argv)
     render_scroll = new Fl_Scroll_Draggable( 0, map_h, window->w(), window->h() - map_h,
                                              renderviewlayer, mapctrl );
     render_scroll->end();
+    static void* cookie[] = {renderviewlayer, mapctrl};
+    render_scroll->callback( &cb_render_scroll_clicked, cookie );
   }
 
   window->resizable(window);
@@ -244,4 +248,29 @@ static void cb_slippymap(Fl_Widget* widget,
                                     0,0,0,0 );
     widgetImage->redrawNewFrame();
   }
+}
+
+static void cb_render_scroll_clicked(Fl_Widget* widget,
+                                     void*      cookie)
+{
+    orb_renderviewlayer* renderviewlayer = reinterpret_cast<orb_renderviewlayer*>( ((void**)cookie)[0] );
+    orb_mapctrl*         mapctrl         = reinterpret_cast<orb_mapctrl*>        ( ((void**)cookie)[1] );
+
+
+    Fl_Scroll* scroll = reinterpret_cast<Fl_Scroll*>(widget);
+    if( Fl::event()        == FL_PUSH &&
+        Fl::event_button() == FL_RIGHT_MOUSE )
+    {
+        float lon, lat;
+        if( render_pick( &lon, &lat,
+                         Fl::event_x() - scroll->x() + scroll->xposition(),
+                         Fl::event_y() - scroll->y() + scroll->yposition() ) )
+        {
+            renderviewlayer->set_pick( lon, lat);
+        }
+        else
+            renderviewlayer->unset_pick();
+
+        mapctrl->redraw();
+    }
 }
