@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <tgmath.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -13,7 +15,7 @@
 #include "dem_access.h"
 
 
-static int dotexture = 1;
+static int dotexture = 0;
 
 
 
@@ -30,6 +32,8 @@ static int Ntriangles, Nvertices;
 
 static GLint uniform_aspect;
 
+static CvMat* depth; // used for picking
+static float view_lon, view_lat;
 
 // We will render a square grid of data that is at most R_RENDER cells away from
 // the viewer in the inf-norm sense
@@ -78,9 +82,12 @@ static inline uint64_t rdtscll()
     })
 
 
-static bool loadGeometry( float view_lat, float view_lon,
+static bool loadGeometry( float _view_lat, float _view_lon,
                           float* elevation_out )
 {
+  view_lon = _view_lon;
+  view_lat = _view_lat;
+
   // Viewer is looking north, the seam is behind (to the south). If the viewer is
   // directly on a grid value, then the cell of the seam is poorly defined. In
   // that scenario, I nudge the viewer to one side to unambiguously pick the seam
@@ -813,6 +820,21 @@ IplImage* render_terrain( float view_lat, float view_lon, float* elevation,
 
   IplImage* img = readOffscreenPixels( do_bgr );
   glutExit();
+
+  if( !dotexture )
+  {
+      if( depth == NULL )
+      {
+          depth = cvCreateMat( img->height, img->width, CV_8UC1 );
+          assert(depth);
+      }
+
+      // I extract the third channel to a separate 'depth' image, and zero it out
+      // in the image I draw. The depth image is used for picking only
+      cvSetImageCOI( img, 3 );
+      cvCopy( img, depth, NULL );
+      cvSetImageCOI( img, 0 );
+  }
   return img;
 }
 
@@ -824,4 +846,44 @@ bool render_terrain_to_window( float view_lat, float view_lon )
     return true;
   }
   return false;
+}
+
+// returns true if a triangle is found
+bool render_pick(// output
+                 float* lon,  float* lat,
+
+                 // input
+                 int x, int y )
+{
+    // I have rendered pixel coord (x,y); I want to map these to the source
+    // triangles. The 'x' gives me the azimuth of the view. I also have a
+    // 'depth' layer that gives me a distance along this azimuth.
+    assert(depth);
+    assert( x >= 0 && x < depth->cols &&
+            y >= 0 && y < depth->rows );
+
+    // If we have maximum depth, this click shoots above the mesh
+    uint8_t d = depth->data.ptr[x + y*depth->cols];
+    if( d == 255 )
+        return false;
+
+    // OK, we're pointing at the mesh. Let's get the vector direction. The depth
+    // is the distance along that vector
+    //
+    // In my coordinate system, if I apply the small angle approximation, I get
+    //
+    // N = dlat
+    // E = dlon cos(view_lat)
+    // I have tan(az) = (-east)/(-north). I want to
+    // break this into delta-n and delta-e => tan(az) = sin(az)/cos(az) =>
+    // sin(az) = -east, cos(az) = -north
+    float dn, de;
+    sincosf((float)x * 2.0f * (float)M_PI / (float)offscreen_w,
+            &de, &dn);
+    dn *= cos( (float)view_lat * (float)M_PI / 180.0f );
+    float l = hypot(dn,de);
+    *lon = view_lon - de/l*(float)d/255.0f;
+    *lat = view_lat - dn/l*(float)d/255.0f;
+
+    return true;
 }
