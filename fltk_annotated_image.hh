@@ -23,7 +23,7 @@ public:
   // az is from north towards east
   // el is from horizontal
   // yaw is clockwise-positive
-  void setTransformation( float view_lat, float view_lon, float view_ele_m,
+  void setTransformation( float view_lat_rad, float view_lon_rad, float view_ele_m,
 
                           enum cameraType_t cameraType,
 
