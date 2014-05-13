@@ -20,13 +20,14 @@ static int compar_poi_x( const void* _idx0, const void* _idx1, void* cookie )
   const int*          idx0 = (const int*)_idx0;
   const int*          idx1 = (const int*)_idx1;
 
+
   if( poi[ *idx0 ].draw_x < poi[ *idx1 ].draw_x )
     return -1;
   else
     return 1;
 }
 
-void CvFltkWidget_annotated::setTransformation( float view_lat, float view_lon, float view_ele_m,
+void CvFltkWidget_annotated::setTransformation( float view_lat_rad, float view_lon_rad, float view_ele_m,
 
                                                 enum cameraType_t cameraType,
 
@@ -35,7 +36,7 @@ void CvFltkWidget_annotated::setTransformation( float view_lat, float view_lon, 
                                                 float horizontal_fov
                                                )
 {
-  initPOIs( view_lat, view_lon );
+  initPOIs( view_lat_rad, view_lon_rad );
 
   int*          poi_indices;
   int           poi_N;
@@ -47,22 +48,22 @@ void CvFltkWidget_annotated::setTransformation( float view_lat, float view_lon, 
     if( cameraType == mercator )
     {
       // this is mostly lifted from vertex.glsl
-      float cos_view_lat = cosf( view_lat );
-      float sin_view_lat = sinf( view_lat );
+      float cos_view_lat = cosf( view_lat_rad );
+      float sin_view_lat = sinf( view_lat_rad );
 
       for( int i=0; i<poi_N; i++ )
       {
-        float lat = poi[ poi_indices[i] ].lat;
-        float lon = poi[ poi_indices[i] ].lon;
-        float ele = poi[ poi_indices[i] ].ele_m;
+        float lat_rad = poi[ poi_indices[i] ].lat_rad;
+        float lon_rad = poi[ poi_indices[i] ].lon_rad;
+        float ele     = poi[ poi_indices[i] ].ele_m;
 
-        float sin_dlat = sinf( lat - view_lat );
-        float cos_dlat = cosf( lat - view_lat );
-        float sin_dlon = sinf( lon - view_lon );
-        float cos_dlon = cosf( lon - view_lon );
+        float sin_dlat = sinf( lat_rad - view_lat_rad );
+        float cos_dlat = cosf( lat_rad - view_lat_rad );
+        float sin_dlon = sinf( lon_rad - view_lon_rad );
+        float cos_dlon = cosf( lon_rad - view_lon_rad );
 
-        float sin_lat  = sinf( lat );
-        float cos_lat  = cosf( lat );
+        float sin_lat  = sinf( lat_rad );
+        float cos_lat  = cosf( lat_rad );
 
         float east  = cos_lat * sin_dlon;
         float north = ( sin_dlat*cos_dlon + sin_lat*cos_view_lat*(1.0 - cos_dlon)) ;
@@ -91,9 +92,9 @@ void CvFltkWidget_annotated::setTransformation( float view_lat, float view_lon, 
       // system. Global coordinate system. x is lon=0, y is lon=90, z is due
       // north. xy is in the plane of the equator, z is along the axis of
       // rotation
-      // float viewer_pos[] = { cosf(view_lat)*cosf(view_lon),
-      //                        cosf(view_lat)*sinf(view_lon),
-      //                        sinf(view_lat) };
+      // float viewer_pos[] = { cosf(view_lat_rad)*cosf(view_lon_rad),
+      //                        cosf(view_lat_rad)*sinf(view_lon_rad),
+      //                        sinf(view_lat_rad) };
       // for( int i=0; i<3; i++ )
       //   viewer_pos[i] *= (Rearth + ele);
       fprintf(stderr, "not done yet\n");

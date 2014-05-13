@@ -17,11 +17,11 @@ const float Rearth = 6371000.0;
 static int  N_active_pois;
 static int* active_pois = NULL;
 
-static float lat0, lon0, cos_lat0_sq;
+static float lat0_rad, lon0_rad, cos_lat0_sq;
 
 static bool within( int ipoi )
 {
-  float arclen( float lat1, float lon1 )
+  float arclen( float lat1_rad, float lon1_rad )
   {
     // On the surface of the earth the arclen is dtheta*Rearth
     //
@@ -33,18 +33,18 @@ static bool within( int ipoi )
     //
     // |v0 x v1| ~ sqrt( cos(lat0)^2 cos(lat1)^2 dlon^2 + dlat^2 )
 
-    float cos_lat1_sq = cosf(lat1);
+    float cos_lat1_sq = cosf(lat1_rad);
     cos_lat1_sq *= cos_lat1_sq;
 
-    float dlat = lat1 - lat0;
-    float dlon = lon1 - lon0;
+    float dlat = lat1_rad - lat0_rad;
+    float dlon = lon1_rad - lon0_rad;
 
     return Rearth * sqrtf( dlon*dlon * cos_lat0_sq * cos_lat1_sq +
                            dlat*dlat );
   }
 
 
-  float len = arclen( pois[ipoi].lat, pois[ipoi].lon );
+  float len = arclen( pois[ipoi].lat_rad, pois[ipoi].lon_rad );
   return MIN_MARKER_DIST < len && len < MAX_MARKER_DIST;
 }
 
@@ -53,7 +53,7 @@ static void addToActive( int ipoi )
   active_pois[N_active_pois++] = ipoi;
 }
 
-void initPOIs( float lat, float lon )
+void initPOIs( float lat_rad, float lon_rad )
 {
   // alloc an upper-bound amount of memory. It's probably too much, but I know
   // we'll never run out
@@ -62,9 +62,9 @@ void initPOIs( float lat, float lon )
   if( active_pois == NULL )
     active_pois = malloc(Npois * sizeof(active_pois[0]) );
 
-  lat0         = lat;
-  lon0         = lon;
-  cos_lat0_sq  = cosf( lon );
+  lat0_rad     = lat_rad;
+  lon0_rad     = lon_rad;
+  cos_lat0_sq  = cosf( lon_rad );
   cos_lat0_sq *= cos_lat0_sq;
 
   N_active_pois = 0;
