@@ -848,9 +848,10 @@ bool render_terrain_to_window( float view_lat, float view_lon )
   return false;
 }
 
-// returns true if a triangle is found
+
+// returns true if an intersection is found
 bool render_pick(// output
-                 float* lon,  float* lat,
+                 float* lon, float* lat,
 
                  // input
                  int x, int y )
@@ -881,9 +882,10 @@ bool render_pick(// output
     sincosf((float)x * 2.0f * (float)M_PI / (float)offscreen_w,
             &de, &dn);
     dn *= cos( (float)view_lat * (float)M_PI / 180.0f );
+
     float l = hypot(dn,de);
-    *lon = view_lon - de/l*(float)d/255.0f;
-    *lat = view_lat - dn/l*(float)d/255.0f;
+    *lon = view_lon - de*(float)d/l/255.0f;
+    *lat = view_lat - dn*(float)d/l/255.0f;
 
     return true;
 }
