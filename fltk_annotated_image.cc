@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "fltk_annotated_image.hh"
+#include "render_terrain.h"
 
 #define LABEL_COLOR          FL_YELLOW
 #define LABEL_CROSSHAIR_R    3
@@ -14,12 +15,18 @@ const float Rearth = 6371000.0;
 
 static int font_height = -1;
 
+// compares two POIs by their draw_x. Sorts disabled POIs to the end
 static int compar_poi_x( const void* _idx0, const void* _idx1, void* cookie )
 {
   const struct poi_t* poi  = (const struct poi_t*)cookie;
   const int*          idx0 = (const int*)_idx0;
   const int*          idx1 = (const int*)_idx1;
 
+  // I sort disabled POIs to the end
+  if( poi[ *idx1 ].draw_x < 0 )
+      return -1;
+  if( poi[ *idx0 ].draw_x < 0 )
+      return 1;
 
   if( poi[ *idx0 ].draw_x < poi[ *idx1 ].draw_x )
     return -1;
@@ -47,6 +54,10 @@ void CvFltkWidget_annotated::setTransformation( float view_lat_rad, float view_l
   {
     if( cameraType == mercator )
     {
+      // I project this lat/lon point, then unproject it back using the picking
+      // code. If a significant difference is observed, I don't draw this label.
+      // This happens if the POI is occluded
+
       // this is mostly lifted from vertex.glsl
       float cos_view_lat = cosf( view_lat_rad );
       float sin_view_lat = sinf( view_lat_rad );
@@ -79,11 +90,74 @@ void CvFltkWidget_annotated::setTransformation( float view_lat_rad, float view_l
 
         // I now have the normalized coordinates. These are linear in (-1,1)
         // across the image. Convert these to be from (0,1)
-        float x_normalized_01 = (x_normalized + 1.0f) / 2.0f;
+        float x_normalized_01 = ( x_normalized + 1.0f) / 2.0f;
         float y_normalized_01 = (-y_normalized + 1.0f) / 2.0f;
 
-        poi[ poi_indices[i] ].draw_x = (int)( 0.5f + ((float)w() - 1.0f) * x_normalized_01 );
-        poi[ poi_indices[i] ].draw_y = (int)( 0.5f + ((float)h() - 1.0f) * y_normalized_01 );
+        int draw_x = (int)( 0.5f + ((float)w() - 1.0f) * x_normalized_01 );
+        int draw_y = (int)( 0.5f + ((float)h() - 1.0f) * y_normalized_01 );
+
+        assert( draw_x >= 0 && draw_x < w() );
+        // draw_y will be checked below in the fuzz loop
+
+
+        // I'm finished with the projection. I now unproject to look for
+        // occlusions
+
+        // The rendered peaks usually don't end up exactly where the POI list
+        // says they should be. I scan the depth map vertically to find the true
+        // peak (or to decide that it's occluded)
+        uint8_t db_last   = 255; // 255 == sky, so we'll automatically skip it
+                                 // in the loop
+        int   fuzz_nearest;
+        float err_nearest = 1.0e10f;
+        float depth_have  =
+            hypotf( lat_rad - view_lat_rad, lon_rad - view_lon_rad ) *
+            180.0f / (float)M_PI;
+        const CvMat* depth = render_terrain_getdepth();
+
+#define PEAK_LABEL_FUZZ_PX 4
+        for( int fuzz = -PEAK_LABEL_FUZZ_PX; fuzz < PEAK_LABEL_FUZZ_PX; fuzz++ )
+        {
+            if( draw_y + fuzz < 0 )
+            {
+                // The next iteration will be in-bounds. If there's too much (or
+                // little) fuzz, we'll exit empty-handed
+                fuzz = -draw_y-1;
+                continue;
+            }
+            else if( draw_y + fuzz >= h() )
+                break;
+
+            // As I move down the image the depth will get closer and closer. I
+            // pick the highest value that's closest
+            uint8_t db = depth->data.ptr[draw_x + (draw_y+fuzz)*depth->cols];
+
+            // we already looked at this depth
+            if(db == db_last) continue;
+
+            float err = fabsf( depth_have - (float)db/255.0f );
+            if( err < err_nearest )
+            {
+                err_nearest  = err;
+                fuzz_nearest = fuzz;
+            }
+            else
+                // it can only get worse from here, so give up
+                break;
+
+            db_last = db;
+        }
+
+        if( err_nearest > 0.04f )
+        {
+            // indicate that this POI shouldn't be drawn
+            poi[ poi_indices[i] ].draw_x = -1;
+        }
+        else
+        {
+            poi[ poi_indices[i] ].draw_x = draw_x;
+            poi[ poi_indices[i] ].draw_y = draw_y + fuzz_nearest;
+        }
       }
     }
     else
@@ -120,6 +194,11 @@ void CvFltkWidget_annotated::setTransformation( float view_lat_rad, float view_l
   for( int i=0; i<poi_N; i++ )
   {
     struct poi_t* thispoi = &poi[ poi_indices[i] ];
+
+    // disabled POIs have been sorted to the back, so as soon as I see one, I'm
+    // done
+    if( thispoi->draw_x < 0 )
+        break;
 
     int left  = thispoi->draw_x;
     int right = thispoi->draw_x + fl_width( thispoi->name );
@@ -171,7 +250,13 @@ void CvFltkWidget_annotated::draw()
   fl_font( LABEL_FONT, LABEL_FONT_SIZE );
   fl_color( LABEL_COLOR );
   for( int i=0; i<poi_N; i++ )
+  {
+    // disabled POIs have been sorted to the back, so as soon as I see one, I'm
+    // done
+    if( poi[ poi_indices[i]].draw_x < 0 )
+        break;
     drawLabel( &poi[ poi_indices[i]] );
+  }
 
   // mark the cardinal directions
   fl_font( LABEL_FONT, DIRECTIONS_FONT_SIZE );
