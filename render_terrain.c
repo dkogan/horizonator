@@ -887,3 +887,8 @@ bool render_pick(// output
 
     return true;
 }
+
+const CvMat* render_terrain_getdepth(void)
+{
+    return depth;
+}
