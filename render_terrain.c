@@ -37,7 +37,7 @@ static float view_lon, view_lat;
 
 // We will render a square grid of data that is at most R_RENDER cells away from
 // the viewer in the inf-norm sense
-#define R_RENDER 500
+#define R_RENDER 1000
 
 #define FOVY_DEG_DEFAULT    50.0f /* vertical field of view of the render */
 #define OFFSCREEN_W_DEFAULT 4000
