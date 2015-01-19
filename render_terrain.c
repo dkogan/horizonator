@@ -82,6 +82,17 @@ static inline uint64_t rdtscll()
     })
 
 
+// this is a macro so that the reported line numbers go with the caller
+#define assertNoError()                                         \
+    do {                                                        \
+        int error = glGetError();                               \
+        if( error != GL_NO_ERROR )                              \
+        {                                                       \
+            fprintf(stderr, "Error: %#x! Giving up\n", error);  \
+            assert(0);                                          \
+        }                                                       \
+    } while(0)
+
 static bool loadGeometry( float _view_lat, float _view_lon,
                           float* elevation_out )
 {
@@ -165,8 +176,8 @@ static bool loadGeometry( float _view_lat, float _view_lon,
 
       void initOSMtexture(void)
       {
-          glActiveTextureARB( GL_TEXTURE0_ARB ); assert( glGetError() == GL_NO_ERROR );
-          glBindTexture( GL_TEXTURE_2D, texID ); assert( glGetError() == GL_NO_ERROR );
+          glActiveTextureARB( GL_TEXTURE0_ARB ); assertNoError();
+          glBindTexture( GL_TEXTURE_2D, texID ); assertNoError();
 
           glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
           glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
@@ -180,7 +191,7 @@ static bool loadGeometry( float _view_lat, float _view_lon,
                        NtilesY*OSM_TILE_HEIGHT,
                        0, GL_BGR,
                        GL_UNSIGNED_BYTE, (const GLvoid *)NULL);
-          assert( glGetError() == GL_NO_ERROR );
+          assertNoError();
       }
 
       void setOSMtextureTile( int osmTileX, int osmTileY )
@@ -224,7 +235,7 @@ static bool loadGeometry( float _view_lat, float _view_lon,
                           (osmTileY - start_osmTileY)*OSM_TILE_HEIGHT,
                           OSM_TILE_WIDTH, OSM_TILE_HEIGHT,
                           GL_BGR, GL_UNSIGNED_BYTE, (const GLvoid *)img->imageData);
-          assert( glGetError() == GL_NO_ERROR );
+          assertNoError();
 
           cvReleaseImage(&img);
       }
@@ -514,32 +525,32 @@ static bool loadGeometry( float _view_lat, float _view_lon,
     char msg[1024];
     int len;
     GLuint program = glCreateProgram();
-    assert( glGetError() == GL_NO_ERROR );
+    assertNoError();
 
 
 #define installshader(type,TYPE)                                        \
     GLuint type ## Shader = glCreateShader(GL_ ## TYPE ## _SHADER);     \
-    assert( glGetError() == GL_NO_ERROR );                              \
+    assertNoError();                              \
                                                                         \
     glShaderSource(type ## Shader, 1, (const GLchar**)&type ## ShaderSource, NULL); \
-    assert( glGetError() == GL_NO_ERROR );                              \
+    assertNoError();                              \
                                                                         \
     glCompileShader(type ## Shader);                                    \
-    assert( glGetError() == GL_NO_ERROR );                              \
+    assertNoError();                              \
     glGetShaderInfoLog( type ## Shader, sizeof(msg), &len, msg );       \
     if( strlen(msg) )                                                   \
       printf(#type " msg: %s\n", msg);                                  \
                                                                         \
     glAttachShader(program, type ##Shader);                             \
-    assert( glGetError() == GL_NO_ERROR );
+    assertNoError();
 
 
 
     installshader(vertex, VERTEX);
     installshader(fragment, FRAGMENT);
 
-    glLinkProgram(program); assert( glGetError() == GL_NO_ERROR );
-    glUseProgram(program);  assert( glGetError() == GL_NO_ERROR );
+    glLinkProgram(program); assertNoError();
+    glUseProgram(program);  assertNoError();
 
 
     GLint uniform_view_z;
@@ -560,17 +571,17 @@ static bool loadGeometry( float _view_lat, float _view_lon,
     GLint uniform_start_osmTileX;
     GLint uniform_start_osmTileY;
 
-    uniform_view_z       = glGetUniformLocation(program, "view_z"      );    assert( glGetError() == GL_NO_ERROR );
-    uniform_renderStartN = glGetUniformLocation(program, "renderStartN");    assert( glGetError() == GL_NO_ERROR );
-    uniform_renderStartE = glGetUniformLocation(program, "renderStartE");    assert( glGetError() == GL_NO_ERROR );
-    uniform_DEG_PER_CELL = glGetUniformLocation(program, "DEG_PER_CELL");    assert( glGetError() == GL_NO_ERROR );
-    uniform_view_lat     = glGetUniformLocation(program, "view_lat"    );    assert( glGetError() == GL_NO_ERROR );
-    uniform_view_lon     = glGetUniformLocation(program, "view_lon"    );    assert( glGetError() == GL_NO_ERROR );
-    uniform_view_i       = glGetUniformLocation(program, "view_i"      );    assert( glGetError() == GL_NO_ERROR );
-    uniform_view_j       = glGetUniformLocation(program, "view_j"      );    assert( glGetError() == GL_NO_ERROR );
-    uniform_sin_view_lat = glGetUniformLocation(program, "sin_view_lat");    assert( glGetError() == GL_NO_ERROR );
-    uniform_cos_view_lat = glGetUniformLocation(program, "cos_view_lat");    assert( glGetError() == GL_NO_ERROR );
-    uniform_aspect       = glGetUniformLocation(program, "aspect"      );    assert( glGetError() == GL_NO_ERROR );
+    uniform_view_z       = glGetUniformLocation(program, "view_z"      );    assertNoError();
+    uniform_renderStartN = glGetUniformLocation(program, "renderStartN");    assertNoError();
+    uniform_renderStartE = glGetUniformLocation(program, "renderStartE");    assertNoError();
+    uniform_DEG_PER_CELL = glGetUniformLocation(program, "DEG_PER_CELL");    assertNoError();
+    uniform_view_lat     = glGetUniformLocation(program, "view_lat"    );    assertNoError();
+    uniform_view_lon     = glGetUniformLocation(program, "view_lon"    );    assertNoError();
+    uniform_view_i       = glGetUniformLocation(program, "view_i"      );    assertNoError();
+    uniform_view_j       = glGetUniformLocation(program, "view_j"      );    assertNoError();
+    uniform_sin_view_lat = glGetUniformLocation(program, "sin_view_lat");    assertNoError();
+    uniform_cos_view_lat = glGetUniformLocation(program, "cos_view_lat");    assertNoError();
+    uniform_aspect       = glGetUniformLocation(program, "aspect"      );    assertNoError();
 
     glUniform1f( uniform_view_z,       viewer_z);
     glUniform1f( uniform_renderStartN, renderStartN);
@@ -586,15 +597,15 @@ static bool loadGeometry( float _view_lat, float _view_lon,
 
     if( dotexture )
     {
-        uniform_TEXTUREMAP_LON1 = glGetUniformLocation(program, "TEXTUREMAP_LON1"); assert( glGetError() == GL_NO_ERROR );
-        uniform_TEXTUREMAP_LON0 = glGetUniformLocation(program, "TEXTUREMAP_LON0"); assert( glGetError() == GL_NO_ERROR );
-        uniform_TEXTUREMAP_LAT0 = glGetUniformLocation(program, "TEXTUREMAP_LAT0"); assert( glGetError() == GL_NO_ERROR );
-        uniform_TEXTUREMAP_LAT1 = glGetUniformLocation(program, "TEXTUREMAP_LAT1"); assert( glGetError() == GL_NO_ERROR );
-        uniform_TEXTUREMAP_LAT2 = glGetUniformLocation(program, "TEXTUREMAP_LAT2"); assert( glGetError() == GL_NO_ERROR );
-        uniform_NtilesX         = glGetUniformLocation(program, "NtilesX" );        assert( glGetError() == GL_NO_ERROR );
-        uniform_NtilesY         = glGetUniformLocation(program, "NtilesY" );        assert( glGetError() == GL_NO_ERROR );
-        uniform_start_osmTileX  = glGetUniformLocation(program, "start_osmTileX" ); assert( glGetError() == GL_NO_ERROR );
-        uniform_start_osmTileY  = glGetUniformLocation(program, "start_osmTileY" ); assert( glGetError() == GL_NO_ERROR );
+        uniform_TEXTUREMAP_LON1 = glGetUniformLocation(program, "TEXTUREMAP_LON1"); assertNoError();
+        uniform_TEXTUREMAP_LON0 = glGetUniformLocation(program, "TEXTUREMAP_LON0"); assertNoError();
+        uniform_TEXTUREMAP_LAT0 = glGetUniformLocation(program, "TEXTUREMAP_LAT0"); assertNoError();
+        uniform_TEXTUREMAP_LAT1 = glGetUniformLocation(program, "TEXTUREMAP_LAT1"); assertNoError();
+        uniform_TEXTUREMAP_LAT2 = glGetUniformLocation(program, "TEXTUREMAP_LAT2"); assertNoError();
+        uniform_NtilesX         = glGetUniformLocation(program, "NtilesX" );        assertNoError();
+        uniform_NtilesY         = glGetUniformLocation(program, "NtilesY" );        assertNoError();
+        uniform_start_osmTileX  = glGetUniformLocation(program, "start_osmTileX" ); assertNoError();
+        uniform_start_osmTileY  = glGetUniformLocation(program, "start_osmTileY" ); assertNoError();
 
         glUniform1f( uniform_TEXTUREMAP_LON0, TEXTUREMAP_LON0);
         glUniform1f( uniform_TEXTUREMAP_LON1, TEXTUREMAP_LON1);
@@ -732,42 +743,42 @@ static bool setup_gl( bool doRenderToScreen,
     GLuint frameBufID;
     {
       glGenFramebuffers(1, &frameBufID);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
 
       glBindFramebuffer(GL_FRAMEBUFFER, frameBufID);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
     }
 
     {
       GLuint renderBufID;
       glGenRenderbuffers(1, &renderBufID);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
 
       glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
 
       glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, offscreen_w, offscreen_h);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
 
       glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                 GL_RENDERBUFFER, renderBufID);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
     }
 
     {
       GLuint depthBufID;
       glGenRenderbuffers(1, &depthBufID);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
 
       glBindRenderbuffer(GL_RENDERBUFFER, depthBufID);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
 
       glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, offscreen_w, offscreen_h);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
 
       glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                                 GL_RENDERBUFFER, depthBufID);
-      assert( glGetError() == GL_NO_ERROR );
+      assertNoError();
     }
 
     assert( glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE );
