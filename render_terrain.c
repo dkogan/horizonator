@@ -652,7 +652,6 @@ static void do_draw(void)
 
   // draw
   glEnableClientState(GL_VERTEX_ARRAY);
-  glEnableClientState(GL_INDEX_ARRAY);
   glDrawElements(GL_TRIANGLES, Ntriangles*3, GL_UNSIGNED_INT, NULL);
 
 
