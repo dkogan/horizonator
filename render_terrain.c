@@ -120,8 +120,12 @@ static bool loadGeometry( float _view_lat, float _view_lon,
 
   int view_i, view_j;
   float renderStartN, renderStartE;
-  dem_init( &view_i, &view_j, &renderStartN, &renderStartE,
-            view_lat, view_lon, R_RENDER );
+  if( !dem_init( &view_i, &view_j, &renderStartN, &renderStartE,
+                 view_lat, view_lon, R_RENDER ) )
+  {
+      fprintf(stderr, "Couldn't init DEMs. Giving up\n");
+      return false;
+  }
 
   Nvertices  = (2*R_RENDER) * (2*R_RENDER);
   Ntriangles = (2*R_RENDER - 1)*(2*R_RENDER - 1) * 2;
