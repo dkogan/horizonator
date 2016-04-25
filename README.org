@@ -1,0 +1,125 @@
+#+TITLE: Horizonator!
+
+* Overview
+
+This project attempts to answer a very common question posed by hikers: "What
+mountain is that?"
+
+The original intent was to take as input
+1. the location of the observer
+2. a photograph containing the peak(s) in question
+3. a digital elevation map (DEM) of the area
+4. a list of local points of interest, and their locations
+
+The tool would then
+1. Render the DEM to show what the local terrain /should/ look like
+2. Fit the mountain countours in the photograph to those in the render to get
+   the camera parameters
+3. Label the points of interest in the photograph
+
+It turns out that fitting the photograph to the render is more difficult than I
+expected, so this tool currently skips that step, and annotates the render
+itself. That in itself is useful.
+
+It turns out that other people also thought that this is useful, and have
+implemented similar things:
+
+- http://www.udeuschle.selfhost.pro/panoramas/makepanoramas_en.htm
+- https://www.peakfinder.org/
+
+My code is less polished, but the core is similar. /And/ my code is freely
+licensed.
+
+This project is currently not in a "releasable" state, so it may take a bit of
+effort to build/use. I may come back to it at some point to clean it up. There's
+much half-done code here (experiments to fit the photo, for instance).
+
+
+* Building
+
+On Debian, you need the following packages (I think):
+
+- libfltk1.3-dev
+- libboost-filesystem-dev
+- libboost-system-dev
+- libboost-thread-dev
+- libcurl4-gnutls-dev
+- libgl1-mesa-dev
+- libglew1.6-dev
+- libglu-dev
+- libpng12-dev
+- libtinyxml-dev
+- libzip-dev
+
+Once you have those, just =make=
+
+* Using 
+
+This tool can be used in an interactive mode, or a commandline mode:
+
+** Interactive
+The interactive tool is invoked by running
+#+BEGIN_SRC sh
+./render_terrain
+#+END_SRC
+
+This brings up a window where one half shows an OpenStreetMap slippy map. This
+can be panned by dragging with the left mouse button, and zoomed with the mouse
+wheel, as usual. OSM tiles are downloaded (and cached locally) as required. To
+show an annotated terrain view, right-click from the observation point. This
+will render everything at once, and show the view in the other half of the
+window.
+
+The render can be panned with the left mouse button as well. Additionally, the
+user can right-click on the render. This will back-project the view to show the
+corresponding point on the map with a big red circle.
+
+** Commandline
+I haven't used this recently, and it's not well tested anymore. This works right
+now:
+
+#+BEGIN_SRC sh
+./render_terrain --batch LAT,LON --output OUT.png --width 2000
+#+END_SRC
+
+This renders to a given output file of a given width, a view from the given
+location. You can also specify the vertical field of view (in degrees) with
+=--fov FOV=.
+
+* Data sources
+** DEMs
+SRTM tiles are auto-downloaded (and cached) from
+
+http://dds.cr.usgs.gov/srtm/version2_1/
+
+These tiles are imperfect. For instance some of tiles are missing there (such as
+the one around Tecate, BC, Mexico). This data also has some holes. Cleaned up
+DEMs are available from several places, for instance
+
+http://www.viewfinderpanoramas.org/dem3/
+
+This tool does /not/ download the nicer data, so if you need to, you have to do
+that manually. The DEM tiles go to =~/.horizonator/DEMs_SRTM3=.
+
+** Point-of-interest list
+
+The default POI list comes from
+
+http://geonames.usgs.gov/domestic/download_data.htm
+
+The pre-downloaded California features are included in the repo
+(=CA_Features_20130404.txt=); any others must be downloaded manually. These are
+parsed by =parse_features.pl= into a =features_generated.h= header file that's
+compiled into the program. I.e. the feature list is only read at compile time.
+The =Makefile= reads all the =*Features*.txt= files, so if your data conforms to
+that, a simple =make= should get the job done.
+
+* Render details
+The original intent was to fit a photo taken from a known position but unknown
+orientation, so the full 360-degree view is rendered into one large image using
+a custom projection, instead of using a normal camera projection to render a
+view in a particular direction. This approach guarantees that a photograph will
+/not/ fit perfectly, but I assume that the photo is taken more or less
+horizontally, so it should be sufficient. The projection used is mercator-like:
+the axes of the resulting reder are the azimuth and elevation of the view
+direction. The gory details are in =render_terrain.c= =*.glsl=.
