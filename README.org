@@ -65,10 +65,10 @@ The interactive tool is invoked by running
 
 This brings up a window where one half shows an OpenStreetMap slippy map. This
 can be panned by dragging with the left mouse button, and zoomed with the mouse
-wheel, as usual. OSM tiles are downloaded (and cached locally) as required. To
-show an annotated terrain view, right-click from the observation point. This
-will render everything at once, and show the view in the other half of the
-window.
+wheel, as usual. OSM tiles are downloaded (and cached locally to
+=~/.horizonator/tiles/=) as required. To show an annotated terrain view,
+right-click from the observation point. This will render everything at once, and
+show the view in the other half of the window.
 
 The render can be panned with the left mouse button as well. Additionally, the
 user can right-click on the render. This will back-project the view to show the
@@ -82,13 +82,13 @@ now:
 ./render_terrain --batch LAT,LON --output OUT.png --width 2000
 #+END_SRC
 
-This renders to a given output file of a given width, a view from the given
-location. You can also specify the vertical field of view (in degrees) with
-=--fov FOV=.
+This renders an /unlabelled/ image to a given output file of a given width, a
+view from the given location. You can also specify the vertical field of view
+(in degrees) with =--fov FOV=.
 
 * Data sources
 ** DEMs
-SRTM tiles are auto-downloaded (and cached) from
+SRTM tiles are auto-downloaded (and cached to =~/.horizonator/DEMs_SRTM3=) from
 
 http://dds.cr.usgs.gov/srtm/version2_1/
 
