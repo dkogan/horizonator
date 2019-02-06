@@ -78,6 +78,7 @@ static const char* downloadZip( const char* url )
   curl_easy_setopt(curl, CURLOPT_FILE,        FILE_zip );
   curl_easy_setopt(curl, CURLOPT_USERAGENT,   "horizonator");
   curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1);
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1);
   CURLcode result = curl_easy_perform(curl);
 
   if( result != CURLE_OK )
