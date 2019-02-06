@@ -73,6 +73,7 @@ static const char* downloadZip( const char* url )
     goto getDEM_done;
   }
 
+  fprintf(stderr, "Downloading '%s'\n", url);
   curl_easy_setopt(curl, CURLOPT_URL,         url );
   curl_easy_setopt(curl, CURLOPT_FILE,        FILE_zip );
   curl_easy_setopt(curl, CURLOPT_USERAGENT,   "horizonator");
