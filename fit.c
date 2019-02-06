@@ -5,6 +5,7 @@
 #include <opencv2/core/core_c.h>
 #include <opencv2/imgproc/imgproc_c.h>
 #include <opencv2/highgui/highgui_c.h>
+#include <opencv2/imgcodecs/imgcodecs_c.h>
 
 #define IRON_ANGLE      72.2    /* angle of view for my iron mt photo */
 #define PHOTO_PRESMOOTH 9

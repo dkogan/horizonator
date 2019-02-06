@@ -10,6 +10,7 @@
 #include <GL/freeglut.h>
 #include <unistd.h>
 #include <string.h>
+#include <opencv2/imgcodecs/imgcodecs_c.h>
 #include <opencv2/highgui/highgui_c.h>
 #include <assert.h>
 #include "dem_access.h"
