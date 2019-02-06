@@ -1,4 +1,5 @@
-CC := gcc-4.9
+CC  := gcc-8
+CXX := g++-8
 CPPFLAGS += -MMD
 CPPFLAGS += -ggdb3 -O3
 CFLAGS   += -std=gnu11
