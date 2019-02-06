@@ -20,11 +20,7 @@ Fl_PNG_Memory_Image::Fl_PNG_Memory_Image (void *buf) :
     // Setup the PNG data structures...
     pp   = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
     info = png_create_info_struct(pp);
-
-    if (setjmp(pp->jmpbuf)) {
-        Fl::warning("PNG memory buffer contains errors!\n");
-        return;
-    }
+    png_const_structp cpp = (png_const_structp)pp;
 
     // Initialize the PNG read "engine"...
     png_set_read_fn(pp, (png_voidp)&m_data, png_read_mem);
@@ -32,26 +28,26 @@ Fl_PNG_Memory_Image::Fl_PNG_Memory_Image (void *buf) :
     // Get the image dimensions and convert to grayscale or RGB...
     png_read_info(pp, info);
 
-    if (info->color_type == PNG_COLOR_TYPE_PALETTE)
+    if (png_get_color_type(cpp, info) == PNG_COLOR_TYPE_PALETTE)
         png_set_expand(pp);
 
-    if (info->color_type & PNG_COLOR_MASK_COLOR)
+    if (png_get_color_type(cpp, info) & PNG_COLOR_MASK_COLOR)
         channels = 3;
     else
         channels = 1;
 
-    if ((info->color_type & PNG_COLOR_MASK_ALPHA) || info->num_trans)
+    if ((png_get_color_type(cpp, info) & PNG_COLOR_MASK_ALPHA))
         channels ++;
 
-    w((int)(info->width));
-    h((int)(info->height));
+    w((int)(png_get_image_width(cpp, info)));
+    h((int)(png_get_image_height(cpp, info)));
     d(channels);
 
-    if (info->bit_depth < 8) {
+    if (png_get_bit_depth(cpp, info) < 8) {
         png_set_packing(pp);
         png_set_expand(pp);
     }
-    else if (info->bit_depth == 16)
+    else if (png_get_bit_depth(cpp, info) == 16)
         png_set_strip_16(pp);
 
 #  if defined(HAVE_PNG_GET_VALID) && defined(HAVE_PNG_SET_TRNS_TO_ALPHA)
