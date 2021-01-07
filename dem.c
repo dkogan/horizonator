@@ -9,7 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "dem_access.h"
+#include "dem.h"
 
 static
 const char* dem_filename( int demfileN, int demfileE )
