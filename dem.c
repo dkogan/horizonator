@@ -11,21 +11,43 @@
 
 #include "dem.h"
 
+#define MSG(fmt, ...) fprintf(stderr, "%s(%d): " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+
 static
-const char* dem_filename( int demfileN, int demfileE )
+const bool dem_filename(// output
+                        char* path, int bufsize,
+
+                        // input
+                        int demfileN, int demfileE )
 {
-    static char path[1024];
-    char filename[1024];
+    char ns;
+    char we;
 
     if     ( demfileN >= 0 && demfileE >= 0 )
-        snprintf(path, sizeof(path), "N%.2dE%.3d.hgt", demfileN, demfileE);
+    {
+        ns = 'N'; we = 'E';
+    }
     else if( demfileN >= 0 && demfileE <  0 )
-        snprintf(path, sizeof(path), "N%.2dW%.3d.hgt", demfileN, -demfileE);
+    {
+        ns = 'N'; we = 'W';
+        demfileE *= -1;
+    }
     else if( demfileN  < 0 && demfileE >= 0 )
-        snprintf(path, sizeof(path), "S%.2dE%.3d.hgt", -demfileN, demfileE);
+    {
+        ns = 'S'; we = 'E';
+        demfileN *= -1;
+    }
     else
-        snprintf(path, sizeof(path), "S%.2dW%.3d.hgt", -demfileN, -demfileE);
-    return path;
+    {
+        ns = 'S'; we = 'W';
+        demfileN *= -1;
+        demfileE *= -1;
+    }
+
+    if( snprintf(path, bufsize, "%c%.2d%c%.3d.hgt", ns, demfileN, we, demfileE) >= bufsize )
+        return false;
+
+    return true;
 }
 
 bool dem_init(// output
@@ -87,11 +109,13 @@ bool dem_init(// output
     {
         for( int i = 0; i < ctx->Ndems_i; i++ )
         {
-            const char* filename = dem_filename( j + ctx->renderStartDEMfileN,
-                                                 i + ctx->renderStartDEMfileE);
-            if( filename == NULL )
+            char filename[1024];
+            if( !dem_filename( filename, sizeof(filename),
+                               j + ctx->renderStartDEMfileN,
+                               i + ctx->renderStartDEMfileE) )
             {
                 dem_deinit(ctx);
+                MSG("couldn't construct DEM filename" );
                 return false;
             }
 
@@ -100,7 +124,7 @@ bool dem_init(// output
             if( ctx->mmap_fd[i][j] <= 0 )
             {
                 dem_deinit(ctx);
-                fprintf(stderr, "couldn't open DEM file '%s'\n", filename );
+                MSG("couldn't open DEM file '%s'", filename );
                 return false;
             }
 
