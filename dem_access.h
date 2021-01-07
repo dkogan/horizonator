@@ -8,16 +8,34 @@
 #define CELLS_PER_DEG (WDEM - 1) /* -1 because of the overlapping DEM edges */
 
 
+// at most I allow a grid of this many DEMs. I can malloc the exact number, but
+// this is easier
+#define max_Ndems_ij 4
+
+typedef struct
+{
+    unsigned char* dems      [max_Ndems_ij][max_Ndems_ij];
+    size_t         mmap_sizes[max_Ndems_ij][max_Ndems_ij];
+    int            mmap_fd   [max_Ndems_ij][max_Ndems_ij];
+    int            renderStartDEMcoords_i, renderStartDEMcoords_j;
+    int            renderStartDEMfileE,    renderStartDEMfileN;
+    float          renderStartN,           renderStartE;
+    int            Ndems_i, Ndems_j;
+    int            view_i, view_j;
+} dem_context_t;
+
+
 // This library abstracts access to a set of DEM tiles, allowing the user to
 // treat the whole set as one large DEM
 
 bool dem_init(// output
-              int* view_i, int* view_j,
-              float* renderStartN, float* renderStartE,
+              dem_context_t* ctx,
 
               // input
-              float view_lat, float view_lon, int R_RENDER );
+              float view_lat, float view_lon, int radius );
 
-void dem_deinit(void);
-int16_t sampleDEMs(int i, int j);
-float getViewerHeight(void);
+void dem_deinit( dem_context_t* ctx );
+int16_t dem_sample(const dem_context_t* ctx,
+                   int i, int j);
+float dem_elevation_at_center(const dem_context_t* ctx);
+

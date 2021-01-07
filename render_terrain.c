@@ -149,7 +149,7 @@ static bool loadGeometry( float _view_lat, float _view_lon,
     // 6-triangle tiling that fully covers my window
 
     // The viewer elevation
-    viewer_z = getViewerHeight();
+    viewer_z = elevation_at_center() + 10.0;
 
     Lseam = view_j+1;
 
