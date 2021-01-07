@@ -13,9 +13,9 @@
 #include <opencv2/imgcodecs/imgcodecs_c.h>
 #include <opencv2/highgui/highgui_c.h>
 #include <assert.h>
-#include "dem_access.h"
 
 #include "bench.h"
+#include "dem.h"
 
 
 static int dotexture = 0;
