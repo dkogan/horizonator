@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define MSG(fmt, ...) fprintf(stderr, "%s(%d): " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+
 // Each SRTM file is a grid of 1201x1201 samples; last row/col overlap in neighboring DEMs
 #define WDEM          1201
 #define CELLS_PER_DEG (WDEM - 1) /* -1 because of the overlapping DEM edges */
@@ -17,11 +19,21 @@ typedef struct
     unsigned char* dems      [max_Ndems_ij][max_Ndems_ij];
     size_t         mmap_sizes[max_Ndems_ij][max_Ndems_ij];
     int            mmap_fd   [max_Ndems_ij][max_Ndems_ij];
-    int            renderStartDEMcoords_i, renderStartDEMcoords_j;
-    int            renderStartDEMfileE,    renderStartDEMfileN;
-    float          renderStartN,           renderStartE;
-    int            Ndems_i, Ndems_j;
-    int            view_i, view_j;
+
+    // Which DEM contains the NW corner of the render data
+    int            origin_dem_lon_lat[2];
+
+    // Which cell in the origin DEM contains the NW corner of the render data
+    int            origin_dem_cellij [2];
+
+    // The lon/lat of the origin cell. This is quantized to the DEM cells
+    float          origin_lon_lat    [2];
+
+    // The lon/lat of the center cell. This is quantized to the DEM cells
+    int            center_ij         [2];
+
+    // How many DEMs, in each direction
+    int            Ndems_ij          [2];
 } dem_context_t;
 
 
@@ -32,10 +44,19 @@ bool dem_init(// output
               dem_context_t* ctx,
 
               // input
-              float view_lat, float view_lon, int radius );
+              const float* view_lon_lat,
+
+              // We will have 2*radius_cells per side
+              int radius_cells );
 
 void dem_deinit( dem_context_t* ctx );
+
+// Given coordinates index cells, in respect to the origin cell
 int16_t dem_sample(const dem_context_t* ctx,
-                   int i, int j);
+                   // Positive = towards East
+                   int i,
+                   // Positive = towards South
+                   int j);
+
 float dem_elevation_at_center(const dem_context_t* ctx);
 
