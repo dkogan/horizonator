@@ -20,10 +20,10 @@ typedef struct
     size_t         mmap_sizes[max_Ndems_ij][max_Ndems_ij];
     int            mmap_fd   [max_Ndems_ij][max_Ndems_ij];
 
-    // Which DEM contains the NW corner of the render data
+    // Which DEM contains the SW corner of the render data
     int            origin_dem_lon_lat[2];
 
-    // Which cell in the origin DEM contains the NW corner of the render data
+    // Which cell in the origin DEM contains the SW corner of the render data
     int            origin_dem_cellij [2];
 
     // The lon/lat of the origin cell. This is quantized to the DEM cells
@@ -44,7 +44,8 @@ bool dem_init(// output
               dem_context_t* ctx,
 
               // input
-              const float* view_lon_lat,
+              float view_lat,
+              float view_lon,
 
               // We will have 2*radius_cells per side
               int radius_cells );
@@ -55,7 +56,7 @@ void dem_deinit( dem_context_t* ctx );
 int16_t dem_sample(const dem_context_t* ctx,
                    // Positive = towards East
                    int i,
-                   // Positive = towards South
+                   // Positive = towards North
                    int j);
 
 float dem_elevation_at_center(const dem_context_t* ctx);

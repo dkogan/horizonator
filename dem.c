@@ -12,11 +12,11 @@
 #include "dem.h"
 
 static
-const bool dem_filename(// output
-                        char* path, int bufsize,
+bool dem_filename(// output
+                  char* path, int bufsize,
 
-                        // input
-                        int demfileN, int demfileE )
+                  // input
+                  int demfileN, int demfileE )
 {
     char ns;
     char we;
@@ -52,11 +52,14 @@ bool dem_init(// output
               dem_context_t* ctx,
 
               // input
-              const float* view_lon_lat,
+              float view_lat,
+              float view_lon,
 
               // We will have 2*radius_cells per side
               int radius_cells )
 {
+    const float view_lon_lat[2] = {view_lon, view_lat};
+
     *ctx = (dem_context_t){};
 
     // I render a square with the given radius, centered at the view point.
@@ -66,16 +69,15 @@ bool dem_init(// output
     // render origin. I also compute the grid coords of the base DEM origin
     // (grid coords of the render origin are 0,0 by definition)
     //
-    // grid starts at the NW corner. DEM tile is named from the SW point. This
-    // is confusing, but that's how SRTM does it
+    // grid starts at the SW corner. DEM tile is named from the SW point
     for(int i=0; i<2; i++)
     {
         float origin_lon_lat = view_lon_lat[i] - (float)radius_cells/CELLS_PER_DEG;
 
-        // Which DEM contains the NW corner of the render data
+        // Which DEM contains the SW corner of the render data
         ctx->origin_dem_lon_lat[i] = (int)floor(origin_lon_lat);
 
-        // Which cell in the origin DEM contains the NW corner of the render data
+        // Which cell in the origin DEM contains the SW corner of the render data
         ctx->origin_dem_cellij [i] = (int)round( (origin_lon_lat - ctx->origin_dem_lon_lat[i]) * CELLS_PER_DEG );
 
         // The lon/lat of the origin cell. This is origin_lon_lat, quantized to
@@ -101,7 +103,7 @@ bool dem_init(// output
             return false;
         }
 
-        ctx->center_ij[i] = ctx->origin_dem_cellij[i] + radius_cells;
+        ctx->center_ij[i] = radius_cells;
     }
 
     // I now load my DEMs. Each dems[] is a pointer to an mmap-ed source file.
@@ -173,7 +175,7 @@ void dem_deinit( dem_context_t* ctx )
 int16_t dem_sample(const dem_context_t* ctx,
                    // Positive = towards East
                    int i,
-                   // Positive = towards South
+                   // Positive = towards North
                    int j)
 {
     if(i < 0 || j < 0) return -1;
@@ -188,7 +190,7 @@ int16_t dem_sample(const dem_context_t* ctx,
     {
         dem_ij[i]  = cell_ij[i] / CELLS_PER_DEG;
 
-        // cell coordiantes inside the one DEM containing the cell
+        // cell coordinates inside the one DEM containing the cell
         cell_ij[i] -= dem_ij[i] * CELLS_PER_DEG;
 
         // Adjacent DEMs have one row/col of overlap, so I can use the last row
@@ -204,7 +206,11 @@ int16_t dem_sample(const dem_context_t* ctx,
 
     const unsigned char* dem = ctx->dems[dem_ij[0]][dem_ij[1]];
 
-    uint32_t p = cell_ij[0] + cell_ij[1]*WDEM;
+    uint32_t p =
+        cell_ij[0] +
+        // DEM starts at NW corner. I flip it around to start my data at the SW
+        // corner
+        (WDEM-1 - cell_ij[1])*WDEM;
 
     // Each value is big-endian
     int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
