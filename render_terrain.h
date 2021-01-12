@@ -9,8 +9,8 @@ char* render_to_image(// output
                       int* image_width, int* image_height,
 
                       // input
-                      float view_lat, float view_lon,
+                      float viewer_lat, float viewer_lon,
                       int width, float fovy_deg // render parameters. negative to take defaults
                       );
 
-bool render_to_window( float view_lat, float view_lon );
+bool render_to_window( float viewer_lat, float viewer_lon );

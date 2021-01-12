@@ -42,7 +42,7 @@ typedef struct
 {
     int    Ntriangles;
     GLint  uniform_aspect;
-    float  view_lon, view_lat;
+    float  viewer_lon, viewer_lat;
     float  elevation_viewer;
 
     enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode;
@@ -67,7 +67,7 @@ static bool init( // output
 
                  // Will be nudged a bit. The latlon we will use are
                  // returned in the context
-                 float _view_lat, float _view_lon,
+                 float _viewer_lat, float _viewer_lon,
                  bool do_render_texture )
 {
     glutInit(&(int){1}, &(char*){"exec"});
@@ -120,19 +120,19 @@ static bool init( // output
             else                              *view -= 0.1f/CELLS_PER_DEG;
         }
     }
-    nudgeCoord( &_view_lat );
-    nudgeCoord( &_view_lon );
+    nudgeCoord( &_viewer_lat );
+    nudgeCoord( &_viewer_lon );
 
 
     bool result = false;
 
-    ctx->view_lon = _view_lon;
-    ctx->view_lat = _view_lat;
+    ctx->viewer_lon = _viewer_lon;
+    ctx->viewer_lat = _viewer_lat;
 
     bool dem_context_inited = false;
     dem_context_t dem_context;
     if( !dem_init( &dem_context,
-                   ctx->view_lat, ctx->view_lon, RENDER_RADIUS ) )
+                   ctx->viewer_lat, ctx->viewer_lon, RENDER_RADIUS ) )
     {
         MSG("Couldn't init DEMs. Giving up");
         goto done;
@@ -315,14 +315,14 @@ static bool init( // output
 
 
 
-        // My render data is in a grid centered on ctx->view_lat/ctx->view_lon, branching
+        // My render data is in a grid centered on ctx->viewer_lat/ctx->viewer_lon, branching
         // RENDER_RADIUS*DEG_PER_CELL degrees in all 4 directions
-        float start_E = ctx->view_lon - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float start_N = ctx->view_lat - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float end_E   = ctx->view_lon + (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float end_N   = ctx->view_lat + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float start_E = ctx->viewer_lon - (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float start_N = ctx->viewer_lat - (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float end_E   = ctx->viewer_lon + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float end_N   = ctx->viewer_lat + (float)RENDER_RADIUS/CELLS_PER_DEG;
 
-        computeTextureMapInterpolationCoeffs(ctx->view_lat);
+        computeTextureMapInterpolationCoeffs(ctx->viewer_lat);
         getOSMTileID( start_E, start_N,
                       &start_osmTileX, &end_osmTileY ); // y tiles are ordered backwards
         getOSMTileID( end_E, end_N,
@@ -338,7 +338,7 @@ static bool init( // output
                 setOSMtextureTile( osmTileX, osmTileY );
 
 
-        float x_texture = TEXTUREMAP_LON1 * ctx->view_lon*M_PI/180.0f + TEXTUREMAP_LON0;
+        float x_texture = TEXTUREMAP_LON1 * ctx->viewer_lon*M_PI/180.0f + TEXTUREMAP_LON0;
         x_texture       = (x_texture - (float)start_osmTileX) / (float)NtilesX;
 #endif
     }
@@ -575,16 +575,16 @@ static bool init( // output
             assert_opengl();                                            \
         } while(0)
 
-        make_uniform(f, view_z,       viewer_z);
+        make_uniform(f, viewer_z,       viewer_z);
         make_uniform(f, origin_N,     dem_context.origin_lon_lat[1]);
         make_uniform(f, origin_W,     dem_context.origin_lon_lat[0]);
         make_uniform(f, DEG_PER_CELL, 1.0f/ (float)CELLS_PER_DEG );
-        make_uniform(f, view_lon,     ctx->view_lon * M_PI / 180.0f );
-        make_uniform(f, view_lat,     ctx->view_lat * M_PI / 180.0f );
+        make_uniform(f, viewer_lon,     ctx->viewer_lon * M_PI / 180.0f );
+        make_uniform(f, viewer_lat,     ctx->viewer_lat * M_PI / 180.0f );
         make_uniform(i, center_ij0,   dem_context.center_ij[0] );
         make_uniform(i, center_ij1,   dem_context.center_ij[1] );
-        make_uniform(f, sin_view_lat, sin( M_PI / 180.0f * ctx->view_lat ));
-        make_uniform(f, cos_view_lat, cos( M_PI / 180.0f * ctx->view_lat ));
+        make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * ctx->viewer_lat ));
+        make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * ctx->viewer_lat ));
 
         // This may be modified at runtime, so I do it manually, without make_uniform()
         ctx->uniform_aspect = glGetUniformLocation(program, "aspect");
@@ -657,7 +657,7 @@ char* render_to_image(// output
                       int* image_width, int* image_height,
 
                       // input
-                      float view_lat, float view_lon,
+                      float viewer_lat, float viewer_lon,
                       int width, float fovy_deg // render parameters. negative to take defaults
                       )
 {
@@ -667,7 +667,7 @@ char* render_to_image(// output
     horizonator_context_t ctx;
 
     if( !init( &ctx,
-               true, view_lat, view_lon, false ) )
+               true, viewer_lat, viewer_lon, false ) )
         return NULL;
 
     *image_width  = width > 0 ? width : IMAGE_WIDTH_DEFAULT;
@@ -759,12 +759,12 @@ char* render_to_image(// output
     return result;
 }
 
-bool render_to_window( float view_lat, float view_lon )
+bool render_to_window( float viewer_lat, float viewer_lon )
 {
     horizonator_context_t ctx;
 
     if( !init( &ctx,
-               false, view_lat, view_lon, false ) )
+               false, viewer_lat, viewer_lon, false ) )
         return false;
 
     void window_display(void)
@@ -846,18 +846,18 @@ bool render_pick(// output
     // In my coordinate system, if I apply the small angle approximation, I get
     //
     // N = dlat
-    // E = dlon cos(view_lat)
+    // E = dlon cos(viewer_lat)
     // I have tan(az) = (-east)/(-north). I want to
     // break this into delta-n and delta-e => tan(az) = sin(az)/cos(az) =>
     // sin(az) = -east, cos(az) = -north
     float dn, de;
     sincosf((float)x * 2.0f * (float)M_PI / (float)ctx->image_width,
             &de, &dn);
-    dn *= cos( (float)ctx->view_lat * (float)M_PI / 180.0f );
+    dn *= cos( (float)ctx->viewer_lat * (float)M_PI / 180.0f );
 
     float l = hypot(dn,de);
-    *lon = ctx->view_lon - de*(float)d/l/255.0f;
-    *lat = ctx->view_lat - dn*(float)d/l/255.0f;
+    *lon = ctx->viewer_lon - de*(float)d/l/255.0f;
+    *lat = ctx->viewer_lat - dn*(float)d/l/255.0f;
 
     return true;
 }
