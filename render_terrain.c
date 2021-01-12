@@ -416,18 +416,18 @@ static bool init( // output
 
             // left side; j<0 to indicate that this is a duplicate for the left
             // seam. Extra 1 because -0 is not < 0
-            vertices[vertex_buf_idx++] = dem_context.center_ij[0];
-            vertices[vertex_buf_idx++] = -(j+1);
+            vertices[vertex_buf_idx++] = RENDER_RADIUS-1;
+            vertices[vertex_buf_idx++] = -(j + 1);
             vertices[vertex_buf_idx++] = dem_sample(&dem_context,
-                                                    dem_context.center_ij[0], j);
+                                                    RENDER_RADIUS-1, j);
 
 
             // right side; i<0 to indicate that this is a duplicate for the
             // right seam. Extra 1 because -0 is not < 0
-            vertices[vertex_buf_idx++] = -(dem_context.center_ij[0]+1);
+            vertices[vertex_buf_idx++] = -(RENDER_RADIUS + 1);
             vertices[vertex_buf_idx++] = j;
             vertices[vertex_buf_idx++] = dem_sample(&dem_context,
-                                                    dem_context.center_ij[0]+1, j);
+                                                    RENDER_RADIUS, j);
         }
 
         // Two magic extra vertices used for the square I'm on: the bottom-left

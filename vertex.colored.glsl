@@ -51,6 +51,29 @@ void main(void)
       better, but in the near-term this is more than good-enough.
      */
 
+
+
+    // Seam stuff. First, handle the cell the viewer is sitting on
+    if( gl_Vertex.x < 0.0 && gl_Vertex.y < 0.0 )
+    {
+        // x and y <0 means this is either the bottom-left of screen or bottom-right
+        // of screen. The choice between these two is the sign of vin.z
+        if( gl_Vertex.z < 0.0 )
+        {
+            gl_Position = vec4( -1.0, -1.0,
+                                -1.0,  1.0 );
+        }
+        else
+        {
+            gl_Position = vec4( +1.0, -1.0,
+                                -1.0,  1.0 );
+        }
+        channel_distance  = 0.0;
+        channel_elevation = 0.5;
+        return;
+    }
+
+
     float distance_ne;
 
     // Several different paths exist for the data processing, with different
@@ -74,12 +97,33 @@ void main(void)
     }
     else
     {
+        // This is the only path that supports the seam business
+        bool at_left_seam  = false;
+        bool at_right_seam = false;
+
+        float i = gl_Vertex.x;
+        float j = gl_Vertex.y;
+        if( i < 0.0 )
+        {
+            i = -i - 1.0; // extra 1 because I can't assume that -0 < 0
+            at_left_seam = true;
+        }
+        else if( j < 0.0 )
+        {
+            j = -j - 1.0; // extra 1 because I can't assume that -0 < 0
+            at_right_seam = true;
+        }
+
         vec2 en =
-            vec2( (gl_Vertex.x - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,
-                  (gl_Vertex.y - viewer_cell_j) * DEG_PER_CELL * Rearth * pi/180. );
+            vec2( (i - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,
+                  (j - viewer_cell_j) * DEG_PER_CELL * Rearth * pi/180. );
 
         distance_ne = length(en);
-        gl_Position = vec4( atan(en.x, en.y) / pi,
+        float az = atan(en.x, en.y) / pi;
+        if     ( at_left_seam )  az -= 2.0;
+        else if( at_right_seam ) az += 2.0;
+
+        gl_Position = vec4( az,
                             atan(gl_Vertex.z - viewer_z, distance_ne) / pi * aspect,
                             (distance_ne - znear) / (zfar - znear) * 2. - 1.,
                             1.0 );
