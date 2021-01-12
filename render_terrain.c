@@ -42,7 +42,6 @@ typedef struct
 {
     int    Ntriangles;
     GLint  uniform_aspect;
-    float  viewer_lon, viewer_lat;
     float  elevation_viewer;
 
     enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode;
@@ -67,7 +66,7 @@ static bool init( // output
 
                  // Will be nudged a bit. The latlon we will use are
                  // returned in the context
-                 float _viewer_lat, float _viewer_lon,
+                 float viewer_lat, float viewer_lon,
                  bool do_render_texture )
 {
     glutInit(&(int){1}, &(char*){"exec"});
@@ -105,34 +104,13 @@ static bool init( // output
     glClearColor(0, 0, 1, 0);
 
 
-    // Viewer is looking north, the seam is behind (to the south). If the viewer is
-    // directly on a grid value, then the cell of the seam is poorly defined. In
-    // that scenario, I nudge the viewer to one side to unambiguously pick the seam
-    // cell. I do this in both lat and lon directions to resolve ambiguity.
-    void nudgeCoord( float* view )
-    {
-        float cell_idx         = *view * CELLS_PER_DEG;
-        float cell_idx_rounded = round( cell_idx );
-
-        if( fabs( cell_idx - cell_idx_rounded ) < 0.1f )
-        {
-            if( cell_idx > cell_idx_rounded ) *view += 0.1f/CELLS_PER_DEG;
-            else                              *view -= 0.1f/CELLS_PER_DEG;
-        }
-    }
-    nudgeCoord( &_viewer_lat );
-    nudgeCoord( &_viewer_lon );
-
-
+    // Viewer is looking north, the seam is behind (to the south).
     bool result = false;
-
-    ctx->viewer_lon = _viewer_lon;
-    ctx->viewer_lat = _viewer_lat;
 
     bool dem_context_inited = false;
     dem_context_t dem_context;
     if( !dem_init( &dem_context,
-                   ctx->viewer_lat, ctx->viewer_lon, RENDER_RADIUS ) )
+                   viewer_lat, viewer_lon, RENDER_RADIUS ) )
     {
         MSG("Couldn't init DEMs. Giving up");
         goto done;
@@ -145,7 +123,10 @@ static bool init( // output
 
     // The viewer elevation. I nudge it up a tiny bit to not see the stuff
     // immediately around me
-    const float viewer_z = dem_elevation_at_center(&dem_context) + 1.0;
+    const float viewer_z = fmaxf( fmaxf(dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS-1),
+                                        dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS-1)),
+                                  fmaxf(dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS  ),
+                                        dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS  )) ) + 1.0;
 
     // we're doing a mercator projection, so we must take care of the seam. The
     // camera always looks north, so the seam is behind us. Behind me are two
@@ -159,7 +140,7 @@ static bool init( // output
     // The square I'm sitting on demands special treatment. I construct a
     // 6-triangle tiling that fully covers my window
 
-    int Lseam = dem_context.center_ij[1]+1;
+    int Lseam = RENDER_RADIUS+1;
 
 #if defined NOSEAM && NOSEAM
     ctx->Ntriangles -= (Lseam-1)*2;
@@ -352,19 +333,33 @@ static bool init( // output
         GLuint vertexBufID;
         glGenBuffers(1, &vertexBufID);
         glBindBuffer(GL_ARRAY_BUFFER, vertexBufID);
-        glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
-        glVertexPointer(3, GL_SHORT, 0, NULL);
+        glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+        glVertexPointer(3, GL_FLOAT, 0, NULL);
 
-        GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+        GLfloat* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
         int vertex_buf_idx = 0;
 
+        const float cos_viewer_lat = cosf( M_PI / 180.0f * dem_context.viewer_lon_lat[1] );
+        const float Rearth = 6371000.0;
+
+        float viewer_cell[2];
+        for(int i=0; i<2; i++)
+            viewer_cell[i] =
+                (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
+
         for( int j=0; j<2*RENDER_RADIUS; j++ )
+        {
             for( int i=0; i<2*RENDER_RADIUS; i++ )
             {
-                vertices[vertex_buf_idx++] = i;
-                vertices[vertex_buf_idx++] = j;
-                vertices[vertex_buf_idx++] = dem_sample(&dem_context, i,j);
+                float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
+                float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
+                float h = dem_sample(&dem_context, i,j) - viewer_z;
+
+                vertices[vertex_buf_idx++] = e;
+                vertices[vertex_buf_idx++] = n;
+                vertices[vertex_buf_idx++] = h;
             }
+        }
 
 #if !(defined NOSEAM && NOSEAM)
         for( int j=0; j<Lseam; j++ )
@@ -421,9 +416,9 @@ static bool init( // output
             for( int i=0; i<(2*RENDER_RADIUS-1); i++ )
             {
                 // Seam
-                if( i == dem_context.center_ij[0])
+                if( i == RENDER_RADIUS-1)
                 {
-                    if( j == dem_context.center_ij[1] )
+                    if( j == RENDER_RADIUS-1 )
                     {
 #if !(defined NOSEAM && NOSEAM)
                         // This is the cell the viewer is sitting on. It needs
@@ -576,15 +571,11 @@ static bool init( // output
         } while(0)
 
         make_uniform(f, viewer_z,       viewer_z);
-        make_uniform(f, origin_N,     dem_context.origin_lon_lat[1]);
-        make_uniform(f, origin_W,     dem_context.origin_lon_lat[0]);
-        make_uniform(f, DEG_PER_CELL, 1.0f/ (float)CELLS_PER_DEG );
-        make_uniform(f, viewer_lon,     ctx->viewer_lon * M_PI / 180.0f );
-        make_uniform(f, viewer_lat,     ctx->viewer_lat * M_PI / 180.0f );
-        make_uniform(i, center_ij0,   dem_context.center_ij[0] );
-        make_uniform(i, center_ij1,   dem_context.center_ij[1] );
-        make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * ctx->viewer_lat ));
-        make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * ctx->viewer_lat ));
+        make_uniform(f, DEG_PER_CELL,   1.0f/ (float)CELLS_PER_DEG );
+        make_uniform(f, viewer_lon,     dem_context.viewer_lon_lat[0] * M_PI / 180.0f );
+        make_uniform(f, viewer_lat,     dem_context.viewer_lon_lat[1] * M_PI / 180.0f );
+        make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
+        make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
 
         // This may be modified at runtime, so I do it manually, without make_uniform()
         ctx->uniform_aspect = glGetUniformLocation(program, "aspect");
