@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define MSG(fmt, ...) fprintf(stderr, "%s(%d): " fmt "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 
 // Each SRTM file is a grid of 1201x1201 samples; last row/col overlap in neighboring DEMs
 #define WDEM          1201

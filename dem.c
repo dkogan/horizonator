@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include "dem.h"
+#include "util.h"
 
 static
 bool dem_filename(// output

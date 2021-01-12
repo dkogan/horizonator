@@ -14,6 +14,7 @@
 
 #include "bench.h"
 #include "dem.h"
+#include "util.h"
 
 
 // can be used for testing/debugging to turn off the seam rendering
