@@ -792,6 +792,9 @@ bool render_to_window( float view_lat, float view_lon )
 
         case 'q':
         case 27:
+            // Need both to avoid a segfault. This works differently with
+            // different opengl drivers
+            glutExit();
             exit(0);
         }
 
