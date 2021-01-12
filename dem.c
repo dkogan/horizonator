@@ -53,37 +53,47 @@ bool dem_init(// output
               dem_context_t* ctx,
 
               // input
-              float view_lat,
-              float view_lon,
+              float viewer_lat,
+              float viewer_lon,
 
               // We will have 2*radius_cells per side
               int radius_cells )
 {
-    const float view_lon_lat[2] = {view_lon, view_lat};
+    *ctx = (dem_context_t){ .viewer_lon_lat = {viewer_lon, viewer_lat} };
 
-    *ctx = (dem_context_t){};
-
-    // I render a square with the given radius, centered at the view point.
-    // There are (2*radius_cells)**2 cells in the render. In all likelihood this
-    // will encompass multiple DEMs. The base DEM is the one that contains the
-    // viewpoint. I compute the latlon coords of the base DEM origin and of the
-    // render origin. I also compute the grid coords of the base DEM origin
-    // (grid coords of the render origin are 0,0 by definition)
-    //
-    // grid starts at the SW corner. DEM tile is named from the SW point
     for(int i=0; i<2; i++)
     {
-        float origin_lon_lat = view_lon_lat[i] - (float)radius_cells/CELLS_PER_DEG;
+        // If the viewer sits directly on a grid value, I nudge them a bit to
+        // resolve the potential ambiguity
+        float cell_idx         = ctx->viewer_lon_lat[i] * CELLS_PER_DEG;
+        float cell_idx_rounded = roundf( cell_idx );
+
+        if( fabsf( cell_idx - cell_idx_rounded ) < 0.1f )
+        {
+            if( cell_idx > cell_idx_rounded ) ctx->viewer_lon_lat[i] += 0.1f/CELLS_PER_DEG;
+            else                              ctx->viewer_lon_lat[i] -= 0.1f/CELLS_PER_DEG;
+        }
+
+        // If radius == 1 -> N = 2 and center = 1.5 -> I have cells 1,2. Same
+        // with center = 1.anything
+        //
+        //   icell_origin  = floor(latlon_view * CELLS_PER_DEG) - (radius-1)
+        //   latlon_origin = floor(icell_origin / CELLS_PER_DEG)
+        int   icell_origin   = floor(ctx->viewer_lon_lat[i] * CELLS_PER_DEG) - (radius_cells-1);
+        float origin_lon_lat = (float)icell_origin / (float)CELLS_PER_DEG;
 
         // Which DEM contains the SW corner of the render data
         ctx->origin_dem_lon_lat[i] = (int)floor(origin_lon_lat);
 
         // Which cell in the origin DEM contains the SW corner of the render data
+        //
+        // This round() is here only for floating-point fuzz. It SHOULD be an integer already
         ctx->origin_dem_cellij [i] = (int)round( (origin_lon_lat - ctx->origin_dem_lon_lat[i]) * CELLS_PER_DEG );
 
-        // The lon/lat of the origin cell. This is origin_lon_lat, quantized to
-        // the DEM cells
-        ctx->origin_lon_lat[i] = ctx->origin_dem_lon_lat[i] + (float)ctx->origin_dem_cellij[i] / (float)CELLS_PER_DEG;
+        // Let's confirm I did the right thing.
+        assert( radius_cells-1 < (ctx->viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
+        assert( radius_cells   > (ctx->viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
+
 
         // I will have 2*radius_cells
         int cellij_last = ctx->origin_dem_cellij[i] + radius_cells*2-1;
@@ -103,8 +113,6 @@ bool dem_init(// output
             MSG("Requested radius too large. Increase the compile-time-constant %d", max_Ndems_ij);
             return false;
         }
-
-        ctx->center_ij[i] = radius_cells;
     }
 
     // I now load my DEMs. Each dems[] is a pointer to an mmap-ed source file.
@@ -213,17 +221,7 @@ int16_t dem_sample(const dem_context_t* ctx,
         // corner
         (WDEM-1 - cell_ij[1])*WDEM;
 
-    // Each value is big-endian
+    // Each value is big-endian, so I flip the bytes
     int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
     return (z < 0) ? 0 : z;
-}
-
-float dem_elevation_at_center(const dem_context_t* ctx)
-{
-#define MAX(_a,_b) ({__auto_type a = _a; __auto_type b = _b; a > b ? a : b; })
-    return MAX( MAX( MAX( dem_sample( ctx, ctx->center_ij[0],   ctx->center_ij[1]   ),
-                          dem_sample( ctx, ctx->center_ij[0]+1, ctx->center_ij[1]   )),
-                          dem_sample( ctx, ctx->center_ij[0],   ctx->center_ij[1]+1 )),
-                          dem_sample( ctx, ctx->center_ij[0]+1, ctx->center_ij[1]+1 ));
-#undef MAX
 }

@@ -3,7 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-
 // Each SRTM file is a grid of 1201x1201 samples; last row/col overlap in neighboring DEMs
 #define WDEM          1201
 #define CELLS_PER_DEG (WDEM - 1) /* -1 because of the overlapping DEM edges */
@@ -25,26 +24,34 @@ typedef struct
     // Which cell in the origin DEM contains the SW corner of the render data
     int            origin_dem_cellij [2];
 
-    // The lon/lat of the origin cell. This is quantized to the DEM cells
-    float          origin_lon_lat    [2];
-
-    // The lon/lat of the center cell. This is quantized to the DEM cells
-    int            center_ij         [2];
-
     // How many DEMs, in each direction
     int            Ndems_ij          [2];
+
+    // The viewer is sitting at the center of the data, between cell indices
+    // radius_cells-1 and radius_cells. These viewer coordinates are whatever is
+    // input to dem_init(), nudged a bit to avoid sitting directly on a grid
+    // lattice point. That avoids floating-point uncertainty
+    float viewer_lon_lat[2];
 } dem_context_t;
 
 
-// This library abstracts access to a set of DEM tiles, allowing the user to
-// treat the whole set as one large DEM
-
+// Prepare square set of cells for rendering. We abstract a set of DEM tiles,
+// allowing the user to treat the whole set as one large DEM.
+//
+// There are (2*radius_cells)**2 cells in the render. This may encompass
+// multiple DEMs. The data is prepared by calling this function, and can the be
+// queries by dem_sample(), which is agnostic about the multiple DEMs being
+// sampled
+//
+// The grid starts at the SW corner. DEM tiles are named from the SW point
+//
+// The viewer sits between cell radius_cells-1 and radius_cells
 bool dem_init(// output
               dem_context_t* ctx,
 
               // input
-              float view_lat,
-              float view_lon,
+              float viewer_lat,
+              float viewer_lon,
 
               // We will have 2*radius_cells per side
               int radius_cells );
@@ -57,6 +64,3 @@ int16_t dem_sample(const dem_context_t* ctx,
                    int i,
                    // Positive = towards North
                    int j);
-
-float dem_elevation_at_center(const dem_context_t* ctx);
-
