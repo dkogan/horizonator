@@ -726,7 +726,7 @@ char* render_to_image(// output
     }
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
     glReadPixels(0,0, *image_width, *image_height,
-                 GL_RGB, GL_UNSIGNED_BYTE, img);
+                 GL_BGR, GL_UNSIGNED_BYTE, img);
     glutExit();
 
     // depth-querying stuff
