@@ -3,10 +3,11 @@
 #version 110
 
 // We receive these from the CPU code
+uniform float viewer_cell_i, viewer_cell_j;
 uniform float viewer_z;
 uniform float DEG_PER_CELL;
 uniform float view_lon, view_lat;
-uniform float sin_view_lat, cos_view_lat;
+uniform float sin_viewer_lat, cos_viewer_lat;
 uniform float aspect;
 
 // We send these to the fragment shader
@@ -21,7 +22,6 @@ const float zfar  = 20000.0;
 
 // Past this distance the render color doesn't change, in meters
 const float zfar_color = 40000.0;
-
 
 void main(void)
 {
@@ -53,14 +53,38 @@ void main(void)
 
     float distance_ne;
 
-    // e,n,height relative to the viewer
-    distance_ne = length(gl_Vertex.xy);
-    gl_Position = vec4( atan(gl_Vertex.x, gl_Vertex.y) / pi,
-                        atan(gl_Vertex.z, distance_ne) / pi * aspect,
-                        (distance_ne - znear) / (zfar - znear) * 2. - 1.,
-                        1.0 );
+    // Several different paths exist for the data processing, with different
+    // amounts of the math done in the CPU or GPU. The corresponding path must
+    // be selected in the CPU code in init.c
+    if(false)
+    {
+        distance_ne = gl_Vertex.z;
+        gl_Position = vec4( gl_Vertex.x,
+                            gl_Vertex.y * aspect,
+                            (distance_ne - znear) / (zfar - znear) * 2. - 1.,
+                            1.0 );
+    }
+    else if(false)
+    {
+        distance_ne = length(gl_Vertex.xy);
+        gl_Position = vec4( atan(gl_Vertex.x, gl_Vertex.y) / pi,
+                            atan(gl_Vertex.z, distance_ne) / pi * aspect,
+                            (distance_ne - znear) / (zfar - znear) * 2. - 1.,
+                            1.0 );
+    }
+    else
+    {
+        vec2 en =
+            vec2( (gl_Vertex.x - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,
+                  (gl_Vertex.y - viewer_cell_j) * DEG_PER_CELL * Rearth * pi/180. );
 
-    channel_elevation = 0.0;
+        distance_ne = length(en);
+        gl_Position = vec4( atan(en.x, en.y) / pi,
+                            atan(gl_Vertex.z - viewer_z, distance_ne) / pi * aspect,
+                            (distance_ne - znear) / (zfar - znear) * 2. - 1.,
+                            1.0 );
+    }
+
     channel_distance  = distance_ne / zfar;
     channel_griddist  = 0.0;
 

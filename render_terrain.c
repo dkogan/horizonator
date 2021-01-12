@@ -128,6 +128,11 @@ static bool init( // output
                                   fmaxf(dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS  ),
                                         dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS  )) ) + 1.0;
 
+    float viewer_cell[2];
+    for(int i=0; i<2; i++)
+        viewer_cell[i] =
+            (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
+
     // we're doing a mercator projection, so we must take care of the seam. The
     // camera always looks north, so the seam is behind us. Behind me are two
     // rows of vertices, one on either side. With a mercator projection, these
@@ -333,31 +338,72 @@ static bool init( // output
         GLuint vertexBufID;
         glGenBuffers(1, &vertexBufID);
         glBindBuffer(GL_ARRAY_BUFFER, vertexBufID);
-        glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLfloat), NULL, GL_STATIC_DRAW);
-        glVertexPointer(3, GL_FLOAT, 0, NULL);
 
-        GLfloat* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+#define VBO_USES_INTEGERS 1
+
+#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
+        // 16-bit integers. Only one of the paths below work with these
+        glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
+        glVertexPointer(3, GL_SHORT, 0, NULL);
+        GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+#else
+        // 32-bit floats. These take more space, but work with all the paths below
+        glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
+        glVertexPointer(3, GL_SHORT, 0, NULL);
+        GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+#endif
+
         int vertex_buf_idx = 0;
 
         const float cos_viewer_lat = cosf( M_PI / 180.0f * dem_context.viewer_lon_lat[1] );
         const float Rearth = 6371000.0;
 
-        float viewer_cell[2];
-        for(int i=0; i<2; i++)
-            viewer_cell[i] =
-                (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
-
         for( int j=0; j<2*RENDER_RADIUS; j++ )
         {
             for( int i=0; i<2*RENDER_RADIUS; i++ )
             {
+                int32_t z = dem_sample(&dem_context, i,j);
+
+                // Several paths are available. These require corresponding
+                // updates in the GLSL, and exist for testing
+#if 0
+                // The CPU does all the math for the data procesing.
+#if !(defined NOSEAM && NOSEAM)
+#error "This path doesn't work with seams"
+#endif
+#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
+#error "This path requires floating-point vertices"
+#endif
                 float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
                 float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
-                float h = dem_sample(&dem_context, i,j) - viewer_z;
+                float h = (float)z - viewer_z;
+
+                float d_ne = hypotf(e,n);
+                vertices[vertex_buf_idx++] = atan2f(e,n   ) / M_PI;
+                vertices[vertex_buf_idx++] = atan2f(h,d_ne) / M_PI;
+                vertices[vertex_buf_idx++] = d_ne;
+#elif 0
+                // The CPU does some of the math for the data procesing.
+                // Requires 32-bit floats for the vertices (selected above).
+#if !(defined NOSEAM && NOSEAM)
+#error "This path doesn't work with seams"
+#endif
+#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
+#error "This path requires floating-point vertices"
+#endif
+                float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
+                float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
+                float h = (float)z - viewer_z;
 
                 vertices[vertex_buf_idx++] = e;
                 vertices[vertex_buf_idx++] = n;
                 vertices[vertex_buf_idx++] = h;
+#else
+                // Integers into the VBO. All the work done in the GPU
+                vertices[vertex_buf_idx++] = i;
+                vertices[vertex_buf_idx++] = j;
+                vertices[vertex_buf_idx++] = z;
+#endif
             }
         }
 
@@ -570,6 +616,8 @@ static bool init( // output
             assert_opengl();                                            \
         } while(0)
 
+        make_uniform(f, viewer_cell_i,  viewer_cell[0]);
+        make_uniform(f, viewer_cell_j,  viewer_cell[1]);
         make_uniform(f, viewer_z,       viewer_z);
         make_uniform(f, DEG_PER_CELL,   1.0f/ (float)CELLS_PER_DEG );
         make_uniform(f, viewer_lon,     dem_context.viewer_lon_lat[0] * M_PI / 180.0f );
