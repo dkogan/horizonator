@@ -21,7 +21,7 @@
 
 // We will render a square grid of data that is at most RENDER_RADIUS cells away
 // from the viewer in the N or E direction
-#define RENDER_RADIUS       1000
+#define RENDER_RADIUS       300
 
 #define IMAGE_HEIGHT(width, fovy_deg) (int)( 0.5 + width / 360.0 * fovy_deg)
 
