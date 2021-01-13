@@ -16,7 +16,12 @@ int main(int argc, char* argv[])
         "\n"
         "--window is exclusive with --width and --output. --width and\n"
         "--output must be given together. The output filename MUST be\n"
-        "a .png file\n";
+        "a .png file\n"
+        "\n"
+        "With --window AZ_DEG are the azimuth bounds of the VIEWPORT.\n"
+        "Without --window (when rendering to an image), AZ_DEG are the\n"
+        "centers of the first and last pixels. This is slightly smaller\n"
+        "than the whole viewport: there's one extra pixel on each side\n";
 
     struct option opts[] = {
         { "window",            no_argument,       NULL, 'W' },
@@ -147,8 +152,15 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    const float fovy_deg = 20.0f;
 
+    // The user gave me az_deg referring to the center of the pixels at the
+    // edge. I need to convert them to represent the edges of the viewport.
+    // That's 0.5 pixels extra on either side
+    float az_per_pixel = (az_deg1 - az_deg0) / (float)(width-1);
+    az_deg0 -= az_per_pixel/2.f;
+    az_deg1 += az_per_pixel/2.f;
+
+    const float fovy_deg = 20.0f;
     int height = (int)roundf( (float)width * fovy_deg / (az_deg1-az_deg0));
 
     char* image =
