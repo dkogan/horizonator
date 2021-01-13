@@ -6,7 +6,10 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <assert.h>
-#include <GL/glew.h>
+
+#include <epoxy/gl.h>
+#include <epoxy/glx.h>
+
 #include <GL/freeglut.h>
 #include <unistd.h>
 #include <string.h>
@@ -89,7 +92,6 @@ static bool init( // output
     // when offscreen, I really don't want to glutCreateWindow(), but for some
     // reason not doing this causes glewInit() to segfault...
     glutCreateWindow("Terrain renderer");
-    glewInit();
 
     const char* version = (const char*)glGetString(GL_VERSION);
     if (version[0] == '1') {

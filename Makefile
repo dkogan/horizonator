@@ -10,11 +10,11 @@ BIN_SOURCES += horizonator.c
 
 CFLAGS_EXTRA = \
   $(shell pkg-config --cflags glu) \
-  $(shell pkg-config --cflags glew)
+  $(shell pkg-config --cflags epoxy)
 
 LDLIBS_EXTRA := \
   $(shell pkg-config --libs glu) \
-  $(shell pkg-config --libs glew) \
+  $(shell pkg-config --libs epoxy) \
   -lglut -lm \
   -pthread \
   -lfreeimage
