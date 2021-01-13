@@ -94,6 +94,9 @@ static bool init( // output
     glutCreateWindow("Terrain renderer");
 
     const char* version = (const char*)glGetString(GL_VERSION);
+    // MSG("glGetString(GL_VERSION) says we're using GL %s", version);
+    // MSG("Epoxy says we're using GL %d", epoxy_gl_version());
+
     if (version[0] == '1') {
         /* check for individual extensions */
         if (!glutExtensionSupported("GL_ARB_vertex_shader")) {
