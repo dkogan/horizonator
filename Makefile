@@ -8,19 +8,11 @@ LIB_SOURCES += dem.c render_terrain.c
 
 BIN_SOURCES += horizonator.c
 
-CFLAGS_EXTRA = \
-  $(shell pkg-config --cflags glu) \
-  $(shell pkg-config --cflags epoxy)
-
-LDLIBS_EXTRA := \
-  $(shell pkg-config --libs glu) \
-  $(shell pkg-config --libs epoxy) \
-  -lglut -lm \
-  -pthread \
-  -lfreeimage
-
-CFLAGS += $(CFLAGS_EXTRA)
-LDLIBS += $(LDLIBS_EXTRA)
+LDLIBS += \
+  -lGLU -lGL -lepoxy -lglut \
+  -lfreeimage \
+  -lm \
+  -pthread
 
 render_terrain.o: vertex.textured.glsl.h fragment.textured.glsl.h vertex.colored.glsl.h fragment.colored.glsl.h
 
