@@ -41,14 +41,6 @@
 // from the viewer in the N or E direction
 #define RENDER_RADIUS       300
 
-#define IMAGE_HEIGHT(width, fovy_deg) (int)( 0.5 + width / 360.0 * fovy_deg)
-
-
-#define FOVY_DEG_DEFAULT    50.0f /* vertical field of view of the render */
-#define IMAGE_WIDTH_DEFAULT 4000
-#define IMAGE_HEIGHT_DEFAULT IMAGE_HEIGHT(IMAGE_WIDTH_DEFAULT, FOVY_DEG_DEFAULT)
-
-
 // for texture rendering
 #define OSM_RENDER_ZOOM     13
 #define OSM_TILE_WIDTH      256
@@ -80,11 +72,18 @@ static bool init( // output
 
                  // input
                  bool render_offscreen,
+                 bool do_render_texture,
 
                  // Will be nudged a bit. The latlon we will use are
                  // returned in the context
                  float viewer_lat, float viewer_lon,
-                 bool do_render_texture )
+
+                 // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                 // edges lie at the edges of the image. So for an image that's
+                 // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                 // elevation extents will be chosen to keep the aspect ratio
+                 // square.
+                 float az_deg0, float az_deg1)
 {
     glutInit(&(int){1}, &(char*){"exec"});
     glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH | ( render_offscreen ? 0 : GLUT_DOUBLE ));
@@ -664,6 +663,8 @@ static bool init( // output
         make_uniform(f, viewer_lat,     dem_context.viewer_lon_lat[1] * M_PI / 180.0f );
         make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
         make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
+        make_uniform(f, az_deg0,        az_deg0);
+        make_uniform(f, az_deg1,        az_deg1);
 
         // This may be modified at runtime, so I do it manually, without make_uniform()
         ctx->uniform_aspect = glGetUniformLocation(program, "aspect");
@@ -732,13 +733,16 @@ static void draw(const horizonator_context_t* ctx)
 // returns the rendered image buffer. NULL on error. It is the caller's
 // responsibility to free() this buffer. The image data is packed
 // 24-bits-per-pixel BGR data stored row-first.
-char* render_to_image(// output
-                      int* image_width, int* image_height,
+char* render_to_image(float viewer_lat, float viewer_lon,
 
-                      // input
-                      float viewer_lat, float viewer_lon,
-                      int width, float fovy_deg // render parameters. negative to take defaults
-                      )
+                      // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                      // edges lie at the edges of the image. So for an image that's
+                      // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                      // elevation extents will be chosen to keep the aspect ratio
+                      // square.
+                      float az_deg0, float az_deg1,
+
+                      int width, int height )
 {
     char* result = NULL;
     char* img    = NULL;
@@ -746,13 +750,10 @@ char* render_to_image(// output
     horizonator_context_t ctx;
 
     if( !init( &ctx,
-               true, viewer_lat, viewer_lon, false ) )
+               true, false,
+               viewer_lat, viewer_lon,
+               az_deg0, az_deg1 ) )
         return NULL;
-
-    *image_width  = width > 0 ? width : IMAGE_WIDTH_DEFAULT;
-
-    if( fovy_deg <= 0 ) fovy_deg = FOVY_DEG_DEFAULT;
-    *image_height = IMAGE_HEIGHT(*image_width, fovy_deg);
 
     GLuint frameBufID;
     {
@@ -771,7 +772,7 @@ char* render_to_image(// output
       glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
       assert_opengl();
 
-      glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, *image_width, *image_height);
+      glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, width, height);
       assert_opengl();
 
       glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
@@ -787,7 +788,7 @@ char* render_to_image(// output
       glBindRenderbuffer(GL_RENDERBUFFER, depthBufID);
       assert_opengl();
 
-      glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, *image_width, *image_height);
+      glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
       assert_opengl();
 
       glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
@@ -795,17 +796,17 @@ char* render_to_image(// output
       assert_opengl();
     }
 
-    window_reshape(&ctx, *image_width, *image_height);
+    window_reshape(&ctx, width, height);
     draw(&ctx);
 
-    img = malloc( (*image_width) * (*image_height) * 3 );
+    img = malloc( (width) * (height) * 3 );
     if(img == NULL)
     {
         MSG("image buffer malloc() failed");
         goto done;
     }
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
-    glReadPixels(0,0, *image_width, *image_height,
+    glReadPixels(0,0, width, height,
                  GL_BGR, GL_UNSIGNED_BYTE, img);
     glutExit();
 
@@ -838,12 +839,21 @@ char* render_to_image(// output
     return result;
 }
 
-bool render_to_window( float viewer_lat, float viewer_lon )
+bool render_to_window( float viewer_lat, float viewer_lon,
+
+                       // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                       // edges lie at the edges of the image. So for an image that's
+                       // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                       // elevation extents will be chosen to keep the aspect ratio
+                       // square.
+                       float az_deg0, float az_deg1 )
 {
     horizonator_context_t ctx;
 
     if( !init( &ctx,
-               false, viewer_lat, viewer_lon, false ) )
+               false, false,
+               viewer_lat, viewer_lon,
+               az_deg0, az_deg1) )
         return false;
 
     void window_display(void)

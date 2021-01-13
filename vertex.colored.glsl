@@ -9,6 +9,7 @@ uniform float DEG_PER_CELL;
 uniform float view_lon, view_lat;
 uniform float sin_viewer_lat, cos_viewer_lat;
 uniform float aspect;
+uniform float az_deg0, az_deg1;
 
 // We send these to the fragment shader
 varying float channel_distance, channel_elevation, channel_griddist;
@@ -57,8 +58,6 @@ void main(void)
       lot. At 10km the error is 7.8m, which is 0.78mrad. I should do something
       better, but in the near-term this is more than good-enough.
      */
-
-
 
     // Seam stuff. First, handle the cell the viewer is sitting on
     if( gl_Vertex.x < 0.0 && gl_Vertex.y < 0.0 )
@@ -138,12 +137,6 @@ void main(void)
         // az = 0:     North
         // az = 90deg: East
 
-        // float az_deg0 = 150.;
-        // float az_deg1 = 210.;
-
-        float az_deg0 = 329. - 360. - 10.;
-        float az_deg1 = 89.3        + 10.;
-
         float az_rad0 = radians(az_deg0);
         float az_rad1 = radians(az_deg1);
 
@@ -157,15 +150,35 @@ void main(void)
 
         float az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
 
-
-        gl_Position = vec4( (az_rad - az_rad_center) * az_ndc_per_rad,
-                            atan(gl_Vertex.z - viewer_z, distance_ne) * aspect * az_ndc_per_rad,
-
-                            (distance_ne - znear) / (zfar - znear) * 2. - 1.,
+        float az_ndc = (az_rad - az_rad_center) * az_ndc_per_rad;
+        float el_ndc;
+        if(abs(az_ndc) > 1.0)
+            // out-of-bounds on elevation. I make sure this isn't rendered.
+            // Otherwise the triangles directly behind the viewer span the whole
+            // viewport
+            el_ndc = -10000.0;
+        else
+            el_ndc = atan((gl_Vertex.z - viewer_z), distance_ne) * aspect * az_ndc_per_rad;
+        gl_Position = vec4( az_ndc, el_ndc,
+                            ((distance_ne - znear) / (zfar - znear) * 2. - 1.),
                             1.0 );
     }
 
+
+
+
+    float qx = 1000.0;
+    float qy = 1000.0;
+    channel_distance  = abs(gl_Vertex.x - qx) < 1.0 ? 1.0 : 0.0;
+    channel_elevation = 0.;//abs(gl_Vertex.y - qy) < 1.0 ? 1.0 : 0.0;
+
     channel_distance  = distance_ne / zfar;
+
+
+    // float lon = radians( float(originE) + gl_Vertex.x * DEG_PER_CELL );
+    // float lat = radians( float(originN) + gl_Vertex.y * DEG_PER_CELL );
+    //channel_distance  = distance_ne;
+    //channel_elevation = enh.z;
     channel_griddist  = 0.0;
 
 }
