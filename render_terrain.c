@@ -17,8 +17,22 @@
 #include "util.h"
 
 
-// can be used for testing/debugging to turn off the seam rendering
-#define NOSEAM              1
+//////////////////// These are all used for 360-deg panorama renders. Leave them
+//////////////////// at 0 otherwise
+
+// Don't add triangles directly to the S of the viewer. These are behind the
+// N-facing viewer. In a 360-deg view these triangles would span the whole image
+// from az=-180 to az=180
+#define SEAM_OMIT                 0
+// Used with SEAM_OMIT. Render the seam twice: once on the left, and again on
+// the right. Used to make the edges look right. This currently needs some
+// debugging
+#define SEAM_DOUBLED              0
+
+#if defined SEAM_DOUBLED && SEAM_DOUBLED && !(defined SEAM_OMIT && SEAM_OMIT)
+#error "SEAM_DOUBLED requires SEAM_OMIT"
+#endif
+
 
 // We will render a square grid of data that is at most RENDER_RADIUS cells away
 // from the viewer in the N or E direction
@@ -117,6 +131,7 @@ static bool init( // output
     }
     dem_context_inited = true;
 
+    // Dense triangulation. This may be adjusted below
     int Nvertices   = (2*RENDER_RADIUS) * (2*RENDER_RADIUS);
     ctx->Ntriangles = (2*RENDER_RADIUS - 1)*(2*RENDER_RADIUS - 1) * 2;
 
@@ -133,31 +148,36 @@ static bool init( // output
         viewer_cell[i] =
             (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
 
-    // we're doing a mercator projection, so we must take care of the seam. The
-    // camera always looks north, so the seam is behind us. Behind me are two
-    // rows of vertices, one on either side. With a mercator projection, these
-    // rows actually appear on opposite ends of the resulting image, and thus I
-    // do not want to simply add triangles into this gap. Instead, I double-up
-    // each of these rows, place the duplicated vertices off screen (angle < -pi
-    // for one row and angle > pi for the other), and render the seam twice,
-    // once for each side.
+    // we're doing a equirectangular projection, so we must take care of the
+    // seam. The camera always looks north, so the seam is behind us. Behind me
+    // are two rows of vertices, one on either side. With a equirectangular
+    // projection, these rows actually appear on opposite ends of the resulting
+    // image, and thus I do not want to simply add triangles into this gap.
+    // Instead, I double-up each of these rows, place the duplicated vertices
+    // off screen (angle < -pi for one row and angle > pi for the other), and
+    // render the seam twice, once for each side.
     //
     // The square I'm sitting on demands special treatment. I construct a
     // 6-triangle tiling that fully covers my window
 
-    int Lseam = RENDER_RADIUS+1;
+    // Don't render the normal thing at the viewer cell. This never looks right.
+    // We either render nothing, or we render a special thing, depending on the
+    // settings
+    ctx->Ntriangles -= 2;
 
-#if defined NOSEAM && NOSEAM
-    ctx->Ntriangles -= (Lseam-1)*2;
-    ctx->Ntriangles -= 2;            // Don't render anything at the viewer square
-#else
-    Nvertices       += Lseam*2;      // double-up the seam vertices
-    ctx->Ntriangles += (Lseam-1)*2;  // Seam rendered twice. This is the extra one
-    ctx->Ntriangles -= 2;            // Don't render the normal thing at the viewer square
+#if defined SEAM_DOUBLED && SEAM_DOUBLED
+    Nvertices       += (RENDER_RADIUS+1)*2; // double-up the seam vertices
+    ctx->Ntriangles += RENDER_RADIUS*2;     // Seam rendered twice. This is the extra one
+
     ctx->Ntriangles += 6;            // tiling at the viewer square
     Nvertices       += 2;            // the vertices in the bottom-left and
                                      // bottom-right of the image. used for
                                      // the viewer square
+
+#else
+  #if defined SEAM_OMIT && SEAM_OMIT
+      ctx->Ntriangles -= RENDER_RADIUS*2;
+  #endif
 #endif
 
     if(do_render_texture)
@@ -252,7 +272,7 @@ static bool init( // output
             TEXTUREMAP_LON1 = n / ((float)M_PI * 2.0f);
             // I use 2nd order interpolation for the lat computations in the
             // shader. The interpolation is centered around the viewing position.
-            // The spherical mercator lat-to-projection equation is (from
+            // The spherical equirectangular lat-to-projection equation is (from
             // https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames)
             //
             //    y(x) = n/2 * (1 - log( (sin(x) + 1)/cos(x) ) / pi)
@@ -355,9 +375,6 @@ static bool init( // output
 
         int vertex_buf_idx = 0;
 
-        const float cos_viewer_lat = cosf( M_PI / 180.0f * dem_context.viewer_lon_lat[1] );
-        const float Rearth = 6371000.0;
-
         for( int j=0; j<2*RENDER_RADIUS; j++ )
         {
             for( int i=0; i<2*RENDER_RADIUS; i++ )
@@ -368,12 +385,14 @@ static bool init( // output
                 // updates in the GLSL, and exist for testing
 #if 0
                 // The CPU does all the math for the data procesing.
-#if !(defined NOSEAM && NOSEAM)
-#error "This path doesn't work with seams"
+#if defined SEAM_DOUBLED && SEAM_DOUBLED
+#error "This path doesn't work with doubled seams (special vertices need a different flagging)"
 #endif
 #if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
 #error "This path requires floating-point vertices"
 #endif
+                const float Rearth = 6371000.0;
+                const float cos_viewer_lat = cosf( M_PI / 180.0f * dem_context.viewer_lon_lat[1] );
                 float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
                 float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
                 float h = (float)z - viewer_z;
@@ -385,12 +404,14 @@ static bool init( // output
 #elif 0
                 // The CPU does some of the math for the data procesing.
                 // Requires 32-bit floats for the vertices (selected above).
-#if !(defined NOSEAM && NOSEAM)
-#error "This path doesn't work with seams"
+#if defined SEAM_DOUBLED && SEAM_DOUBLED
+#error "This path doesn't work with doubled seams (special vertices need a different flagging)"
 #endif
 #if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
 #error "This path requires floating-point vertices"
 #endif
+                const float Rearth = 6371000.0;
+                const float cos_viewer_lat = cosf( M_PI / 180.0f * dem_context.viewer_lon_lat[1] );
                 float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
                 float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
                 float h = (float)z - viewer_z;
@@ -407,8 +428,8 @@ static bool init( // output
             }
         }
 
-#if !(defined NOSEAM && NOSEAM)
-        for( int j=0; j<Lseam; j++ )
+#if defined SEAM_DOUBLED && SEAM_DOUBLED
+        for( int j=0; j<RENDER_RADIUS+1; j++ )
         {
             // These duplicates have the same geometry as the originals, but the
             // shader will project them differently, by moving the resulting angle
@@ -430,18 +451,18 @@ static bool init( // output
                                                     RENDER_RADIUS, j);
         }
 
-        // Two magic extra vertices used for the square I'm on: the bottom-left
-        // of screen and the bottom-right of screen. The vertex coordinates here
+        // Two magic extra vertices used for the cell I'm on: the bottom-left of
+        // screen and the bottom-right of screen. The vertex coordinates here
         // are bogus. They are just meant to indicate to the shader to use
         // hard-coded transformed coords. (neg neg neg) means bottom-left. (neg
         // neg pos) means bottom-right
-        vertices[vertex_buf_idx++] = -1.0;
-        vertices[vertex_buf_idx++] = -1.0;
-        vertices[vertex_buf_idx++] = -1.0;
+        vertices[vertex_buf_idx++] = -1;
+        vertices[vertex_buf_idx++] = -1;
+        vertices[vertex_buf_idx++] = -1;
 
-        vertices[vertex_buf_idx++] = -1.0;
-        vertices[vertex_buf_idx++] = -1.0;
-        vertices[vertex_buf_idx++] =  1.0;
+        vertices[vertex_buf_idx++] = -1;
+        vertices[vertex_buf_idx++] = -1;
+        vertices[vertex_buf_idx++] =  1;
 #endif
 
         assert( glUnmapBuffer(GL_ARRAY_BUFFER) == GL_TRUE );
@@ -461,12 +482,34 @@ static bool init( // output
         {
             for( int i=0; i<(2*RENDER_RADIUS-1); i++ )
             {
-                // Seam
+                // Two triangles to represent a rectangular cell. I don't add
+                // triangles for the cell the viewer is sitting on. Those always
+                // look wrong
+                if( i == RENDER_RADIUS-1 )
+                {
+                    if( j == RENDER_RADIUS-1 )
+                        continue;
+#if defined SEAM_OMIT && SEAM_OMIT
+                    if( j < RENDER_RADIUS+1 )
+                        continue;
+#endif
+                }
+
+                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
+                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 1);
+                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 0);
+
+                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
+                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 1);
+                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 1);
+
+#if defined SEAM_DOUBLED && SEAM_DOUBLED
+#error "Complex logic here. Needs to be checked and (probably) debugged and fixed"
                 if( i == RENDER_RADIUS-1)
                 {
                     if( j == RENDER_RADIUS-1 )
                     {
-#if !(defined NOSEAM && NOSEAM)
+#if defined SEAM_DOUBLED && SEAM_DOUBLED
                         // This is the cell the viewer is sitting on. It needs
                         // special treatment
 
@@ -516,9 +559,9 @@ static bool init( // output
                         continue;
                     }
 
-                    else if( j < Lseam )
+                    else if( j < RENDER_RADIUS+1 )
                     {
-#if !(defined NOSEAM && NOSEAM)
+#if defined SEAM_DOUBLED && SEAM_DOUBLED
                         // seam. I add two sets of triangles here; one for the left edge of
                         // the screen and one for the right
 
@@ -544,15 +587,7 @@ static bool init( // output
                         continue;
                     }
                 }
-
-                // Non-seam. Two triangles to represent a rectangular cell
-                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
-                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 1);
-                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 0);
-
-                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
-                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 1);
-                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 1);
+#endif
             }
         }
         assert( glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER) == GL_TRUE );
@@ -906,15 +941,3 @@ const CvMat* render_terrain_getdepth(void)
     return ctx->depth;
 }
 #endif
-
-/*
-get rid of CvFlip(). Should render what I need to begin with
-
-The mapping of pixel <-> azel should be crystal clear
-
-dem_sample now indexes ES not EN. And needs a context
-
-should make sure the view origin is not quantized to the cells
-
-Are there artifacts at the seam?
- */

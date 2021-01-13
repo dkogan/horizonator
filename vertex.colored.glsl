@@ -23,6 +23,13 @@ const float zfar  = 20000.0;
 // Past this distance the render color doesn't change, in meters
 const float zfar_color = 40000.0;
 
+// Unwraps an angle x to lie within pi of an angle near. All angles in radians
+float unwrap_near_rad(float x, float near)
+{
+    float d = (x - near) / (2.*pi);
+    return (d - round(d)) * 2.*pi + near;
+}
+
 void main(void)
 {
     /*
@@ -119,12 +126,41 @@ void main(void)
                   (j - viewer_cell_j) * DEG_PER_CELL * Rearth * pi/180. );
 
         distance_ne = length(en);
-        float az = atan(en.x, en.y) / pi;
-        if     ( at_left_seam )  az -= 2.0;
-        else if( at_right_seam ) az += 2.0;
+        float az_rad = atan(en.x, en.y);
 
-        gl_Position = vec4( az,
-                            atan(gl_Vertex.z - viewer_z, distance_ne) / pi * aspect,
+        // Seam stuff is half-done, so it is disabled for now. That whole path
+        // needs to be checked and tested
+        //
+        // if     ( at_left_seam  ) az_ndc -= 2.0;
+        // else if( at_right_seam ) az_ndc += 2.0;
+
+
+        // az = 0:     North
+        // az = 90deg: East
+
+        // float az_deg0 = 150.;
+        // float az_deg1 = 210.;
+
+        float az_deg0 = 329. - 360. - 10.;
+        float az_deg1 = 89.3        + 10.;
+
+        float az_rad0 = radians(az_deg0);
+        float az_rad1 = radians(az_deg1);
+
+        // az_rad1 should be within 2pi of az_rad0 and az_rad1 > az_rad0
+        az_rad1 = unwrap_near_rad(az_rad1-az_rad0, pi) + az_rad0;
+
+        // in [0,2pi]
+        float az_rad_center = (az_rad0 + az_rad1)/2.;
+
+        az_rad = unwrap_near_rad(az_rad, az_rad_center);
+
+        float az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
+
+
+        gl_Position = vec4( (az_rad - az_rad_center) * az_ndc_per_rad,
+                            atan(gl_Vertex.z - viewer_z, distance_ne) * aspect * az_ndc_per_rad,
+
                             (distance_ne - znear) / (zfar - znear) * 2. - 1.,
                             1.0 );
     }
