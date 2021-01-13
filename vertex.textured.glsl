@@ -31,11 +31,11 @@ const float znear  = 10.0, zfar = 300000.0;
 const float zfar_color = 40000.0;
 
 
-// OSM tiles (and everybody else's tool) use the spherical mercator
+// OSM tiles (and everybody else's tool) use the spherical equirectangular
 // projection to map corners of each tile to lat/lon coords. Inside each
 // tile, the pixel coords are linear with lat/lon.
 //
-// Spherical mercator is linear in the longitude direction, so there's
+// Spherical equirectangular is linear in the longitude direction, so there's
 // nothing interesting here. It is NOT linear in the latitude direction. I
 // estimate it with 2nd-order interpolation. This is close-enough for my
 // purposes
