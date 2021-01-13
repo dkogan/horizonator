@@ -39,7 +39,7 @@
 
 // We will render a square grid of data that is at most RENDER_RADIUS cells away
 // from the viewer in the N or E direction
-#define RENDER_RADIUS       300
+#define RENDER_RADIUS       1000
 
 // for texture rendering
 #define OSM_RENDER_ZOOM     13

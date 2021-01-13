@@ -18,10 +18,10 @@ const float pi     = 3.14159265358979;
 
 // these define the front and back clipping planes, in meters
 const float znear = 100.0;
-const float zfar  = 20000.0;
+const float zfar  = 40000.0;
 
 // Past this distance the render color doesn't change, in meters
-const float zfar_color = 40000.0;
+const float zfar_color = 20000.0;
 
 // Unwraps an angle x to lie within pi of an angle near. All angles in radians
 float unwrap_near_rad(float x, float near)
