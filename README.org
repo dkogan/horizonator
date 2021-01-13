@@ -96,7 +96,7 @@ These tiles are imperfect. For instance some of tiles are missing there (such as
 the one around Tecate, BC, Mexico). This data also has some holes. Cleaned up
 DEMs are available from several places, for instance
 
-http://www.viewfinderpanoramas.org/dem3/
+http://www.viewfinderpanoramas.org/dem3.html
 
 This tool does /not/ download the nicer data, so if you need to, you have to do
 that manually. The DEM tiles go to =~/.horizonator/DEMs_SRTM3=.
