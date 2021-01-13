@@ -5,9 +5,9 @@
 uniform float view_z;
 uniform float originN, originE;
 uniform float DEG_PER_CELL;
-uniform float view_lon, view_lat;
+uniform float viewer_lon, viewer_lat;
 uniform int   center_ij0, center_ij1;
-uniform float sin_view_lat, cos_view_lat;
+uniform float sin_viewer_lat, cos_viewer_lat;
 
 uniform float aspect;
 varying float channel_dist, channel_elevation, channel_griddist;
@@ -67,13 +67,13 @@ void main(void)
       gl_Position = vec4( -1.0, -1.0,
                           -1.0, 1.0 ); // is this right? not at all sure the
                                        // last 2 args are correct
-      gl_TexCoord[0].xy = vec2(get_xtexture(view_lon), get_ytexture(0.0));
+      gl_TexCoord[0].xy = vec2(get_xtexture(viewer_lon), get_ytexture(0.0));
     }
     else
     {
       gl_Position = vec4( +1.0, -1.0,
                           -1.0, 1.0 );
-      gl_TexCoord[0].xy = vec2(get_xtexture(view_lon), get_ytexture(0.0));
+      gl_TexCoord[0].xy = vec2(get_xtexture(viewer_lon), get_ytexture(0.0));
     }
     channel_dist      = 0.0;
     channel_elevation = 0.5;
@@ -101,24 +101,24 @@ void main(void)
     if( (int(vin.x) == center_ij0 || int(vin.x) == center_ij0+1) &&
         (int(vin.y) == center_ij1 || int(vin.y) == center_ij1+1) )
     {
-        lat += 0.9 * (view_lat - lat);
-        lon += 0.9 * (view_lon - lon);
+        lat += 0.9 * (viewer_lat - lat);
+        lon += 0.9 * (viewer_lon - lon);
     }
 
-    float dlat = lat - view_lat;
+    float dlat = lat - viewer_lat;
 
     float x_texture = get_xtexture( lon );
     float y_texture = get_ytexture( dlat );
     gl_TexCoord[0].xy = vec2(x_texture, y_texture);
 
-    // Here I compute 4 sin/cos. Previously I was sending sincos( view_lat/lon) as
+    // Here I compute 4 sin/cos. Previously I was sending sincos( viewer_lat/lon) as
     // a uniform, so no trig was needed here. I think this may have been causing
     // roundoff issues, so I'm not doing that anymore. Specifically, sin(+eps) was
     // being slightly negative
     float sin_dlat = sin( dlat );
     float cos_dlat = cos( dlat );
-    float sin_dlon = sin( lon - view_lon );
-    float cos_dlon = cos( lon - view_lon );
+    float sin_dlon = sin( lon - viewer_lon );
+    float cos_dlon = cos( lon - viewer_lon );
 
     float sin_lat  = sin( lat );
     float cos_lat  = cos( lat );
@@ -127,8 +127,8 @@ void main(void)
     // the viewpoint. The axes are (east,north,height). I implicitly divide all 3
     // by the height of the observation point
     float east   = cos_lat * sin_dlon;
-    float north  = sin_dlat*cos_dlon + sin_lat*cos_view_lat*(1.0 - cos_dlon);
-    float height = cos_dlat*cos_dlon + sin_lat*sin_view_lat*(1.0 - cos_dlon)
+    float north  = sin_dlat*cos_dlon + sin_lat*cos_viewer_lat*(1.0 - cos_dlon);
+    float height = cos_dlat*cos_dlon + sin_lat*sin_viewer_lat*(1.0 - cos_dlon)
       - (Rearth + view_z) / (Rearth + vin.z);
 
     float len_ne = length(vec2(east, north ));
@@ -143,7 +143,7 @@ void main(void)
     channel_dist = clamp( (zfar_color - zeff) / (zfar_color - znear ),
                           0.0, 1.0 ); // ... distance from camera
     channel_elevation = vin.z;        // ... elevation
-    channel_griddist = length(vec2(lon - view_lon, lat - view_lat));
+    channel_griddist = length(vec2(lon - viewer_lon, lat - viewer_lat));
 
     const float A = (zfar + znear) / (zfar - znear);
     gl_Position = vec4( az * zeff,
