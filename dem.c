@@ -110,7 +110,7 @@ bool dem_init(// output
         if( ctx->Ndems_ij[i] > max_Ndems_ij )
         {
             dem_deinit(ctx);
-            MSG("Requested radius too large. Increase the compile-time-constant %d", max_Ndems_ij);
+            MSG("Requested radius too large. Increase the compile-time-constant max_Ndems_ij from the current value of %d", max_Ndems_ij);
             return false;
         }
     }
