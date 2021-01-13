@@ -2,12 +2,9 @@
 
 #version 110
 
-varying float channel_distance, channel_elevation, channel_griddist;
+varying vec3 rgb;
 
 void main(void)
 {
-    gl_FragColor = vec4( channel_distance,
-                         channel_elevation,
-                         0.0,
-                         1.0);
+    gl_FragColor = vec4(rgb, 1.0);
 }

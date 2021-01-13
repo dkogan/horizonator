@@ -11,7 +11,7 @@ uniform float aspect;
 uniform float az_deg0, az_deg1;
 
 // We send these to the fragment shader
-varying float channel_distance, channel_elevation, channel_griddist;
+varying vec3 rgb;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
@@ -73,8 +73,9 @@ void main(void)
             gl_Position = vec4( +1.0, -1.0,
                                 -1.0,  1.0 );
         }
-        channel_distance  = 0.0;
-        channel_elevation = 0.5;
+        rgb.r = 0.0;
+        rgb.g = 0.0;
+        rgb.b = 0.0;
         return;
     }
 
@@ -163,21 +164,7 @@ void main(void)
                             1.0 );
     }
 
-
-
-
-    float qx = 1000.0;
-    float qy = 1000.0;
-    channel_distance  = abs(gl_Vertex.x - qx) < 1.0 ? 1.0 : 0.0;
-    channel_elevation = 0.;//abs(gl_Vertex.y - qy) < 1.0 ? 1.0 : 0.0;
-
-    channel_distance  = distance_ne / zfar;
-
-
-    // float lon = radians( float(originE) + gl_Vertex.x * DEG_PER_CELL );
-    // float lat = radians( float(originN) + gl_Vertex.y * DEG_PER_CELL );
-    //channel_distance  = distance_ne;
-    //channel_elevation = enh.z;
-    channel_griddist  = 0.0;
-
+    rgb.r = (distance_ne - znear) / (zfar_color - znear);
+    rgb.g = 0.;
+    rgb.b = 0.;
 }
