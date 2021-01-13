@@ -11,20 +11,20 @@
 int main(int argc, char* argv[])
 {
     const char* usage =
-        "%s [--window] [--width WIDTH_PIXELS] [--output OUT.png]\n"
+        "%s [--width WIDTH_PIXELS] [--output OUT.png]\n"
                 "LAT LON AZ_DEG0 AZ_DEG1\n"
         "\n"
-        "--window is exclusive with --width and --output. --width and\n"
-        "--output must be given together. The output filename MUST be\n"
+        "By default, we render to a window. If --width and --output\n"
+        "are given, we render to an image on disk instead. --width and\n"
+        "--output must appear together. The output filename MUST be\n"
         "a .png file\n"
         "\n"
-        "With --window AZ_DEG are the azimuth bounds of the VIEWPORT.\n"
-        "Without --window (when rendering to an image), AZ_DEG are the\n"
+        "When plotting to a window, AZ_DEG are the azimuth bounds of the\n"
+        "VIEWPORT. When rendering to an image, AZ_DEG are the\n"
         "centers of the first and last pixels. This is slightly smaller\n"
         "than the whole viewport: there's one extra pixel on each side\n";
 
     struct option opts[] = {
-        { "window",            no_argument,       NULL, 'W' },
         { "width",             required_argument, NULL, 'w' },
         { "output",            required_argument, NULL, 'o' },
         { "help",              no_argument,       NULL, 'h' },
@@ -32,7 +32,6 @@ int main(int argc, char* argv[])
     };
 
 
-    bool        window = false;
     int         width  = 0;
     const char* output = NULL;
 
@@ -68,10 +67,6 @@ int main(int argc, char* argv[])
             printf(usage, argv[0]);
             return 0;
 
-        case 'W':
-            window = true;
-            break;
-
         case 'w':
             width = atoi(optarg);
             break;
@@ -95,24 +90,16 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if( window )
+    if( (width >  0 && output == NULL) ||
+        (width <= 0 && output != NULL) )
     {
-        if(width > 0 || output != NULL)
-        {
-            fprintf(stderr, "--window given, so --width and --output must NOT be given\n\n");
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
+        fprintf(stderr, "Either both or neither of --width and --output must be given\n\n");
+        fprintf(stderr, usage, argv[0]);
+        return 1;
     }
-    else
-    {
-        if(width <= 0 || output == NULL)
-        {
-            fprintf(stderr, "--window not given, so --width and --output MUST both be given\n\n");
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
 
+    if(output != NULL)
+    {
         int l = strlen(output);
         if(l < 5 || 0 != strcasecmp(".png", &output[l-4]))
         {
@@ -146,7 +133,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if(window)
+    if(output == NULL)
     {
         render_to_window( lat, lon, az_deg0, az_deg1 );
         return 0;
