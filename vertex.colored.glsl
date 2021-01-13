@@ -6,7 +6,6 @@
 uniform float viewer_cell_i, viewer_cell_j;
 uniform float viewer_z;
 uniform float DEG_PER_CELL;
-uniform float view_lon, view_lat;
 uniform float sin_viewer_lat, cos_viewer_lat;
 uniform float aspect;
 uniform float az_deg0, az_deg1;
