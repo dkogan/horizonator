@@ -135,8 +135,11 @@ bool dem_init(// output
             if( ctx->mmap_fd[i][j] <= 0 )
             {
                 dem_deinit(ctx);
-                MSG("Couldn't open DEM file '%s'", filename );
-                return false;
+                MSG("Warning: couldn't open DEM file '%s'. Assuming elevation=0 (sea surface?)", filename );
+                ctx->dems      [i][j] = NULL;
+                ctx->mmap_sizes[i][j] = 0;
+                ctx->mmap_fd   [i][j] = 0;
+                continue;
             }
 
             assert( fstat(ctx->mmap_fd[i][j], &sb) == 0 );
@@ -214,6 +217,8 @@ int16_t dem_sample(const dem_context_t* ctx,
     }
 
     const unsigned char* dem = ctx->dems[dem_ij[0]][dem_ij[1]];
+    if(dem == NULL)
+        return 0;
 
     uint32_t p =
         cell_ij[0] +
