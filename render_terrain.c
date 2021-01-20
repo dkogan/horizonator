@@ -650,8 +650,15 @@ static bool init( // output
         install_shader(vertex,   VERTEX);
         install_shader(fragment, FRAGMENT);
 
-        glLinkProgram(program); assert_opengl();
-        glUseProgram(program);  assert_opengl();
+        MSG("glLinkProgram"); glLinkProgram(program); assert_opengl();
+        glGetProgramInfoLog( program, sizeof(msg), &len, msg );
+        if( strlen(msg) )
+            printf("program info after glLinkProgram(): %s\n", msg);
+
+        MSG("glUseProgram"); glUseProgram(program);  assert_opengl();
+        glGetProgramInfoLog( program, sizeof(msg), &len, msg );
+        if( strlen(msg) )
+            printf("program info after glUseProgram: %s\n", msg);
 
 
 #define make_uniform(gltype, name, expr) do {                           \
