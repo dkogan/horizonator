@@ -84,6 +84,9 @@ static bool init( // output
                  // square.
                  float az_deg0, float az_deg1)
 {
+    glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
+    glutInitContextVersion(4,2);
+    glutInitContextProfile(GLUT_CORE_PROFILE);
     glutInit(&(int){1}, &(char*){"exec"});
     glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH | ( render_offscreen ? 0 : GLUT_DOUBLE ));
 
@@ -92,8 +95,8 @@ static bool init( // output
     glutCreateWindow("Terrain renderer");
 
     const char* version = (const char*)glGetString(GL_VERSION);
-    // MSG("glGetString(GL_VERSION) says we're using GL %s", version);
-    // MSG("Epoxy says we're using GL %d", epoxy_gl_version());
+    MSG("glGetString(GL_VERSION) says we're using GL %s", version);
+    MSG("Epoxy says we're using GL %d", epoxy_gl_version());
 
     if (version[0] == '1') {
         /* check for individual extensions */
@@ -117,7 +120,6 @@ static bool init( // output
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-    glEnable(GL_NORMALIZE);
     glClearColor(0, 0, 1, 0);
 
 
@@ -363,21 +365,27 @@ static bool init( // output
     // (ilon,ilat,height). The first 2 args are indices into the virtual DEM
     // (accessed with dem_sample). The height is in meters
     {
+        GLuint vertexArrayID;
+        glGenVertexArrays(1, &vertexArrayID);
+        glBindVertexArray(vertexArrayID);
+
         GLuint vertexBufID;
         glGenBuffers(1, &vertexBufID);
         glBindBuffer(GL_ARRAY_BUFFER, vertexBufID);
+
+        glEnableVertexAttribArray(0);
 
 #define VBO_USES_INTEGERS 1
 
 #if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
         // 16-bit integers. Only one of the paths below work with these
         glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
-        glVertexPointer(3, GL_SHORT, 0, NULL);
+        glVertexAttribPointer(0, 3, GL_SHORT, GL_FALSE, 0, NULL);
         GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 #else
         // 32-bit floats. These take more space, but work with all the paths below
         glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
-        glVertexPointer(3, GL_SHORT, 0, NULL);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
         GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
 #endif
 
@@ -623,6 +631,10 @@ static bool init( // output
 #include "fragment.colored.glsl.h"
             ;
 
+        const GLchar* geometryShaderSource =
+#include "geometry.glsl.h"
+            ;
+
         char msg[1024];
         int len;
         GLuint program = glCreateProgram();
@@ -640,7 +652,7 @@ static bool init( // output
         assert_opengl();                                                \
         glGetShaderInfoLog( type ## Shader, sizeof(msg), &len, msg );   \
         if( strlen(msg) )                                               \
-            printf(#type " msg: %s\n", msg);                            \
+            printf(#type " shader info: %s\n", msg);                    \
                                                                         \
         glAttachShader(program, type ##Shader);                         \
         assert_opengl();
@@ -649,6 +661,7 @@ static bool init( // output
 
         install_shader(vertex,   VERTEX);
         install_shader(fragment, FRAGMENT);
+        install_shader(geometry, GEOMETRY);
 
         MSG("glLinkProgram"); glLinkProgram(program); assert_opengl();
         glGetProgramInfoLog( program, sizeof(msg), &len, msg );
@@ -736,7 +749,6 @@ static void draw(const horizonator_context_t* ctx)
   glPolygonMode(GL_FRONT_AND_BACK, pmMap[ ctx->PolygonMode ] );
   {
       glEnable(GL_CULL_FACE);
-      glEnableClientState(GL_VERTEX_ARRAY);
       glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
   }
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);

@@ -1,6 +1,8 @@
 /* -*- c -*- */
 
-#version 110
+#version 420
+
+layout (location = 0) in vec3 vertex;
 
 // We receive these from the CPU code
 uniform float viewer_cell_i, viewer_cell_j;
@@ -11,7 +13,7 @@ uniform float aspect;
 uniform float az_deg0, az_deg1;
 
 // We send these to the fragment shader
-varying vec3 rgb;
+out vec3 rgb;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
@@ -59,11 +61,11 @@ void main(void)
      */
 
     // Seam stuff. First, handle the cell the viewer is sitting on
-    if( gl_Vertex.x < 0.0 && gl_Vertex.y < 0.0 )
+    if( vertex.x < 0.0 && vertex.y < 0.0 )
     {
         // x and y <0 means this is either the bottom-left of screen or bottom-right
         // of screen. The choice between these two is the sign of vin.z
-        if( gl_Vertex.z < 0.0 )
+        if( vertex.z < 0.0 )
         {
             gl_Position = vec4( -1.0, -1.0,
                                 -1.0,  1.0 );
@@ -87,17 +89,17 @@ void main(void)
     // be selected in the CPU code in init.c
     if(false)
     {
-        distance_ne = gl_Vertex.z;
-        gl_Position = vec4( gl_Vertex.x,
-                            gl_Vertex.y * aspect,
+        distance_ne = vertex.z;
+        gl_Position = vec4( vertex.x,
+                            vertex.y * aspect,
                             (distance_ne - znear) / (zfar - znear) * 2. - 1.,
                             1.0 );
     }
     else if(false)
     {
-        distance_ne = length(gl_Vertex.xy);
-        gl_Position = vec4( atan(gl_Vertex.x, gl_Vertex.y) / pi,
-                            atan(gl_Vertex.z, distance_ne) / pi * aspect,
+        distance_ne = length(vertex.xy);
+        gl_Position = vec4( atan(vertex.x, vertex.y) / pi,
+                            atan(vertex.z, distance_ne) / pi * aspect,
                             (distance_ne - znear) / (zfar - znear) * 2. - 1.,
                             1.0 );
     }
@@ -107,8 +109,8 @@ void main(void)
         bool at_left_seam  = false;
         bool at_right_seam = false;
 
-        float i = gl_Vertex.x;
-        float j = gl_Vertex.y;
+        float i = vertex.x;
+        float j = vertex.y;
         if( i < 0.0 )
         {
             i = -i - 1.0; // extra 1 because I can't assume that -0 < 0
@@ -158,7 +160,7 @@ void main(void)
             // viewport
             el_ndc = -10000.0;
         else
-            el_ndc = atan((gl_Vertex.z - viewer_z), distance_ne) * aspect * az_ndc_per_rad;
+            el_ndc = atan((vertex.z - viewer_z), distance_ne) * aspect * az_ndc_per_rad;
         gl_Position = vec4( az_ndc, el_ndc,
                             ((distance_ne - znear) / (zfar - znear) * 2. - 1.),
                             1.0 );

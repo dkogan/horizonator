@@ -17,7 +17,7 @@ LDLIBS += \
 
 CFLAGS += --std=gnu99 -Wno-missing-field-initializers
 
-render_terrain.o: vertex.textured.glsl.h fragment.textured.glsl.h vertex.colored.glsl.h fragment.colored.glsl.h
+render_terrain.o: vertex.textured.glsl.h fragment.textured.glsl.h vertex.colored.glsl.h fragment.colored.glsl.h geometry.glsl.h
 
 %.glsl.h: %.glsl
 	sed 's/.*/"&\\n"/g' $^ > $@.tmp && mv $@.tmp $@
