@@ -585,12 +585,7 @@ static void draw(const horizonator_context_t* ctx)
 
   const GLenum pmMap[] = {GL_FILL, GL_LINE, GL_POINT};
   glPolygonMode(GL_FRONT_AND_BACK, pmMap[ ctx->PolygonMode ] );
-  {
-      glEnable(GL_CULL_FACE);
-      glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
-  }
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-  glDisable(GL_CULL_FACE);
+  glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
 }
 
 // returns the rendered image buffer. NULL on error. It is the caller's
