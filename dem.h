@@ -54,7 +54,8 @@ bool dem_init(// output
               float viewer_lon,
 
               // We will have 2*radius_cells per side
-              int radius_cells );
+              int radius_cells,
+              const char* datadir);
 
 void dem_deinit( dem_context_t* ctx );
 

@@ -12,7 +12,8 @@ int main(int argc, char* argv[])
 {
     const char* usage =
         "%s [--width WIDTH_PIXELS] [--output OUT.png]\n"
-                "LAT LON AZ_DEG0 AZ_DEG1\n"
+        "   [--datadir DIRECTORY]\n"
+        "   LAT LON AZ_DEG0 AZ_DEG1\n"
         "\n"
         "By default, we render to a window. If --width and --output\n"
         "are given, we render to an image on disk instead. --width and\n"
@@ -22,18 +23,23 @@ int main(int argc, char* argv[])
         "When plotting to a window, AZ_DEG are the azimuth bounds of the\n"
         "VIEWPORT. When rendering to an image, AZ_DEG are the\n"
         "centers of the first and last pixels. This is slightly smaller\n"
-        "than the whole viewport: there's one extra pixel on each side\n";
+        "than the whole viewport: there's one extra pixel on each side\n"
+        "\n"
+        "The DEMs are in the directory given by --datadir, or the CURRENT\n"
+        "directory if omitted.\n";
 
     struct option opts[] = {
         { "width",             required_argument, NULL, 'w' },
         { "output",            required_argument, NULL, 'o' },
+        { "datadir",           required_argument, NULL, 'd' },
         { "help",              no_argument,       NULL, 'h' },
         {}
     };
 
 
-    int         width  = 0;
-    const char* output = NULL;
+    int         width   = 0;
+    const char* output  = NULL;
+    const char* datadir = ".";
 
     int opt;
     do
@@ -73,6 +79,10 @@ int main(int argc, char* argv[])
 
         case 'o':
             output = optarg;
+            break;
+
+        case 'd':
+            datadir = optarg;
             break;
 
         case '?':
@@ -135,7 +145,7 @@ int main(int argc, char* argv[])
 
     if(output == NULL)
     {
-        render_to_window( lat, lon, az_deg0, az_deg1 );
+        render_to_window( lat, lon, az_deg0, az_deg1, datadir );
         return 0;
     }
 
@@ -152,7 +162,7 @@ int main(int argc, char* argv[])
 
     char* image =
         render_to_image(lat, lon, az_deg0, az_deg1,
-                        width, height);
+                        width, height, datadir);
     if(image == NULL)
     {
         fprintf(stderr, "Image render failed\n");

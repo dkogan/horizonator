@@ -68,7 +68,9 @@ static bool init( // output
                  // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
                  // elevation extents will be chosen to keep the aspect ratio
                  // square.
-                 float az_deg0, float az_deg1)
+                 float az_deg0, float az_deg1,
+
+                 const char* datadir)
 {
     glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
     glutInitContextVersion(4,2);
@@ -114,7 +116,9 @@ static bool init( // output
     bool dem_context_inited = false;
     dem_context_t dem_context;
     if( !dem_init( &dem_context,
-                   viewer_lat, viewer_lon, RENDER_RADIUS ) )
+                   viewer_lat, viewer_lon,
+                   RENDER_RADIUS,
+                   datadir) )
     {
         MSG("Couldn't init DEMs. Giving up");
         goto done;
@@ -587,7 +591,8 @@ char* render_to_image(float viewer_lat, float viewer_lon,
                       // square.
                       float az_deg0, float az_deg1,
 
-                      int width, int height )
+                      int width, int height,
+                      const char* datadir)
 {
     char* result = NULL;
     char* img    = NULL;
@@ -597,7 +602,8 @@ char* render_to_image(float viewer_lat, float viewer_lon,
     if( !init( &ctx,
                true, false,
                viewer_lat, viewer_lon,
-               az_deg0, az_deg1 ) )
+               az_deg0, az_deg1,
+               datadir) )
         return NULL;
 
     GLuint frameBufID;
@@ -691,14 +697,16 @@ bool render_to_window( float viewer_lat, float viewer_lon,
                        // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
                        // elevation extents will be chosen to keep the aspect ratio
                        // square.
-                       float az_deg0, float az_deg1 )
+                       float az_deg0, float az_deg1,
+                       const char* datadir)
 {
     horizonator_context_t ctx;
 
     if( !init( &ctx,
                false, false,
                viewer_lat, viewer_lon,
-               az_deg0, az_deg1) )
+               az_deg0, az_deg1,
+               datadir) )
         return false;
 
     void window_display(void)

@@ -17,7 +17,8 @@ bool dem_filename(// output
                   char* path, int bufsize,
 
                   // input
-                  int demfileN, int demfileE )
+                  int demfileN, int demfileE,
+                  const char* datadir )
 {
     char ns;
     char we;
@@ -43,7 +44,9 @@ bool dem_filename(// output
         demfileE *= -1;
     }
 
-    if( snprintf(path, bufsize, "%c%.2d%c%.3d.hgt", ns, demfileN, we, demfileE) >= bufsize )
+    if( snprintf(path, bufsize, "%s/%c%.2d%c%.3d.hgt",
+                 datadir,
+                 ns, demfileN, we, demfileE) >= bufsize )
         return false;
 
     return true;
@@ -57,7 +60,8 @@ bool dem_init(// output
               float viewer_lon,
 
               // We will have 2*radius_cells per side
-              int radius_cells )
+              int radius_cells,
+              const char* datadir )
 {
     *ctx = (dem_context_t){ .viewer_lon_lat = {viewer_lon, viewer_lat} };
 
@@ -123,7 +127,8 @@ bool dem_init(// output
             char filename[1024];
             if( !dem_filename( filename, sizeof(filename),
                                j + ctx->origin_dem_lon_lat[1],
-                               i + ctx->origin_dem_lon_lat[0]) )
+                               i + ctx->origin_dem_lon_lat[0],
+                               datadir) )
             {
                 dem_deinit(ctx);
                 MSG("Couldn't construct DEM filename" );
