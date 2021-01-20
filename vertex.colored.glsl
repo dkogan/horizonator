@@ -60,28 +60,6 @@ void main(void)
       better, but in the near-term this is more than good-enough.
      */
 
-    // Seam stuff. First, handle the cell the viewer is sitting on
-    if( vertex.x < 0.0 && vertex.y < 0.0 )
-    {
-        // x and y <0 means this is either the bottom-left of screen or bottom-right
-        // of screen. The choice between these two is the sign of vin.z
-        if( vertex.z < 0.0 )
-        {
-            gl_Position = vec4( -1.0, -1.0,
-                                -1.0,  1.0 );
-        }
-        else
-        {
-            gl_Position = vec4( +1.0, -1.0,
-                                -1.0,  1.0 );
-        }
-        rgb.r = 0.0;
-        rgb.g = 0.0;
-        rgb.b = 0.0;
-        return;
-    }
-
-
     float distance_ne;
 
     // Several different paths exist for the data processing, with different
@@ -105,22 +83,8 @@ void main(void)
     }
     else
     {
-        // This is the only path that supports the seam business
-        bool at_left_seam  = false;
-        bool at_right_seam = false;
-
         float i = vertex.x;
         float j = vertex.y;
-        if( i < 0.0 )
-        {
-            i = -i - 1.0; // extra 1 because I can't assume that -0 < 0
-            at_left_seam = true;
-        }
-        else if( j < 0.0 )
-        {
-            j = -j - 1.0; // extra 1 because I can't assume that -0 < 0
-            at_right_seam = true;
-        }
 
         vec2 en =
             vec2( (i - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,
@@ -128,13 +92,6 @@ void main(void)
 
         distance_ne = length(en);
         float az_rad = atan(en.x, en.y);
-
-        // Seam stuff is half-done, so it is disabled for now. That whole path
-        // needs to be checked and tested
-        //
-        // if     ( at_left_seam  ) az_ndc -= 2.0;
-        // else if( at_right_seam ) az_ndc += 2.0;
-
 
         // az = 0:     North
         // az = 90deg: East
@@ -153,14 +110,7 @@ void main(void)
         float az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
 
         float az_ndc = (az_rad - az_rad_center) * az_ndc_per_rad;
-        float el_ndc;
-        if(abs(az_ndc) > 1.0)
-            // out-of-bounds on elevation. I make sure this isn't rendered.
-            // Otherwise the triangles directly behind the viewer span the whole
-            // viewport
-            el_ndc = -10000.0;
-        else
-            el_ndc = atan((vertex.z - viewer_z), distance_ne) * aspect * az_ndc_per_rad;
+        float el_ndc = atan((vertex.z - viewer_z), distance_ne) * aspect * az_ndc_per_rad;
         gl_Position = vec4( az_ndc, el_ndc,
                             ((distance_ne - znear) / (zfar - znear) * 2. - 1.),
                             1.0 );

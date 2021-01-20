@@ -22,20 +22,6 @@
 //////////////////// These are all used for 360-deg panorama renders. Leave them
 //////////////////// at 0 otherwise
 
-// Don't add triangles directly to the S of the viewer. These are behind the
-// N-facing viewer. In a 360-deg view these triangles would span the whole image
-// from az=-180 to az=180
-#define SEAM_OMIT                 0
-// Used with SEAM_OMIT. Render the seam twice: once on the left, and again on
-// the right. Used to make the edges look right. This currently needs some
-// debugging
-#define SEAM_DOUBLED              0
-
-#if defined SEAM_DOUBLED && SEAM_DOUBLED && !(defined SEAM_OMIT && SEAM_OMIT)
-#error "SEAM_DOUBLED requires SEAM_OMIT"
-#endif
-
-
 // We will render a square grid of data that is at most RENDER_RADIUS cells away
 // from the viewer in the N or E direction
 #define RENDER_RADIUS       1000
@@ -169,21 +155,6 @@ static bool init( // output
     // We either render nothing, or we render a special thing, depending on the
     // settings
     ctx->Ntriangles -= 2;
-
-#if defined SEAM_DOUBLED && SEAM_DOUBLED
-    Nvertices       += (RENDER_RADIUS+1)*2; // double-up the seam vertices
-    ctx->Ntriangles += RENDER_RADIUS*2;     // Seam rendered twice. This is the extra one
-
-    ctx->Ntriangles += 6;            // tiling at the viewer square
-    Nvertices       += 2;            // the vertices in the bottom-left and
-                                     // bottom-right of the image. used for
-                                     // the viewer square
-
-#else
-  #if defined SEAM_OMIT && SEAM_OMIT
-      ctx->Ntriangles -= RENDER_RADIUS*2;
-  #endif
-#endif
 
     if(do_render_texture)
     {
@@ -401,9 +372,6 @@ static bool init( // output
                 // updates in the GLSL, and exist for testing
 #if 0
                 // The CPU does all the math for the data procesing.
-#if defined SEAM_DOUBLED && SEAM_DOUBLED
-#error "This path doesn't work with doubled seams (special vertices need a different flagging)"
-#endif
 #if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
 #error "This path requires floating-point vertices"
 #endif
@@ -420,9 +388,6 @@ static bool init( // output
 #elif 0
                 // The CPU does some of the math for the data procesing.
                 // Requires 32-bit floats for the vertices (selected above).
-#if defined SEAM_DOUBLED && SEAM_DOUBLED
-#error "This path doesn't work with doubled seams (special vertices need a different flagging)"
-#endif
 #if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
 #error "This path requires floating-point vertices"
 #endif
@@ -443,43 +408,6 @@ static bool init( // output
 #endif
             }
         }
-
-#if defined SEAM_DOUBLED && SEAM_DOUBLED
-        for( int j=0; j<RENDER_RADIUS+1; j++ )
-        {
-            // These duplicates have the same geometry as the originals, but the
-            // shader will project them differently, by moving the resulting angle
-            // by 2*pi
-
-            // left side; j<0 to indicate that this is a duplicate for the left
-            // seam. Extra 1 because -0 is not < 0
-            vertices[vertex_buf_idx++] = RENDER_RADIUS-1;
-            vertices[vertex_buf_idx++] = -(j + 1);
-            vertices[vertex_buf_idx++] = dem_sample(&dem_context,
-                                                    RENDER_RADIUS-1, j);
-
-
-            // right side; i<0 to indicate that this is a duplicate for the
-            // right seam. Extra 1 because -0 is not < 0
-            vertices[vertex_buf_idx++] = -(RENDER_RADIUS + 1);
-            vertices[vertex_buf_idx++] = j;
-            vertices[vertex_buf_idx++] = dem_sample(&dem_context,
-                                                    RENDER_RADIUS, j);
-        }
-
-        // Two magic extra vertices used for the cell I'm on: the bottom-left of
-        // screen and the bottom-right of screen. The vertex coordinates here
-        // are bogus. They are just meant to indicate to the shader to use
-        // hard-coded transformed coords. (neg neg neg) means bottom-left. (neg
-        // neg pos) means bottom-right
-        vertices[vertex_buf_idx++] = -1;
-        vertices[vertex_buf_idx++] = -1;
-        vertices[vertex_buf_idx++] = -1;
-
-        vertices[vertex_buf_idx++] = -1;
-        vertices[vertex_buf_idx++] = -1;
-        vertices[vertex_buf_idx++] =  1;
-#endif
 
         int res = glUnmapBuffer(GL_ARRAY_BUFFER);
         assert( res == GL_TRUE );
@@ -506,10 +434,6 @@ static bool init( // output
                 {
                     if( j == RENDER_RADIUS-1 )
                         continue;
-#if defined SEAM_OMIT && SEAM_OMIT
-                    if( j < RENDER_RADIUS+1 )
-                        continue;
-#endif
                 }
 
                 indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
@@ -519,92 +443,6 @@ static bool init( // output
                 indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
                 indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 1);
                 indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 1);
-
-#if defined SEAM_DOUBLED && SEAM_DOUBLED
-#error "Complex logic here. Needs to be checked and (probably) debugged and fixed"
-                if( i == RENDER_RADIUS-1)
-                {
-                    if( j == RENDER_RADIUS-1 )
-                    {
-#if defined SEAM_DOUBLED && SEAM_DOUBLED
-                        // This is the cell the viewer is sitting on. It needs
-                        // special treatment
-
-#define BEHIND_LEFT_NOT_MIRRORED              (j + 0)*(2*RENDER_RADIUS) + (i + 0)
-#define BEHIND_RIGHT_NOT_MIRRORED             (j + 0)*(2*RENDER_RADIUS) + (i + 1)
-#define FRONT_LEFT                            (j + 1)*(2*RENDER_RADIUS) + (i + 0)
-#define FRONT_RIGHT                           (j + 1)*(2*RENDER_RADIUS) + (i + 1)
-#define BEHIND_LEFT_MIRRORED_PAST_RIGHT_EDGE  (2*RENDER_RADIUS)*(2*RENDER_RADIUS) + j*2
-#define BEHIND_RIGHT_MIRRORED_PAST_LEFT_EDGE  (2*RENDER_RADIUS)*(2*RENDER_RADIUS) + j*2 + 1
-#define BOTTOM_LEFT_OF_IMAGE                  Nvertices - 2
-#define BOTTOM_RIGHT_OF_IMAGE                 Nvertices - 1
-
-                        indices[idx++] = BEHIND_RIGHT_MIRRORED_PAST_LEFT_EDGE;
-                        indices[idx++] = BOTTOM_LEFT_OF_IMAGE;
-                        indices[idx++] = BEHIND_LEFT_NOT_MIRRORED;
-
-                        indices[idx++] = BEHIND_LEFT_NOT_MIRRORED;
-                        indices[idx++] = BOTTOM_LEFT_OF_IMAGE;
-                        indices[idx++] = FRONT_LEFT;
-
-                        indices[idx++] = FRONT_LEFT;
-                        indices[idx++] = BOTTOM_LEFT_OF_IMAGE;
-                        indices[idx++] = BOTTOM_RIGHT_OF_IMAGE;
-
-                        indices[idx++] = FRONT_LEFT;
-                        indices[idx++] = BOTTOM_RIGHT_OF_IMAGE;
-                        indices[idx++] = FRONT_RIGHT;
-
-                        indices[idx++] = FRONT_RIGHT;
-                        indices[idx++] = BOTTOM_RIGHT_OF_IMAGE;
-                        indices[idx++] = BEHIND_RIGHT_NOT_MIRRORED;
-
-                        indices[idx++] = BEHIND_RIGHT_NOT_MIRRORED;
-                        indices[idx++] = BOTTOM_RIGHT_OF_IMAGE;
-                        indices[idx++] = BEHIND_LEFT_MIRRORED_PAST_RIGHT_EDGE;
-
-#undef FRONT_LEFT
-#undef FRONT_RIGHT
-#undef BEHIND_LEFT_NOT_MIRRORED
-#undef BEHIND_RIGHT_NOT_MIRRORED
-#undef BEHIND_LEFT_MIRRORED_PAST_RIGHT_EDGE
-#undef BEHIND_RIGHT_MIRRORED_PAST_LEFT_EDGE
-#undef BOTTOM_LEFT_OF_IMAGE
-#undef BOTTOM_RIGHT_OF_IMAGE
-
-#endif
-                        continue;
-                    }
-
-                    else if( j < RENDER_RADIUS+1 )
-                    {
-#if defined SEAM_DOUBLED && SEAM_DOUBLED
-                        // seam. I add two sets of triangles here; one for the left edge of
-                        // the screen and one for the right
-
-                        // right edge:
-                        indices[idx++] = (2*RENDER_RADIUS)*(2*RENDER_RADIUS) +  j     *2;
-                        indices[idx++] = (j + 1)     *(2*RENDER_RADIUS) + (i + 1);
-                        indices[idx++] = (2*RENDER_RADIUS)*(2*RENDER_RADIUS) + (j + 1)*2;
-
-                        indices[idx++] = (2*RENDER_RADIUS)*(2*RENDER_RADIUS) +  j*2;
-                        indices[idx++] = (j + 0)     *(2*RENDER_RADIUS) + (i + 1);
-                        indices[idx++] = (j + 1)     *(2*RENDER_RADIUS) + (i + 1);
-
-                        // left edge:
-                        indices[idx++] = (j + 0)     *(2*RENDER_RADIUS) + (i + 0);
-                        indices[idx++] = (2*RENDER_RADIUS)*(2*RENDER_RADIUS) + (j + 1)*2 + 1;
-                        indices[idx++] = (j + 1)     *(2*RENDER_RADIUS) + (i + 0);
-
-                        indices[idx++] = (j + 0)     *(2*RENDER_RADIUS) + (i + 0);
-                        indices[idx++] = (2*RENDER_RADIUS)*(2*RENDER_RADIUS) +  j     *2 + 1;
-                        indices[idx++] = (2*RENDER_RADIUS)*(2*RENDER_RADIUS) + (j + 1)*2 + 1;
-#endif
-
-                        continue;
-                    }
-                }
-#endif
             }
         }
         int res = glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
