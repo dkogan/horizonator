@@ -13,7 +13,6 @@
 #include <GL/freeglut.h>
 #include <unistd.h>
 #include <string.h>
-#include <assert.h>
 
 #include "bench.h"
 #include "dem.h"
