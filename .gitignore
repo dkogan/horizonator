@@ -2,3 +2,8 @@
 *.d
 *.o
 *.png
+*.hgt
+*.so*
+*.glsl.h
+cscope.out
+horizonator
