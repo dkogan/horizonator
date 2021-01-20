@@ -109,7 +109,6 @@ static bool init( // output
     glClearColor(0, 0, 1, 0);
 
 
-    // Viewer is looking north, the seam is behind (to the south).
     bool result = false;
 
     bool dem_context_inited = false;
@@ -138,18 +137,6 @@ static bool init( // output
     for(int i=0; i<2; i++)
         viewer_cell[i] =
             (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
-
-    // we're doing a equirectangular projection, so we must take care of the
-    // seam. The camera always looks north, so the seam is behind us. Behind me
-    // are two rows of vertices, one on either side. With a equirectangular
-    // projection, these rows actually appear on opposite ends of the resulting
-    // image, and thus I do not want to simply add triangles into this gap.
-    // Instead, I double-up each of these rows, place the duplicated vertices
-    // off screen (angle < -pi for one row and angle > pi for the other), and
-    // render the seam twice, once for each side.
-    //
-    // The square I'm sitting on demands special treatment. I construct a
-    // 6-triangle tiling that fully covers my window
 
     // Don't render the normal thing at the viewer cell. This never looks right.
     // We either render nothing, or we render a special thing, depending on the
