@@ -492,12 +492,12 @@ static bool init( // output
         install_shader(fragment, FRAGMENT);
         install_shader(geometry, GEOMETRY);
 
-        MSG("glLinkProgram"); glLinkProgram(program); assert_opengl();
+        glLinkProgram(program); assert_opengl();
         glGetProgramInfoLog( program, sizeof(msg), &len, msg );
         if( strlen(msg) )
             printf("program info after glLinkProgram(): %s\n", msg);
 
-        MSG("glUseProgram"); glUseProgram(program);  assert_opengl();
+        glUseProgram(program);  assert_opengl();
         glGetProgramInfoLog( program, sizeof(msg), &len, msg );
         if( strlen(msg) )
             printf("program info after glUseProgram: %s\n", msg);
