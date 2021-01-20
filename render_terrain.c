@@ -228,26 +228,31 @@ static bool init( // output
             char filename[256];
             char directory[256];
             char url[256];
-            assert( (unsigned)snprintf(filename, sizeof(filename),
-                                       "/home/dima/.horizonator/tiles/%d/%d/%d.png",
-                                       OSM_RENDER_ZOOM, osmTileX, osmTileY)
-                    < sizeof(filename) );
-            assert( (unsigned)snprintf(directory, sizeof(directory),
-                                       "/home/dima/.horizonator/tiles/%d/%d",
-                                       OSM_RENDER_ZOOM, osmTileX)
-                    < sizeof(directory) );
-            assert( (unsigned)snprintf(url, sizeof(url),
-                                       "http://tile.openstreetmap.org/%d/%d/%d.png",
-                                       OSM_RENDER_ZOOM, osmTileX, osmTileY)
-                    < sizeof(url) );
+            int len;
+
+            len = snprintf(filename, sizeof(filename),
+                           "/home/dima/.horizonator/tiles/%d/%d/%d.png",
+                           OSM_RENDER_ZOOM, osmTileX, osmTileY);
+            assert(len < (int)sizeof(filename));
+
+            len = snprintf(directory, sizeof(directory),
+                           "/home/dima/.horizonator/tiles/%d/%d",
+                           OSM_RENDER_ZOOM, osmTileX);
+            assert(len < (int)sizeof(directory));
+
+            len = snprintf(url, sizeof(url),
+                           "http://tile.openstreetmap.org/%d/%d/%d.png",
+                           OSM_RENDER_ZOOM, osmTileX, osmTileY);
+            assert(len < (int)sizeof(url));
+
 
             if( access( filename, R_OK ) != 0 )
             {
                 // tile doesn't exist. Make a directory for it and try to download
                 char cmd[1024];
-                assert( snprintf( cmd, sizeof(cmd),
-                                  "mkdir -p %s && wget -O %s %s", directory, filename, url  )
-                        < sizeof(cmd) );
+                len = snprintf( cmd, sizeof(cmd),
+                                "mkdir -p %s && wget -O %s %s", directory, filename, url  );
+                assert(len < sizeof(cmd));
                 int res = system(cmd);
                 assert( res == 0 );
             }
@@ -468,7 +473,8 @@ static bool init( // output
         vertices[vertex_buf_idx++] =  1;
 #endif
 
-        assert( glUnmapBuffer(GL_ARRAY_BUFFER) == GL_TRUE );
+        int res = glUnmapBuffer(GL_ARRAY_BUFFER);
+        assert( res == GL_TRUE );
         assert( vertex_buf_idx == Nvertices*3 );
     }
 
@@ -593,7 +599,8 @@ static bool init( // output
 #endif
             }
         }
-        assert( glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER) == GL_TRUE );
+        int res = glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+        assert( res == GL_TRUE );
         assert(idx == ctx->Ntriangles*3);
     }
 
@@ -899,7 +906,8 @@ bool render_to_window( float viewer_lat, float viewer_lon,
     glutKeyboardFunc(window_keyPressed);
     glutReshapeFunc (_window_reshape);
 
-    assert( glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE );
+    int res = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    assert( res == GL_FRAMEBUFFER_COMPLETE );
 
     glutMainLoop();
 
