@@ -71,7 +71,8 @@ static bool init( // output
                  // square.
                  float az_deg0, float az_deg1,
 
-                 const char* dir_dems)
+                 const char* dir_dems,
+                 const char* dir_tiles)
 {
     glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
     glutInitContextVersion(4,2);
@@ -119,7 +120,8 @@ static bool init( // output
     if( !dem_init( &dem_context,
                    viewer_lat, viewer_lon,
                    RENDER_RADIUS,
-                   dir_dems) )
+                   dir_dems,
+                   dir_tiles) )
     {
         MSG("Couldn't init DEMs. Giving up");
         goto done;
@@ -277,8 +279,8 @@ static bool init( // output
             int len;
 
             len = snprintf(filename, sizeof(filename),
-                           "/home/dima/.horizonator/tiles/%d/%d/%d.png",
-                           OSM_RENDER_ZOOM, osmTileX, osmTileY);
+                           "%s/%d/%d/%d.png",
+                           dir_tiles/OSM_RENDER_ZOOM, osmTileX, osmTileY);
             assert(len < (int)sizeof(filename));
 
 
@@ -645,7 +647,8 @@ char* render_to_image(float viewer_lat, float viewer_lon,
                       float az_deg0, float az_deg1,
 
                       int width, int height,
-                      const char* dir_dems)
+                      const char* dir_dems,
+                      const char* dir_tiles)
 {
     char* result = NULL;
     char* img    = NULL;
@@ -656,7 +659,8 @@ char* render_to_image(float viewer_lat, float viewer_lon,
                true, true,
                viewer_lat, viewer_lon,
                az_deg0, az_deg1,
-               dir_dems) )
+               dir_dems,
+               dir_tiles) )
         return NULL;
 
     GLuint frameBufID;
@@ -751,7 +755,8 @@ bool render_to_window( float viewer_lat, float viewer_lon,
                        // elevation extents will be chosen to keep the aspect ratio
                        // square.
                        float az_deg0, float az_deg1,
-                       const char* dir_dems)
+                       const char* dir_dems,
+                       const char* dir_tiles)
 {
     horizonator_context_t ctx;
 

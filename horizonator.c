@@ -12,7 +12,9 @@ int main(int argc, char* argv[])
 {
     const char* usage =
         "%s [--width WIDTH_PIXELS] [--output OUT.png]\n"
+        "   [--texture]\n"
         "   [--dirdems DIRECTORY]\n"
+        "   [--dirtiles DIRECTORY]\n"
         "   LAT LON AZ_DEG0 AZ_DEG1\n"
         "\n"
         "By default, we render to a window. If --width and --output\n"
@@ -25,21 +27,29 @@ int main(int argc, char* argv[])
         "centers of the first and last pixels. This is slightly smaller\n"
         "than the whole viewport: there's one extra pixel on each side\n"
         "\n"
+        "By default we colorcode the renders by color. If --texture, we\n"
+        "Use a set of image tiles to texture the render instead\n"
+        "\n"
         "The DEMs are in the directory given by --dirdems, or the CURRENT\n"
-        "directory if omitted.\n";
+        "directory if omitted.\n"
+        "\n"
+        "The tiles are in the directory given by --dirtiles, or the CURRENT\n"
+        "directory if omitted. This is relevant only if --texture\n";
 
     struct option opts[] = {
         { "width",             required_argument, NULL, 'w' },
         { "output",            required_argument, NULL, 'o' },
         { "dirdems",           required_argument, NULL, 'd' },
+        { "dirtiles",          required_argument, NULL, 't' },
         { "help",              no_argument,       NULL, 'h' },
         {}
     };
 
 
-    int         width   = 0;
-    const char* output  = NULL;
-    const char* dir_dems = ".";
+    int         width     = 0;
+    const char* output    = NULL;
+    const char* dir_dems  = ".";
+    const char* dir_tiles = ".";
 
     int opt;
     do
@@ -83,6 +93,10 @@ int main(int argc, char* argv[])
 
         case 'd':
             dir_dems = optarg;
+            break;
+
+        case 't':
+            dir_tiles = optarg;
             break;
 
         case '?':
@@ -145,7 +159,7 @@ int main(int argc, char* argv[])
 
     if(output == NULL)
     {
-        render_to_window( lat, lon, az_deg0, az_deg1, dir_dems );
+        render_to_window( lat, lon, az_deg0, az_deg1, dir_dems, dir_tiles );
         return 0;
     }
 
@@ -162,7 +176,7 @@ int main(int argc, char* argv[])
 
     char* image =
         render_to_image(lat, lon, az_deg0, az_deg1,
-                        width, height, dir_dems);
+                        width, height, dir_dems, dir_tiles);
     if(image == NULL)
     {
         fprintf(stderr, "Image render failed\n");
