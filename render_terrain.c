@@ -295,13 +295,13 @@ static bool init( // output
 
                 char url[256];
                 len = snprintf(url, sizeof(url),
-                               "http://tile.openstreetmap.org/%d/%d/%d.png",
+                               "https://a.tile.openstreetmap.org/%d/%d/%d.png",
                                OSM_RENDER_ZOOM, osmTileX, osmTileY);
                 assert(len < (int)sizeof(url));
 
                 char cmd[1024];
                 len = snprintf( cmd, sizeof(cmd),
-                                "mkdir -p %s && wget -O %s %s", directory, filename, url  );
+                                "mkdir -p %s && wget --user-agent=horizonator -O %s %s", directory, filename, url  );
                 assert(len < (int)sizeof(cmd));
                 int res = system(cmd);
                 assert( res == 0 );
