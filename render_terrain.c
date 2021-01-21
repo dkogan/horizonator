@@ -142,10 +142,6 @@ static bool init( // output
         viewer_cell[i] =
             (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
 
-    // Don't render the normal thing at the viewer cell. This never looks right.
-    // We either render nothing, or we render a special thing, depending on the
-    // settings
-    ctx->Ntriangles -= 2;
 
     if(do_render_texture)
     {
@@ -418,15 +414,6 @@ static bool init( // output
         {
             for( int i=0; i<(2*RENDER_RADIUS-1); i++ )
             {
-                // Two triangles to represent a rectangular cell. I don't add
-                // triangles for the cell the viewer is sitting on. Those always
-                // look wrong
-                if( i == RENDER_RADIUS-1 )
-                {
-                    if( j == RENDER_RADIUS-1 )
-                        continue;
-                }
-
                 indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
                 indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 1);
                 indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 0);
