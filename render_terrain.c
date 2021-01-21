@@ -80,7 +80,7 @@ static bool init( // output
 
     // when offscreen, I really don't want to glutCreateWindow(), but for some
     // reason not doing this causes glewInit() to segfault...
-    glutCreateWindow("Terrain renderer");
+    glutCreateWindow("horizonator");
 
     const char* version = (const char*)glGetString(GL_VERSION);
     MSG("glGetString(GL_VERSION) says we're using GL %s", version);
