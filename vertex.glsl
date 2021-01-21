@@ -9,11 +9,20 @@ uniform float viewer_cell_i, viewer_cell_j;
 uniform float viewer_z;
 uniform float DEG_PER_CELL;
 uniform float sin_viewer_lat, cos_viewer_lat;
-uniform float aspect;
 uniform float az_deg0, az_deg1;
+uniform float aspect;
+
+// For texturing. If we're not texturing, NtilesX will be 0
+uniform float viewer_lat;
+uniform float origin_cell_lon_deg, origin_cell_lat_deg;
+uniform float texturemap_lon0,  texturemap_lon1;
+uniform float texturemap_dlat0, texturemap_dlat1, texturemap_dlat2;
+uniform int NtilesX, NtilesY;
+uniform int osmtile_startX, osmtile_startY;
 
 // We send these to the fragment shader
 out vec3 rgb;
+out vec2 tex;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
@@ -30,6 +39,26 @@ float unwrap_near_rad(float x, float near)
 {
     float d = (x - near) / (2.*pi);
     return (d - round(d)) * 2.*pi + near;
+}
+
+
+// OSM tiles (and everybody else's too) use the spherical equirectangular
+// projection to map corners of each tile to lat/lon coords. Inside each tile,
+// the pixel coords are linear with lat/lon.
+//
+// Spherical equirectangular is linear in the longitude direction, so there's
+// nothing interesting there. It is NOT linear in the latitude direction. I
+// estimate it with 2nd-order interpolation. This is close-enough for my
+// purposes
+float get_xtexture( float lon )
+{
+    float x_texture = texturemap_lon1 * lon + texturemap_lon0;
+    return (x_texture - float(osmtile_startX)) / float(NtilesX);
+}
+float get_ytexture( float dlat )
+{
+    float y_texture = dlat * (dlat*texturemap_dlat2 + texturemap_dlat1) + texturemap_dlat0;
+    return (y_texture - float(osmtile_startY)) / float(NtilesY);
 }
 
 void main(void)
@@ -85,6 +114,18 @@ void main(void)
     {
         float i = vertex.x;
         float j = vertex.y;
+
+        if(NtilesX != 0)
+        {
+            // we're texturing
+            float lon  = radians( origin_cell_lon_deg + i * DEG_PER_CELL );
+            float lat  = radians( origin_cell_lat_deg + j * DEG_PER_CELL );
+
+            float dlat = lat - viewer_lat;
+            float x_texture = get_xtexture( lon );
+            float y_texture = get_ytexture( dlat );
+            tex = vec2(x_texture, y_texture);
+        }
 
         vec2 en =
             vec2( (i - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,

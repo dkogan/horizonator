@@ -3,16 +3,17 @@
 #include <tgmath.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <assert.h>
+#include <unistd.h>
+#include <string.h>
 
 #include <epoxy/gl.h>
 #include <epoxy/glx.h>
-
 #include <GL/freeglut.h>
-#include <unistd.h>
-#include <string.h>
+
+#include <FreeImage.h>
 
 #include "bench.h"
 #include "dem.h"
@@ -57,7 +58,7 @@ static bool init( // output
 
                  // input
                  bool render_offscreen,
-                 bool do_render_texture,
+                 bool render_texture,
 
                  // Will be nudged a bit. The latlon we will use are
                  // returned in the context
@@ -142,26 +143,107 @@ static bool init( // output
         viewer_cell[i] =
             (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
 
-
-    if(do_render_texture)
+    // The spherical equirectangular latlon-to-projection equations (from
+    // https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames):
+    //
+    //    xtile(lon) = n * (lon + pi)/(2pi)
+    //    ytile(lat) = n/2 * (1 - log( (sin(lat) + 1)/cos(lat) ) / pi)
+    //
+    // The lon expression is linear, so I compute the two exact coefficients.
+    // The lat expression is not linear. I compute the 2nd-order taylor-series
+    // approximation (around the viewer position), and store those coefficients.
+    // Let lat,lon be in radians.
+    typedef struct
     {
-        MSG("texturing not yet reviewed");
-        assert(0);
-#if 0
-        // OSM tile texture business
-        int NtilesX, NtilesY;
-        int end_osmTileX, end_osmTileY;
-        int start_osmTileX, start_osmTileY;
-        float TEXTUREMAP_LON0, TEXTUREMAP_LON1;
-        float TEXTUREMAP_LAT0, TEXTUREMAP_LAT1, TEXTUREMAP_LAT2;
+        // latlon->tile coordinate conversion coefficients
+        float lon0, lon1;
+        float dlat0, dlat1, dlat2;
+
+        // How many tiles we have in each direction
+        int NtilesXY[2];
+        // Which tile is at the origin
+        int osmtile_startXY[2];
+
+    } texture_ctx_t;
+
+    texture_ctx_t texture_ctx = {};
 
 
-
+    if(render_texture)
+    {
         GLuint texID;
         glGenTextures(1, &texID);
 
 
-        void initOSMtexture(void)
+        void computeTextureMapInterpolationCoeffs(// output
+                                                  texture_ctx_t* texture_ctx,
+
+                                                  // input
+                                                  float lat0)
+        {
+            // The spherical equirectangular latlon-to-projection equations
+            // (from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames):
+            //
+            //    xtile(lon) = n * (lon + pi)/(2pi)
+            //    ytile(lat) = n/2 * (1 - log( (sin(lat) + 1)/cos(lat) ) / pi)
+            //
+            // The lon expression is linear, so I compute the two exact
+            // coefficients. The lat expression is not linear. I compute the
+            // 2nd-order taylor-series approximation (around the viewer
+            // position), and store those coefficients. Let lat,lon be in
+            // radians.
+
+            float n = (float)(1 << OSM_RENDER_ZOOM);
+
+            texture_ctx->lon0 = n / 2.0f;
+            texture_ctx->lon1 = n / ((float)M_PI * 2.0f);
+
+            // The derivatives are
+            //
+            //    ytile'(lat)  = -n/(2*pi*cos(lat))
+            //    ytile''(lat) = -n/(2*pi)*tan(lat)/cos(lat)
+            //
+            // Let
+            //    k = -n/(2*pi), c = cos(lat0), t = tan(lat0), dlat = lat-lat0
+            //
+            //    ytile(lat0)  = n/2 + k*log( t + 1/c )
+            //    ytile'(lat0) = k / c
+            //    ytile''(lat0)= k * t / c
+            //
+            // Thus
+            //
+            //    ytile(lat) ~ ytile(lat0) + ytile'(lat0)*dlat + 1/2*ytile''(lat0)*dlat^2
+            lat0 *= (float)M_PI / 180.0f;
+            float k = -n / ((float)M_PI * 2.0f);
+            float t = tan( lat0 );
+            float c = cos( lat0 );
+            texture_ctx->dlat0 = n/2.0f + k*logf( t + 1.0f/c );
+            texture_ctx->dlat1 = k / c;
+            texture_ctx->dlat2 = k * t / c / 2.0f;
+        }
+
+        void getOSMTileID( // output tile indices
+                          int* x, int* y,
+
+                          // input
+                          // latlon, in degrees
+                          float E, float N,
+                          const texture_ctx_t* texture_ctx )
+        {
+            // from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
+            float n = (float)( 1 << OSM_RENDER_ZOOM);
+
+            // convert E,N to radians. The interpolation coefficients assume this
+            E *= (float)M_PI/180.0f;
+            N *= (float)M_PI/180.0f;
+
+            *x = (int)( fminf( n, fmaxf( 0.0f, E*texture_ctx->lon1 + texture_ctx->lon0 )));
+            *y = (int)( n/2.0f * (1.0f -
+                                  logf( (sinf(N) + 1.0f)/cosf(N) ) /
+                                  (float)M_PI) );
+        }
+
+        void initOSMtexture(const texture_ctx_t* texture_ctx)
         {
             glActiveTextureARB( GL_TEXTURE0_ARB ); assert_opengl();
             glBindTexture( GL_TEXTURE_2D, texID ); assert_opengl();
@@ -173,21 +255,20 @@ static bool init( // output
 
             // Init the whole texture with 0. Then later I'll fill it in tile by
             // tile
-            glTexImage2D(GL_TEXTURE_2D, 0, 3,
-                         NtilesX*OSM_TILE_WIDTH,
-                         NtilesY*OSM_TILE_HEIGHT,
-                         0, GL_BGR,
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
+                         texture_ctx->NtilesXY[0]*OSM_TILE_WIDTH,
+                         texture_ctx->NtilesXY[1]*OSM_TILE_HEIGHT,
+                         0, GL_RGB,
                          GL_UNSIGNED_BYTE, (const GLvoid *)NULL);
+
             assert_opengl();
         }
 
-        void setOSMtextureTile( int osmTileX, int osmTileY )
+        void setOSMtextureTile( int osmTileX, int osmTileY,
+                                const texture_ctx_t* texture_ctx)
         {
-            // I read in an OSM tile. It is full of byte values RGB x width x
-            // height
             char filename[256];
             char directory[256];
-            char url[256];
             int len;
 
             len = snprintf(filename, sizeof(filename),
@@ -195,126 +276,115 @@ static bool init( // output
                            OSM_RENDER_ZOOM, osmTileX, osmTileY);
             assert(len < (int)sizeof(filename));
 
-            len = snprintf(directory, sizeof(directory),
-                           "/home/dima/.horizonator/tiles/%d/%d",
-                           OSM_RENDER_ZOOM, osmTileX);
-            assert(len < (int)sizeof(directory));
-
-            len = snprintf(url, sizeof(url),
-                           "http://tile.openstreetmap.org/%d/%d/%d.png",
-                           OSM_RENDER_ZOOM, osmTileX, osmTileY);
-            assert(len < (int)sizeof(url));
-
 
             if( access( filename, R_OK ) != 0 )
             {
+                MSG("Downloading");
+                exit(1);
+
                 // tile doesn't exist. Make a directory for it and try to download
+                len = snprintf(directory, sizeof(directory),
+                               "/home/dima/.horizonator/tiles/%d/%d",
+                               OSM_RENDER_ZOOM, osmTileX);
+                assert(len < (int)sizeof(directory));
+
+                char url[256];
+                len = snprintf(url, sizeof(url),
+                               "http://tile.openstreetmap.org/%d/%d/%d.png",
+                               OSM_RENDER_ZOOM, osmTileX, osmTileY);
+                assert(len < (int)sizeof(url));
+
                 char cmd[1024];
                 len = snprintf( cmd, sizeof(cmd),
                                 "mkdir -p %s && wget -O %s %s", directory, filename, url  );
-                assert(len < sizeof(cmd));
+                assert(len < (int)sizeof(cmd));
                 int res = system(cmd);
                 assert( res == 0 );
             }
 
-            IplImage* img = cvLoadImage( filename, CV_LOAD_IMAGE_COLOR );
-            assert(img);
-            assert( img->width  == OSM_TILE_WIDTH );
-            assert( img->height == OSM_TILE_HEIGHT );
+            FREE_IMAGE_FORMAT format = FreeImage_GetFileType(filename,0);
+            if(format == FIF_UNKNOWN)
+            {
+                MSG("Couldn't load '%s'", filename);
+                assert(0);
+            }
+
+            FIBITMAP* fib = FreeImage_Load(format,
+                                           filename,
+                                           0);
+            if(fib == NULL)
+            {
+                MSG("Couldn't load '%s'", filename);
+                assert(0);
+            }
+
+            if(FreeImage_GetColorType(fib) == FIC_PALETTE)
+            {
+                // OSM tiles are palettized, and I must explicitly handle that in
+                // FreeImage
+                FIBITMAP* fib24 = FreeImage_ConvertTo24Bits(fib);
+                FreeImage_Unload(fib);
+                fib = fib24;
+
+                if(fib == NULL)
+                {
+                    MSG("Couldn't unpalettize '%s'", filename);
+                    assert(0);
+                }
+            }
+
+            FreeImage_FlipVertical(fib);
+
+            assert( FreeImage_GetWidth(fib)  == OSM_TILE_WIDTH );
+            assert( FreeImage_GetHeight(fib) == OSM_TILE_HEIGHT );
+            assert( FreeImage_GetBPP(fib)    == 8*3 );
+            assert( FreeImage_GetPitch(fib)  == OSM_TILE_WIDTH*3 );
 
             glTexSubImage2D(GL_TEXTURE_2D, 0,
-                            (osmTileX - start_osmTileX)*OSM_TILE_WIDTH,
-                            (osmTileY - start_osmTileY)*OSM_TILE_HEIGHT,
+                            (osmTileX - texture_ctx->osmtile_startXY[0])*OSM_TILE_WIDTH,
+                            (osmTileY - texture_ctx->osmtile_startXY[1])*OSM_TILE_HEIGHT,
                             OSM_TILE_WIDTH, OSM_TILE_HEIGHT,
-                            GL_BGR, GL_UNSIGNED_BYTE, (const GLvoid *)img->imageData);
+                            GL_BGR, GL_UNSIGNED_BYTE,
+                            (const GLvoid *)FreeImage_GetBits(fib));
             assert_opengl();
 
-            cvReleaseImage(&img);
-        }
-
-        void computeTextureMapInterpolationCoeffs(float lat0)
-        {
-            float n = (float)( 1 << OSM_RENDER_ZOOM);
-
-            TEXTUREMAP_LON0 = n / 2.0f;
-            TEXTUREMAP_LON1 = n / ((float)M_PI * 2.0f);
-            // I use 2nd order interpolation for the lat computations in the
-            // shader. The interpolation is centered around the viewing position.
-            // The spherical equirectangular lat-to-projection equation is (from
-            // https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames)
-            //
-            //    y(x) = n/2 * (1 - log( (sin(x) + 1)/cos(x) ) / pi)
-            //
-            // The derivatives are
-            //
-            //    y'(x)  = -n/(2*pi*cos(x))
-            //    y''(x) = -n/(2*pi*tan(x)/cos(x))
-            //
-            // Here everything is in radians. For simplicity, let
-            //   k = -n/(2*pi), c = cos(x0), t = tan(x0), X = x-x0
-            //
-            //    y(x0)  = n/2 + k*log( t + 1/c )
-            //    y'(x0) = k / c
-            //    y''(x0)= k * t / c
-            //
-            // Thus
-            //
-            //    y(x) ~ y(x0) + y'(x0)*(x0-x) + 1/2*y''(x0)*(x0-x)^2 =
-            //         ~ y(x0) + y'(x0)*X      + 1/2*y''(x0)*X^2      =
-            lat0 *= (float)M_PI / 180.0f;
-            float k = -n / ((float)M_PI * 2.0f);
-            float t = tan( lat0 );
-            float c = cos( lat0 );
-            TEXTUREMAP_LAT0 = n/2.0f + k*logf( t + 1.0f/c );
-            TEXTUREMAP_LAT1 = k / c;
-            TEXTUREMAP_LAT2 = k * t / c / 2.0f;
-        }
-
-        void getOSMTileID( float E, float N, // input latlon, in degrees
-                           int*  x, int*  y  // output tile indices
-                           )
-        {
-            // from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
-            float n = (float)( 1 << OSM_RENDER_ZOOM);
-
-            // convert E,N to radians. The interpolation coefficients assume this
-            E *= (float)M_PI/180.0f;
-            N *= (float)M_PI/180.0f;
-
-            *x = (int)( fminf( n, fmaxf( 0.0f, E*TEXTUREMAP_LON1 + TEXTUREMAP_LON0 )));
-            *y = (int)( n/2.0f * (1.0f -
-                                  logf( (sinf(N) + 1.0f)/cosf(N) ) /
-                                  (float)M_PI) );
+            FreeImage_Unload(fib);
         }
 
 
 
-        // My render data is in a grid centered on ctx->viewer_lat/ctx->viewer_lon, branching
+        computeTextureMapInterpolationCoeffs(&texture_ctx,
+                                             dem_context.viewer_lon_lat[1]);
+
+
+        // My render data is in a grid centered on dem_context.viewer_lon_lat[1]/dem_context.viewer_lon_lat[0], branching
         // RENDER_RADIUS*DEG_PER_CELL degrees in all 4 directions
-        float start_E = ctx->viewer_lon - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float start_N = ctx->viewer_lat - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float end_E   = ctx->viewer_lon + (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float end_N   = ctx->viewer_lat + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float start_E = dem_context.viewer_lon_lat[0] - (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float start_N = dem_context.viewer_lon_lat[1] - (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float end_E   = dem_context.viewer_lon_lat[0] + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float end_N   = dem_context.viewer_lon_lat[1] + (float)RENDER_RADIUS/CELLS_PER_DEG;
 
-        computeTextureMapInterpolationCoeffs(ctx->viewer_lat);
-        getOSMTileID( start_E, start_N,
-                      &start_osmTileX, &end_osmTileY ); // y tiles are ordered backwards
-        getOSMTileID( end_E, end_N,
-                      &end_osmTileX, &start_osmTileY ); // y tiles are ordered backwards
+        int osmtile_endXY[2];
+        // y tiles are ordered backwards
+        getOSMTileID( &texture_ctx.osmtile_startXY[0],
+                      &osmtile_endXY[1],
+                      start_E, start_N, &texture_ctx );
+        getOSMTileID( &osmtile_endXY[0],
+                      &texture_ctx.osmtile_startXY[1],
+                      end_E, end_N, &texture_ctx );
 
-        NtilesX = end_osmTileX - start_osmTileX + 1;
-        NtilesY = end_osmTileY - start_osmTileY + 1;
+        texture_ctx.NtilesXY[0] = osmtile_endXY[0] - texture_ctx.osmtile_startXY[0] + 1;
+        texture_ctx.NtilesXY[1] = osmtile_endXY[1] - texture_ctx.osmtile_startXY[1] + 1;
 
-        initOSMtexture();
+        initOSMtexture(&texture_ctx);
 
-        for( int osmTileY = start_osmTileY; osmTileY <= end_osmTileY; osmTileY++ )
-            for( int osmTileX = start_osmTileX; osmTileX <= end_osmTileX; osmTileX++ )
-                setOSMtextureTile( osmTileX, osmTileY );
-
-
-        float x_texture = TEXTUREMAP_LON1 * ctx->viewer_lon*M_PI/180.0f + TEXTUREMAP_LON0;
-        x_texture       = (x_texture - (float)start_osmTileX) / (float)NtilesX;
-#endif
+        for( int osmTileY = texture_ctx.osmtile_startXY[1];
+             osmTileY <= osmtile_endXY[1];
+             osmTileY++)
+            for( int osmTileX = texture_ctx.osmtile_startXY[0];
+                 osmTileX <= osmtile_endXY[0];
+                 osmTileX++ )
+                setOSMtextureTile( osmTileX, osmTileY, &texture_ctx );
     }
 
     // vertices
@@ -434,21 +504,15 @@ static bool init( // output
         // point is a 16-bit integer tuple (ilon,ilat,height). The first 2 args are
         // indices into the DEM. The height is in meters
         const GLchar* vertexShaderSource =
-            do_render_texture ?
-#include "vertex.textured.glsl.h"
-            :
-#include "vertex.colored.glsl.h"
-            ;
-
-        const GLchar* fragmentShaderSource =
-            do_render_texture ?
-#include "fragment.textured.glsl.h"
-            :
-#include "fragment.colored.glsl.h"
+#include "vertex.glsl.h"
             ;
 
         const GLchar* geometryShaderSource =
 #include "geometry.glsl.h"
+            ;
+
+        const GLchar* fragmentShaderSource =
+#include "fragment.glsl.h"
             ;
 
         char msg[1024];
@@ -501,8 +565,6 @@ static bool init( // output
         make_uniform(f, viewer_cell_j,  viewer_cell[1]);
         make_uniform(f, viewer_z,       viewer_z);
         make_uniform(f, DEG_PER_CELL,   1.0f/ (float)CELLS_PER_DEG );
-        make_uniform(f, viewer_lon,     dem_context.viewer_lon_lat[0] * M_PI / 180.0f );
-        make_uniform(f, viewer_lat,     dem_context.viewer_lon_lat[1] * M_PI / 180.0f );
         make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
         make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
         make_uniform(f, az_deg0,        az_deg0);
@@ -511,22 +573,23 @@ static bool init( // output
         // This may be modified at runtime, so I do it manually, without make_uniform()
         ctx->uniform_aspect = glGetUniformLocation(program, "aspect");
 
-        if( do_render_texture )
-        {
-            MSG("texturing not yet reviewed");
-            assert(0);
-#if 0
-            make_uniform(f, TEXTUREMAP_LON0, TEXTUREMAP_LON0);
-            make_uniform(f, TEXTUREMAP_LON1, TEXTUREMAP_LON1);
-            make_uniform(f, TEXTUREMAP_LAT0, TEXTUREMAP_LAT0);
-            make_uniform(f, TEXTUREMAP_LAT1, TEXTUREMAP_LAT1);
-            make_uniform(f, TEXTUREMAP_LAT2, TEXTUREMAP_LAT2);
-            make_uniform(i, NtilesX,         NtilesX);
-            make_uniform(i, NtilesY,         NtilesY);
-            make_uniform(i, start_osmTileX,  start_osmTileX);
-            make_uniform(i, start_osmTileY,  start_osmTileY);
-#endif
-        }
+        // For texturing. If we're not texturing, NtilesXY[0] will be 0
+        make_uniform(f, viewer_lat,     dem_context.viewer_lon_lat[1] * M_PI / 180.0f );
+        make_uniform(f, origin_cell_lon_deg,
+                     (float)dem_context.origin_dem_lon_lat[0] +
+                     (float)dem_context.origin_dem_cellij[0] / (float)CELLS_PER_DEG);
+        make_uniform(f, origin_cell_lat_deg,
+                     (float)dem_context.origin_dem_lon_lat[1] +
+                     (float)dem_context.origin_dem_cellij[1] / (float)CELLS_PER_DEG);
+        make_uniform(f, texturemap_lon0, texture_ctx.lon0);
+        make_uniform(f, texturemap_lon1, texture_ctx.lon1);
+        make_uniform(f, texturemap_dlat0,texture_ctx.dlat0);
+        make_uniform(f, texturemap_dlat1,texture_ctx.dlat1);
+        make_uniform(f, texturemap_dlat2,texture_ctx.dlat2);
+        make_uniform(i, NtilesX,         texture_ctx.NtilesXY[0]);
+        make_uniform(i, NtilesY,         texture_ctx.NtilesXY[1]);
+        make_uniform(i, osmtile_startX,  texture_ctx.osmtile_startXY[0]);
+        make_uniform(i, osmtile_startY,  texture_ctx.osmtile_startXY[1]);
 
 #undef make_uniform
     }
@@ -587,7 +650,7 @@ char* render_to_image(float viewer_lat, float viewer_lon,
     horizonator_context_t ctx;
 
     if( !init( &ctx,
-               true, false,
+               true, true,
                viewer_lat, viewer_lon,
                az_deg0, az_deg1,
                datadir) )
@@ -690,7 +753,8 @@ bool render_to_window( float viewer_lat, float viewer_lon,
     horizonator_context_t ctx;
 
     if( !init( &ctx,
-               false, false,
+               false,
+               true,
                viewer_lat, viewer_lon,
                az_deg0, az_deg1,
                datadir) )
