@@ -18,7 +18,7 @@ uniform float origin_cell_lon_deg, origin_cell_lat_deg;
 uniform float texturemap_lon0,  texturemap_lon1;
 uniform float texturemap_dlat0, texturemap_dlat1, texturemap_dlat2;
 uniform int NtilesX, NtilesY;
-uniform int osmtile_startX, osmtile_startY;
+uniform int osmtile_lowestX, osmtile_lowestY;
 
 // We send these to the fragment shader
 out vec3 rgb;
@@ -50,15 +50,18 @@ float unwrap_near_rad(float x, float near)
 // nothing interesting there. It is NOT linear in the latitude direction. I
 // estimate it with 2nd-order interpolation. This is close-enough for my
 // purposes
+//
+// ytile decreases with lat
 float get_xtexture( float lon )
 {
     float x_texture = texturemap_lon1 * lon + texturemap_lon0;
-    return (x_texture - float(osmtile_startX)) / float(NtilesX);
+    return (x_texture - float(osmtile_lowestX)) / float(NtilesX);
 }
 float get_ytexture( float dlat )
 {
+    // OpenGL stores its textures upside down, so I 1- the result
     float y_texture = dlat * (dlat*texturemap_dlat2 + texturemap_dlat1) + texturemap_dlat0;
-    return (y_texture - float(osmtile_startY)) / float(NtilesY);
+    return 1.0 - (y_texture - float(osmtile_lowestY)) / float(NtilesY);
 }
 
 void main(void)

@@ -161,8 +161,11 @@ static bool init( // output
 
         // How many tiles we have in each direction
         int NtilesXY[2];
-        // Which tile is at the origin
-        int osmtile_startXY[2];
+
+        // Lowest and highest OSM tile indices. These increase towards E and
+        // towards S (i.e. in the opposite direction as latitude)
+        int osmtile_lowestXY [2];
+        int osmtile_highestXY[2];
 
     } texture_ctx_t;
 
@@ -173,7 +176,6 @@ static bool init( // output
     {
         GLuint texID;
         glGenTextures(1, &texID);
-
 
         void computeTextureMapInterpolationCoeffs(// output
                                                   texture_ctx_t* texture_ctx,
@@ -192,6 +194,9 @@ static bool init( // output
             // 2nd-order taylor-series approximation (around the viewer
             // position), and store those coefficients. Let lat,lon be in
             // radians.
+            //
+            // xtile increases with lon
+            // ytile decreases with lat
 
             float n = (float)(1 << OSM_RENDER_ZOOM);
 
@@ -333,16 +338,16 @@ static bool init( // output
                 }
             }
 
-            FreeImage_FlipVertical(fib);
-
             assert( FreeImage_GetWidth(fib)  == OSM_TILE_WIDTH );
             assert( FreeImage_GetHeight(fib) == OSM_TILE_HEIGHT );
             assert( FreeImage_GetBPP(fib)    == 8*3 );
             assert( FreeImage_GetPitch(fib)  == OSM_TILE_WIDTH*3 );
 
+            // GL stores its textures upside down, so I flipt the y index of the
+            // tile
             glTexSubImage2D(GL_TEXTURE_2D, 0,
-                            (osmTileX - texture_ctx->osmtile_startXY[0])*OSM_TILE_WIDTH,
-                            (osmTileY - texture_ctx->osmtile_startXY[1])*OSM_TILE_HEIGHT,
+                            (osmTileX - texture_ctx->osmtile_lowestXY[0] )*OSM_TILE_WIDTH,
+                            (texture_ctx->osmtile_highestXY[1] - osmTileY)*OSM_TILE_HEIGHT,
                             OSM_TILE_WIDTH, OSM_TILE_HEIGHT,
                             GL_BGR, GL_UNSIGNED_BYTE,
                             (const GLvoid *)FreeImage_GetBits(fib));
@@ -356,33 +361,31 @@ static bool init( // output
         computeTextureMapInterpolationCoeffs(&texture_ctx,
                                              dem_context.viewer_lon_lat[1]);
 
-
         // My render data is in a grid centered on dem_context.viewer_lon_lat[1]/dem_context.viewer_lon_lat[0], branching
         // RENDER_RADIUS*DEG_PER_CELL degrees in all 4 directions
-        float start_E = dem_context.viewer_lon_lat[0] - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float start_N = dem_context.viewer_lon_lat[1] - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float end_E   = dem_context.viewer_lon_lat[0] + (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float end_N   = dem_context.viewer_lon_lat[1] + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float lowest_E  = dem_context.viewer_lon_lat[0] - (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float lowest_N  = dem_context.viewer_lon_lat[1] - (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float highest_E = dem_context.viewer_lon_lat[0] + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float highest_N = dem_context.viewer_lon_lat[1] + (float)RENDER_RADIUS/CELLS_PER_DEG;
 
-        int osmtile_endXY[2];
-        // y tiles are ordered backwards
-        getOSMTileID( &texture_ctx.osmtile_startXY[0],
-                      &osmtile_endXY[1],
-                      start_E, start_N, &texture_ctx );
-        getOSMTileID( &osmtile_endXY[0],
-                      &texture_ctx.osmtile_startXY[1],
-                      end_E, end_N, &texture_ctx );
+        // ytile decreases with lat, so I treat it backwards
+        getOSMTileID( &texture_ctx.osmtile_lowestXY[0],
+                      &texture_ctx.osmtile_lowestXY[1],
+                      lowest_E, highest_N, &texture_ctx );
+        getOSMTileID( &texture_ctx.osmtile_highestXY[0],
+                      &texture_ctx.osmtile_highestXY[1],
+                      highest_E, lowest_N, &texture_ctx );
 
-        texture_ctx.NtilesXY[0] = osmtile_endXY[0] - texture_ctx.osmtile_startXY[0] + 1;
-        texture_ctx.NtilesXY[1] = osmtile_endXY[1] - texture_ctx.osmtile_startXY[1] + 1;
+        texture_ctx.NtilesXY[0] = texture_ctx.osmtile_highestXY[0] - texture_ctx.osmtile_lowestXY[0] + 1;
+        texture_ctx.NtilesXY[1] = texture_ctx.osmtile_highestXY[1] - texture_ctx.osmtile_lowestXY[1] + 1;
 
         initOSMtexture(&texture_ctx);
 
-        for( int osmTileY = texture_ctx.osmtile_startXY[1];
-             osmTileY <= osmtile_endXY[1];
+        for( int osmTileY = texture_ctx.osmtile_lowestXY[1];
+             osmTileY <= texture_ctx.osmtile_highestXY[1];
              osmTileY++)
-            for( int osmTileX = texture_ctx.osmtile_startXY[0];
-                 osmTileX <= osmtile_endXY[0];
+            for( int osmTileX = texture_ctx.osmtile_lowestXY[0];
+                 osmTileX <= texture_ctx.osmtile_highestXY[0];
                  osmTileX++ )
                 setOSMtextureTile( osmTileX, osmTileY, &texture_ctx );
     }
@@ -588,8 +591,8 @@ static bool init( // output
         make_uniform(f, texturemap_dlat2,texture_ctx.dlat2);
         make_uniform(i, NtilesX,         texture_ctx.NtilesXY[0]);
         make_uniform(i, NtilesY,         texture_ctx.NtilesXY[1]);
-        make_uniform(i, osmtile_startX,  texture_ctx.osmtile_startXY[0]);
-        make_uniform(i, osmtile_startY,  texture_ctx.osmtile_startXY[1]);
+        make_uniform(i, osmtile_lowestX, texture_ctx.osmtile_lowestXY[0]);
+        make_uniform(i, osmtile_lowestY, texture_ctx.osmtile_lowestXY[1]);
 
 #undef make_uniform
     }
