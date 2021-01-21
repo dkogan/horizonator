@@ -15,7 +15,7 @@ char* render_to_image(float viewer_lat, float viewer_lon,
                       float az_deg0, float az_deg1,
 
                       int width, int height,
-                      const char* datadir);
+                      const char* dir_dems);
 
 bool render_to_window( float viewer_lat, float viewer_lon,
 
@@ -25,4 +25,4 @@ bool render_to_window( float viewer_lat, float viewer_lon,
                        // elevation extents will be chosen to keep the aspect ratio
                        // square.
                        float az_deg0, float az_deg1,
-                       const char* datadir);
+                       const char* dir_dems);

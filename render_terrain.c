@@ -71,7 +71,7 @@ static bool init( // output
                  // square.
                  float az_deg0, float az_deg1,
 
-                 const char* datadir)
+                 const char* dir_dems)
 {
     glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
     glutInitContextVersion(4,2);
@@ -119,7 +119,7 @@ static bool init( // output
     if( !dem_init( &dem_context,
                    viewer_lat, viewer_lon,
                    RENDER_RADIUS,
-                   datadir) )
+                   dir_dems) )
     {
         MSG("Couldn't init DEMs. Giving up");
         goto done;
@@ -645,7 +645,7 @@ char* render_to_image(float viewer_lat, float viewer_lon,
                       float az_deg0, float az_deg1,
 
                       int width, int height,
-                      const char* datadir)
+                      const char* dir_dems)
 {
     char* result = NULL;
     char* img    = NULL;
@@ -656,7 +656,7 @@ char* render_to_image(float viewer_lat, float viewer_lon,
                true, true,
                viewer_lat, viewer_lon,
                az_deg0, az_deg1,
-               datadir) )
+               dir_dems) )
         return NULL;
 
     GLuint frameBufID;
@@ -751,7 +751,7 @@ bool render_to_window( float viewer_lat, float viewer_lon,
                        // elevation extents will be chosen to keep the aspect ratio
                        // square.
                        float az_deg0, float az_deg1,
-                       const char* datadir)
+                       const char* dir_dems)
 {
     horizonator_context_t ctx;
 
@@ -760,7 +760,7 @@ bool render_to_window( float viewer_lat, float viewer_lon,
                true,
                viewer_lat, viewer_lon,
                az_deg0, az_deg1,
-               datadir) )
+               dir_dems) )
         return false;
 
     void window_display(void)
