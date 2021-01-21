@@ -72,7 +72,8 @@ static bool init( // output
                  float az_deg0, float az_deg1,
 
                  const char* dir_dems,
-                 const char* dir_tiles)
+                 const char* dir_tiles,
+                 bool allow_downloads)
 {
     glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
     glutInitContextVersion(4,2);
@@ -120,8 +121,7 @@ static bool init( // output
     if( !dem_init( &dem_context,
                    viewer_lat, viewer_lon,
                    RENDER_RADIUS,
-                   dir_dems,
-                   dir_tiles) )
+                   dir_dems) )
     {
         MSG("Couldn't init DEMs. Giving up");
         goto done;
@@ -280,14 +280,17 @@ static bool init( // output
 
             len = snprintf(filename, sizeof(filename),
                            "%s/%d/%d/%d.png",
-                           dir_tiles/OSM_RENDER_ZOOM, osmTileX, osmTileY);
+                           dir_tiles, OSM_RENDER_ZOOM, osmTileX, osmTileY);
             assert(len < (int)sizeof(filename));
 
 
             if( access( filename, R_OK ) != 0 )
             {
-                MSG("Downloading");
-                exit(1);
+                if(!allow_downloads)
+                {
+                    MSG("Tile '%s' doesn't exist on disk, and downloads aren't allowed. Giving up", filename);
+                    assert(0);
+                }
 
                 // tile doesn't exist. Make a directory for it and try to download
                 len = snprintf(directory, sizeof(directory),
@@ -637,7 +640,8 @@ static void draw(const horizonator_context_t* ctx)
 // returns the rendered image buffer. NULL on error. It is the caller's
 // responsibility to free() this buffer. The image data is packed
 // 24-bits-per-pixel BGR data stored row-first.
-char* render_to_image(float viewer_lat, float viewer_lon,
+char* render_to_image(bool render_texture,
+                      float viewer_lat, float viewer_lon,
 
                       // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
                       // edges lie at the edges of the image. So for an image that's
@@ -648,7 +652,8 @@ char* render_to_image(float viewer_lat, float viewer_lon,
 
                       int width, int height,
                       const char* dir_dems,
-                      const char* dir_tiles)
+                      const char* dir_tiles,
+                      bool allow_downloads)
 {
     char* result = NULL;
     char* img    = NULL;
@@ -656,11 +661,13 @@ char* render_to_image(float viewer_lat, float viewer_lon,
     horizonator_context_t ctx;
 
     if( !init( &ctx,
-               true, true,
+               true,
+               render_texture,
                viewer_lat, viewer_lon,
                az_deg0, az_deg1,
                dir_dems,
-               dir_tiles) )
+               dir_tiles,
+               allow_downloads) )
         return NULL;
 
     GLuint frameBufID;
@@ -747,7 +754,8 @@ char* render_to_image(float viewer_lat, float viewer_lon,
     return result;
 }
 
-bool render_to_window( float viewer_lat, float viewer_lon,
+bool render_to_window( bool render_texture,
+                       float viewer_lat, float viewer_lon,
 
                        // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
                        // edges lie at the edges of the image. So for an image that's
@@ -756,16 +764,19 @@ bool render_to_window( float viewer_lat, float viewer_lon,
                        // square.
                        float az_deg0, float az_deg1,
                        const char* dir_dems,
-                       const char* dir_tiles)
+                       const char* dir_tiles,
+                       bool allow_downloads)
 {
     horizonator_context_t ctx;
 
     if( !init( &ctx,
                false,
-               true,
+               render_texture,
                viewer_lat, viewer_lon,
                az_deg0, az_deg1,
-               dir_dems) )
+               dir_dems,
+               dir_tiles,
+               allow_downloads) )
         return false;
 
     void window_display(void)

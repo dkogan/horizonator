@@ -5,7 +5,8 @@
 // returns the rendered image buffer. NULL on error. It is the caller's
 // responsibility to free() this buffer. The image data is packed
 // 24-bits-per-pixel BGR data stored row-first.
-char* render_to_image(float viewer_lat, float viewer_lon,
+char* render_to_image(bool render_texture,
+                      float viewer_lat, float viewer_lon,
 
                       // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
                       // edges lie at the edges of the image. So for an image that's
@@ -16,9 +17,11 @@ char* render_to_image(float viewer_lat, float viewer_lon,
 
                       int width, int height,
                       const char* dir_dems,
-                      const char* dir_tiles);
+                      const char* dir_tiles,
+                      bool allow_downloads);
 
-bool render_to_window( float viewer_lat, float viewer_lon,
+bool render_to_window( bool render_texture,
+                       float viewer_lat, float viewer_lon,
 
                        // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
                        // edges lie at the edges of the image. So for an image that's
@@ -27,4 +30,5 @@ bool render_to_window( float viewer_lat, float viewer_lon,
                        // square.
                        float az_deg0, float az_deg1,
                        const char* dir_dems,
-                       const char* dir_tiles);
+                       const char* dir_tiles,
+                       bool allow_downloads);

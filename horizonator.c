@@ -13,6 +13,7 @@ int main(int argc, char* argv[])
     const char* usage =
         "%s [--width WIDTH_PIXELS] [--output OUT.png]\n"
         "   [--texture]\n"
+        "   [--allow-tile-downloads]\n"
         "   [--dirdems DIRECTORY]\n"
         "   [--dirtiles DIRECTORY]\n"
         "   LAT LON AZ_DEG0 AZ_DEG1\n"
@@ -41,15 +42,19 @@ int main(int argc, char* argv[])
         { "output",            required_argument, NULL, 'o' },
         { "dirdems",           required_argument, NULL, 'd' },
         { "dirtiles",          required_argument, NULL, 't' },
+        { "texture",           no_argument,       NULL, 'T' },
+        { "allow-tile-downloads",no_argument,     NULL, 'a' },
         { "help",              no_argument,       NULL, 'h' },
         {}
     };
 
 
-    int         width     = 0;
-    const char* output    = NULL;
-    const char* dir_dems  = ".";
-    const char* dir_tiles = ".";
+    int         width           = 0;
+    const char* output          = NULL;
+    const char* dir_dems        = ".";
+    const char* dir_tiles       = ".";
+    bool        render_texture  = false;
+    bool        allow_downloads = false;
 
     int opt;
     do
@@ -97,6 +102,14 @@ int main(int argc, char* argv[])
 
         case 't':
             dir_tiles = optarg;
+            break;
+
+        case 'T':
+            render_texture = true;
+            break;
+
+        case 'a':
+            allow_downloads = true;
             break;
 
         case '?':
@@ -159,7 +172,10 @@ int main(int argc, char* argv[])
 
     if(output == NULL)
     {
-        render_to_window( lat, lon, az_deg0, az_deg1, dir_dems, dir_tiles );
+        render_to_window(render_texture,
+                         lat, lon, az_deg0, az_deg1,
+                         dir_dems, dir_tiles,
+                         allow_downloads);
         return 0;
     }
 
@@ -175,8 +191,11 @@ int main(int argc, char* argv[])
     int height = (int)roundf( (float)width * fovy_deg / (az_deg1-az_deg0));
 
     char* image =
-        render_to_image(lat, lon, az_deg0, az_deg1,
-                        width, height, dir_dems, dir_tiles);
+        render_to_image(render_texture,
+                        lat, lon, az_deg0, az_deg1,
+                        width, height,
+                        dir_dems, dir_tiles,
+                        allow_downloads);
     if(image == NULL)
     {
         fprintf(stderr, "Image render failed\n");
