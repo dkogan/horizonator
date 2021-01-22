@@ -6,8 +6,8 @@ TAIL_VERSION := 1
 
 VERSION := $(ABI_VERSION).$(TAIL_VERSION)
 
-BIN_SOURCES += horizonator.c
-horizonator: dem.o render_terrain.o
+BIN_SOURCES += standalone.c
+standalone: dem.o render_terrain.o
 
 LDLIBS += \
   -lGLU -lGL -lepoxy -lglut \
