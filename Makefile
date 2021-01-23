@@ -36,7 +36,7 @@ FLORB_SOURCES := $(wildcard			\
                      florb/Fl/*.cpp)
 FLORB_OBJECTS   := $(addsuffix .o,$(basename $(FLORB_SOURCES)))
 
-horizonator: $(FLORB_OBJECTS) horizonator-lib.o dem.o
+horizonator: $(FLORB_OBJECTS) horizonator-lib.o dem.o slippymap-annotations.o
 
 LDLIBS_FLORB := \
  $(shell fltk-config --use-images --ldflags) \
@@ -55,7 +55,7 @@ CXXFLAGS_FLORB := \
  $(shell pkg-config --cflags libpng) \
  $(shell pkg-config --cflags tinyxml)
 
-horizonator.o $(FLORB_OBJECTS): CXXFLAGS += $(CXXFLAGS_FLORB)
+horizonator.o slippymap-annotations.o $(FLORB_OBJECTS): CXXFLAGS += $(CXXFLAGS_FLORB)
 horizonator: LDLIBS += $(LDLIBS_FLORB) -lfltk_gl
 
 florb/orb_mapctrl.o:   CXXFLAGS += -Wno-empty-body

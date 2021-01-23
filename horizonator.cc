@@ -10,6 +10,8 @@
 #include "orb_osmlayer.hpp"
 #include "orb_mapctrl.hpp"
 
+#include "slippymap-annotations.hh"
+
 extern "C"
 {
 #include "horizonator.h"
@@ -20,11 +22,57 @@ extern "C"
 #define WINDOW_W 800
 #define WINDOW_H 600
 
-static Fl_Double_Window* g_window;
+class GLWidget;
+
+
+
+/////////// Globals
+//// Widgets
+static Fl_Double_Window*     g_window;
+static orb_mapctrl*          g_slippymap;
+static SlippymapAnnotations* g_slippymap_annotations;
+static GLWidget*             g_gl_widget;
+
+//// The observer state
+// Look North initially, with some arbitrary field of view
+static view_t g_view = {0.0f, 30.0f, -1000.f, -1000.f};
+
+
+
+
 
 static void redraw_slippymap( void* mapctrl )
 {
     reinterpret_cast<orb_mapctrl*>(mapctrl)->redraw();
+}
+
+static void newrender(float lat, float lon)
+{
+    g_view.lat = lat;
+    g_view.lon = lon;
+}
+
+static void callback_slippymap(Fl_Widget* slippymap __attribute__((unused)),
+                               void*      cookie    __attribute__((unused)) )
+{
+    // Something happened with the slippy-map. If it's a right-click then I do
+    // stuff
+    if(! (Fl::event()        == FL_PUSH &&
+          Fl::event_button() == FL_RIGHT_MOUSE ))
+        return;
+
+    // right mouse button pressed
+    orb_point<double> gps;
+    if( g_slippymap->mousegps(gps) != 0 )
+    {
+        MSG("couldn't get mouse click latlon position for some reason...");
+        return;
+    }
+
+    float lat = (float)gps.get_y();
+    float lon = (float)gps.get_x();
+
+    newrender(lat,lon);
 }
 
 class GLWidget : public Fl_Gl_Window
@@ -33,15 +81,13 @@ class GLWidget : public Fl_Gl_Window
 
     GLenum m_winding;
     int    m_polygon_mode_idx;
-    float  m_az_center_deg;
-    float  m_az_radius_deg;
     int    m_last_drag_update_xy[2];
 
 
     void clip_az_radius_deg(void)
     {
-        if     (m_az_radius_deg < 1.0f)  m_az_radius_deg = 1.0f;
-        else if(m_az_radius_deg > 179.f) m_az_radius_deg = 179.f;
+        if     (g_view.az_radius_deg < 1.0f)  g_view.az_radius_deg = 1.0f;
+        else if(g_view.az_radius_deg > 179.f) g_view.az_radius_deg = 179.f;
     }
 
 public:
@@ -54,10 +100,6 @@ public:
 
         m_winding          = GL_CCW;
         m_polygon_mode_idx = 0;
-
-        // Look North initially, with some arbitrary field of view
-        m_az_center_deg = 0.0f;
-        m_az_radius_deg = 30.0f;
     }
 
     void draw(void)
@@ -69,7 +111,7 @@ public:
             if(!horizonator_init1( &m_ctx,
 
                                    false,
-                                   34.2884, -117.7134,
+                                   g_view.lat, g_view.lon,
 
                                    ".", "/home/dima/.horizonator/tiles",
                                    true))
@@ -79,8 +121,8 @@ public:
             }
 
             if(!horizonator_zoom(&m_ctx,
-                                 m_az_center_deg - m_az_radius_deg,
-                                 m_az_center_deg + m_az_radius_deg))
+                                 g_view.az_center_deg - g_view.az_radius_deg,
+                                 g_view.az_center_deg + g_view.az_radius_deg))
             {
                 MSG("horizonator_zoom() failed. Giving up");
                 exit(1);
@@ -148,20 +190,21 @@ public:
             {
                 // I pan and zoom with the horizontal/vertical mouse wheel
                 const float pixels_to_move_rad = 100.0f;
-                m_az_center_deg += m_az_radius_deg * (float)Fl::event_dx() / pixels_to_move_rad;
+                g_view.az_center_deg += g_view.az_radius_deg * (float)Fl::event_dx() / pixels_to_move_rad;
 
                 const float pixels_to_double = 20.0f;
                 const float r = exp2((float)Fl::event_dy() / pixels_to_double);
-                m_az_radius_deg *= r;
+                g_view.az_radius_deg *= r;
                 clip_az_radius_deg();
                 if(!horizonator_zoom(&m_ctx,
-                                     m_az_center_deg - m_az_radius_deg,
-                                     m_az_center_deg + m_az_radius_deg))
+                                     g_view.az_center_deg - g_view.az_radius_deg,
+                                     g_view.az_center_deg + g_view.az_radius_deg))
                 {
                     MSG("horizonator_zoom() failed. Giving up");
                     delete g_window;
                 }
                 redraw();
+                g_slippymap->redraw();
                 return 1;
             }
 
@@ -188,22 +231,23 @@ public:
                 m_last_drag_update_xy[0] = Fl::event_x();
                 m_last_drag_update_xy[1] = Fl::event_y();
 
-                const float deg_per_pixel = 2.f*m_az_radius_deg/(float)pixel_w();
-                m_az_center_deg -= deg_per_pixel * (float)dxy[0];
+                const float deg_per_pixel = 2.f*g_view.az_radius_deg/(float)pixel_w();
+                g_view.az_center_deg -= deg_per_pixel * (float)dxy[0];
 
                 const float pixels_to_double = 100.0f;
                 float r = exp2((float)dxy[1] / pixels_to_double);
-                m_az_radius_deg *= r;
+                g_view.az_radius_deg *= r;
                 clip_az_radius_deg();
                 if(!horizonator_zoom(&m_ctx,
-                                     m_az_center_deg - m_az_radius_deg,
-                                     m_az_center_deg + m_az_radius_deg))
+                                     g_view.az_center_deg - g_view.az_radius_deg,
+                                     g_view.az_center_deg + g_view.az_radius_deg))
                 {
                     MSG("horizonator_zoom() failed. Giving up");
                     delete g_window;
                 }
 
                 redraw();
+                g_slippymap->redraw();
                 return 1;
             }
             break;
@@ -246,38 +290,41 @@ int main(int argc, char** argv)
     Fl::lock();
 
     std::vector<orb_layer*> layers;
-    orb_mapctrl*            slippymap;
-    GLWidget*               gl_widget __attribute__((unused));
 
     g_window = new Fl_Double_Window( WINDOW_W, WINDOW_H, "Horizonator" );
 
     const int map_h = g_window->h()/2;
 
     {
-        slippymap = new orb_mapctrl( 0, 0, g_window->w(), map_h, "horizonator!" );
-        slippymap->box(FL_NO_BOX);
-        slippymap->color(FL_BACKGROUND_COLOR);
-        slippymap->selection_color(FL_BACKGROUND_COLOR);
-        slippymap->labeltype(FL_NORMAL_LABEL);
-        slippymap->labelfont(0);
-        slippymap->labelsize(14);
-        slippymap->labelcolor(FL_FOREGROUND_COLOR);
-        slippymap->align(Fl_Align(FL_ALIGN_CENTER));
+        g_slippymap = new orb_mapctrl( 0, 0, g_window->w(), map_h, "horizonator!" );
+        g_slippymap->box(FL_NO_BOX);
+        g_slippymap->color(FL_BACKGROUND_COLOR);
+        g_slippymap->selection_color(FL_BACKGROUND_COLOR);
+        g_slippymap->labeltype(FL_NORMAL_LABEL);
+        g_slippymap->labelfont(0);
+        g_slippymap->labelsize(14);
+        g_slippymap->labelcolor(FL_FOREGROUND_COLOR);
+        g_slippymap->align(Fl_Align(FL_ALIGN_CENTER));
 
-        orb_osmlayer* osmlayer = new orb_osmlayer;
-        osmlayer->callback( &redraw_slippymap, slippymap );
+        orb_osmlayer* osmlayer  = new orb_osmlayer;
+        g_slippymap_annotations = new SlippymapAnnotations(&g_view);
+        osmlayer->callback( &redraw_slippymap, g_slippymap );
 
         layers.push_back(osmlayer);
+        layers.push_back(g_slippymap_annotations);
+        g_slippymap->layers(layers);
 
-        slippymap->layers(layers);
+        g_slippymap->callback( &callback_slippymap, NULL );
     }
     {
-        gl_widget = new GLWidget(0, map_h, g_window->w(), g_window->h()-map_h);
+        g_gl_widget = new GLWidget(0, map_h, g_window->w(), g_window->h()-map_h);
     }
 
     g_window->resizable(g_window);
     g_window->end();
     g_window->show();
+
+    newrender(34.2884, -117.7134);
 
     Fl::run();
 
