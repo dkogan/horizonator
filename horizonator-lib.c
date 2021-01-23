@@ -98,20 +98,16 @@ bool horizonator_init1( // output
                        bool allow_downloads)
 {
     static_assert(sizeof(GLint) == sizeof(ctx->uniform_aspect),
-                  "horizonator_context_t.uniform_aspect must be a GLint");
+                  "horizonator_context_t.uniform_... must be a GLint");
 
-    bool          result             = false;
-    bool          dem_context_inited = false;
-    horizonator_dem_context_t dem_context;
-    float         viewer_cell[2];
-
-
+    bool                      result             = false;
+    bool                      dem_context_inited = false;
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glClearColor(0, 0, 1, 0);
 
-    if( !horizonator_dem_init( &dem_context,
+    if( !horizonator_dem_init( &ctx->dems,
                    viewer_lat, viewer_lon,
                    RENDER_RADIUS,
                    dir_dems) )
@@ -125,30 +121,8 @@ bool horizonator_init1( // output
     int Nvertices   = (2*RENDER_RADIUS) * (2*RENDER_RADIUS);
     ctx->Ntriangles = (2*RENDER_RADIUS - 1)*(2*RENDER_RADIUS - 1) * 2;
 
-
-    // The viewer elevation. I nudge it up a tiny bit to not see the stuff
-    // immediately around me
-    const float viewer_z = fmaxf( fmaxf(horizonator_dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS-1),
-                                        horizonator_dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS-1)),
-                                  fmaxf(horizonator_dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS  ),
-                                        horizonator_dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS  )) ) + 1.0;
-
-    // The spherical equirectangular latlon-to-projection equations (from
-    // https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames):
-    //
-    //    xtile(lon) = n * (lon + pi)/(2pi)
-    //    ytile(lat) = n/2 * (1 - log( (sin(lat) + 1)/cos(lat) ) / pi)
-    //
-    // The lon expression is linear, so I compute the two exact coefficients.
-    // The lat expression is not linear. I compute the 2nd-order taylor-series
-    // approximation (around the viewer position), and store those coefficients.
-    // Let lat,lon be in radians.
     typedef struct
     {
-        // latlon->tile coordinate conversion coefficients
-        float lon0, lon1;
-        float dlat0, dlat1, dlat2;
-
         // How many tiles we have in each direction
         int NtilesXY[2];
 
@@ -167,63 +141,12 @@ bool horizonator_init1( // output
         GLuint texID;
         glGenTextures(1, &texID);
 
-        void computeTextureMapInterpolationCoeffs(// output
-                                                  texture_ctx_t* texture_ctx,
-
-                                                  // input
-                                                  float lat0)
-        {
-            // The spherical equirectangular latlon-to-projection equations
-            // (from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames):
-            //
-            //    xtile(lon) = n * (lon + pi)/(2pi)
-            //    ytile(lat) = n/2 * (1 - log( (sin(lat) + 1)/cos(lat) ) / pi)
-            //
-            // The lon expression is linear, so I compute the two exact
-            // coefficients. The lat expression is not linear. I compute the
-            // 2nd-order taylor-series approximation (around the viewer
-            // position), and store those coefficients. Let lat,lon be in
-            // radians.
-            //
-            // xtile increases with lon
-            // ytile decreases with lat
-
-            float n = (float)(1 << OSM_RENDER_ZOOM);
-
-            texture_ctx->lon0 = n / 2.0f;
-            texture_ctx->lon1 = n / ((float)M_PI * 2.0f);
-
-            // The derivatives are
-            //
-            //    ytile'(lat)  = -n/(2*pi*cos(lat))
-            //    ytile''(lat) = -n/(2*pi)*tan(lat)/cos(lat)
-            //
-            // Let
-            //    k = -n/(2*pi), c = cos(lat0), t = tan(lat0), dlat = lat-lat0
-            //
-            //    ytile(lat0)  = n/2 + k*log( t + 1/c )
-            //    ytile'(lat0) = k / c
-            //    ytile''(lat0)= k * t / c
-            //
-            // Thus
-            //
-            //    ytile(lat) ~ ytile(lat0) + ytile'(lat0)*dlat + 1/2*ytile''(lat0)*dlat^2
-            lat0 *= (float)M_PI / 180.0f;
-            float k = -n / ((float)M_PI * 2.0f);
-            float t = tan( lat0 );
-            float c = cos( lat0 );
-            texture_ctx->dlat0 = n/2.0f + k*logf( t + 1.0f/c );
-            texture_ctx->dlat1 = k / c;
-            texture_ctx->dlat2 = k * t / c / 2.0f;
-        }
-
         void getOSMTileID( // output tile indices
                           int* x, int* y,
 
                           // input
                           // latlon, in degrees
-                          float E, float N,
-                          const texture_ctx_t* texture_ctx )
+                          float E, float N)
         {
             // from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
             float n = (float)( 1 << OSM_RENDER_ZOOM);
@@ -232,7 +155,9 @@ bool horizonator_init1( // output
             E *= (float)M_PI/180.0f;
             N *= (float)M_PI/180.0f;
 
-            *x = (int)( fminf( n, fmaxf( 0.0f, E*texture_ctx->lon1 + texture_ctx->lon0 )));
+            float lon0 = n / 2.0f;
+            float lon1 = n / ((float)M_PI * 2.0f);
+            *x = (int)( fminf( n, fmaxf( 0.0f, E*lon1 + lon0 )));
             *y = (int)( n/2.0f * (1.0f -
                                   logf( (sinf(N) + 1.0f)/cosf(N) ) /
                                   (float)M_PI) );
@@ -349,10 +274,6 @@ bool horizonator_init1( // output
             FreeImage_Unload(fib);
         }
 
-
-
-        computeTextureMapInterpolationCoeffs(&texture_ctx, viewer_lat);
-
         // My render data is in a grid centered on viewer_lat/viewer_lon, branching
         // RENDER_RADIUS*DEG_PER_CELL degrees in all 4 directions
         float lowest_E  = viewer_lon - (float)RENDER_RADIUS/CELLS_PER_DEG;
@@ -363,10 +284,10 @@ bool horizonator_init1( // output
         // ytile decreases with lat, so I treat it backwards
         getOSMTileID( &texture_ctx.osmtile_lowestXY[0],
                       &texture_ctx.osmtile_lowestXY[1],
-                      lowest_E, highest_N, &texture_ctx );
+                      lowest_E, highest_N);
         getOSMTileID( &texture_ctx.osmtile_highestXY[0],
                       &texture_ctx.osmtile_highestXY[1],
-                      highest_E, lowest_N, &texture_ctx );
+                      highest_E, lowest_N);
 
         texture_ctx.NtilesXY[0] = texture_ctx.osmtile_highestXY[0] - texture_ctx.osmtile_lowestXY[0] + 1;
         texture_ctx.NtilesXY[1] = texture_ctx.osmtile_highestXY[1] - texture_ctx.osmtile_lowestXY[1] + 1;
@@ -414,15 +335,11 @@ bool horizonator_init1( // output
 
         int vertex_buf_idx = 0;
 
-        for(int i=0; i<2; i++)
-            viewer_cell[i] =
-                (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
-
         for( int j=0; j<2*RENDER_RADIUS; j++ )
         {
             for( int i=0; i<2*RENDER_RADIUS; i++ )
             {
-                int32_t z = horizonator_dem_sample(&dem_context, i,j);
+                int32_t z = horizonator_dem_sample(&ctx->dems, i,j);
 
                 // Several paths are available. These require corresponding
                 // updates in the GLSL, and exist for testing
@@ -553,53 +470,154 @@ bool horizonator_init1( // output
             printf("program info after glUseProgram: %s\n", msg);
 
 
-#define make_uniform(gltype, name, expr) do {                           \
+#define make_and_set_uniform(gltype, name, expr) do {                   \
             GLint uniform_ ## name = glGetUniformLocation(program, #name); \
             assert_opengl();                                            \
             glUniform1 ## gltype ( uniform_ ## name, expr);             \
             assert_opengl();                                            \
         } while(0)
 
-        make_uniform(f, viewer_cell_i,  viewer_cell[0]);
-        make_uniform(f, viewer_cell_j,  viewer_cell[1]);
-        make_uniform(f, viewer_z,       viewer_z);
-        make_uniform(f, DEG_PER_CELL,   1.0f/ (float)CELLS_PER_DEG );
-        make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * viewer_lat ));
-        make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * viewer_lat ));
+        make_and_set_uniform(f, DEG_PER_CELL,   1.0f/ (float)CELLS_PER_DEG );
 
-        // These may be modified at runtime, so I do it manually, without make_uniform()
-        ctx->uniform_aspect  = glGetUniformLocation(program, "aspect");  assert_opengl();
-        ctx->uniform_az_deg0 = glGetUniformLocation(program, "az_deg0"); assert_opengl();
-        ctx->uniform_az_deg1 = glGetUniformLocation(program, "az_deg1"); assert_opengl();
+        make_and_set_uniform(f, origin_cell_lon_deg,
+                     (float)ctx->dems.origin_dem_lon_lat[0] +
+                     (float)ctx->dems.origin_dem_cellij[0] / (float)CELLS_PER_DEG);
+        make_and_set_uniform(f, origin_cell_lat_deg,
+                     (float)ctx->dems.origin_dem_lon_lat[1] +
+                     (float)ctx->dems.origin_dem_cellij[1] / (float)CELLS_PER_DEG);
+        make_and_set_uniform(i, NtilesX,         texture_ctx.NtilesXY[0]);
+        make_and_set_uniform(i, NtilesY,         texture_ctx.NtilesXY[1]);
+        make_and_set_uniform(i, osmtile_lowestX, texture_ctx.osmtile_lowestXY[0]);
+        make_and_set_uniform(i, osmtile_lowestY, texture_ctx.osmtile_lowestXY[1]);
 
-        // For texturing. If we're not texturing, NtilesXY[0] will be 0
-        make_uniform(f, viewer_lat,     viewer_lat * M_PI / 180.0f );
-        make_uniform(f, origin_cell_lon_deg,
-                     (float)dem_context.origin_dem_lon_lat[0] +
-                     (float)dem_context.origin_dem_cellij[0] / (float)CELLS_PER_DEG);
-        make_uniform(f, origin_cell_lat_deg,
-                     (float)dem_context.origin_dem_lon_lat[1] +
-                     (float)dem_context.origin_dem_cellij[1] / (float)CELLS_PER_DEG);
-        make_uniform(f, texturemap_lon0, texture_ctx.lon0);
-        make_uniform(f, texturemap_lon1, texture_ctx.lon1);
-        make_uniform(f, texturemap_dlat0,texture_ctx.dlat0);
-        make_uniform(f, texturemap_dlat1,texture_ctx.dlat1);
-        make_uniform(f, texturemap_dlat2,texture_ctx.dlat2);
-        make_uniform(i, NtilesX,         texture_ctx.NtilesXY[0]);
-        make_uniform(i, NtilesY,         texture_ctx.NtilesXY[1]);
-        make_uniform(i, osmtile_lowestX, texture_ctx.osmtile_lowestXY[0]);
-        make_uniform(i, osmtile_lowestY, texture_ctx.osmtile_lowestXY[1]);
+        // These may be modified at runtime, so I make, but don't set
+        ctx->uniform_aspect           = glGetUniformLocation(program, "aspect");           assert_opengl();
+        ctx->uniform_az_deg0          = glGetUniformLocation(program, "az_deg0");          assert_opengl();
+        ctx->uniform_az_deg1          = glGetUniformLocation(program, "az_deg1");          assert_opengl();
+        ctx->uniform_viewer_cell_i    = glGetUniformLocation(program, "viewer_cell_i");    assert_opengl();
+        ctx->uniform_viewer_cell_j    = glGetUniformLocation(program, "viewer_cell_j");    assert_opengl();
+        ctx->uniform_viewer_z         = glGetUniformLocation(program, "viewer_z");         assert_opengl();
+        ctx->uniform_viewer_lat       = glGetUniformLocation(program, "viewer_lat");       assert_opengl();
+        ctx->uniform_cos_viewer_lat   = glGetUniformLocation(program, "cos_viewer_lat");   assert_opengl();
+        ctx->uniform_texturemap_lon0  = glGetUniformLocation(program, "texturemap_lon0");  assert_opengl();
+        ctx->uniform_texturemap_lon1  = glGetUniformLocation(program, "texturemap_lon1");  assert_opengl();
+        ctx->uniform_texturemap_dlat0 = glGetUniformLocation(program, "texturemap_dlat0"); assert_opengl();
+        ctx->uniform_texturemap_dlat1 = glGetUniformLocation(program, "texturemap_dlat1"); assert_opengl();
+        ctx->uniform_texturemap_dlat2 = glGetUniformLocation(program, "texturemap_dlat2"); assert_opengl();
+#undef make_and_set_uniform
 
-#undef make_uniform
-    }
+        // And I set the other uniforms
+        horizonator_move_viewer_keep_data(ctx, viewer_lat, viewer_lon);
+   }
 
     result = true;
 
  done:
-    if(dem_context_inited)
-        horizonator_dem_deinit(&dem_context);
+    if(dem_context_inited && !result)
+        horizonator_dem_deinit(&ctx->dems);
 
     return result;
+}
+
+void horizonator_move_viewer_keep_data(const horizonator_context_t* ctx,
+                                       float viewer_lat, float viewer_lon)
+{
+    void texture_coeffs(// output
+                        float* lon0,
+                        float* lon1,
+                        float* dlat0,
+                        float* dlat1,
+                        float* dlat2,
+
+                        // input
+                        float lat_center)
+    {
+        // The spherical equirectangular latlon-to-projection equations
+        // (from https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames):
+        //
+        //    xtile(lon) = n * (lon + pi)/(2pi)
+        //    ytile(lat) = n/2 * (1 - log( (sin(lat) + 1)/cos(lat) ) / pi)
+        //
+        // The lon expression is linear, so I compute the two exact
+        // coefficients. The lat expression is not linear. I compute the
+        // 2nd-order taylor-series approximation (around the viewer
+        // position), and store those coefficients. Let lat,lon be in
+        // radians.
+        //
+        // xtile increases with lon
+        // ytile decreases with lat
+
+        float n = (float)(1 << OSM_RENDER_ZOOM);
+
+        *lon0 = n / 2.0f;
+        *lon1 = n / ((float)M_PI * 2.0f);
+
+        // The derivatives are
+        //
+        //    ytile'(lat)  = -n/(2*pi*cos(lat))
+        //    ytile''(lat) = -n/(2*pi)*tan(lat)/cos(lat)
+        //
+        // Let
+        //    k = -n/(2*pi), c = cos(lat_center), t = tan(lat_center), dlat = lat-lat_center
+        //
+        //    ytile(lat_center)  = n/2 + k*log( t + 1/c )
+        //    ytile'(lat_center) = k / c
+        //    ytile''(lat_center)= k * t / c
+        //
+        // Thus
+        //
+        //    ytile(lat) ~ ytile(lat_center) + ytile'(lat_center)*dlat + 1/2*ytile''(lat_center)*dlat^2
+        lat_center *= (float)M_PI / 180.0f;
+        float k = -n / ((float)M_PI * 2.0f);
+        float t = tanf( lat_center );
+        float c = cosf( lat_center );
+        *dlat0 = n/2.0f + k*logf( t + 1.0f/c );
+        *dlat1 = k / c;
+        *dlat2 = k * t / c / 2.0f;
+    }
+
+    float lon0,lon1,dlat0,dlat1,dlat2;
+    texture_coeffs(&lon0,&lon1,&dlat0,&dlat1,&dlat2,
+                   viewer_lat);
+
+    float viewer_cell_i =
+        (viewer_lon - ctx->dems.origin_dem_lon_lat[0]) * CELLS_PER_DEG -
+        ctx->dems.origin_dem_cellij[0];
+    float viewer_cell_j =
+        (viewer_lat - ctx->dems.origin_dem_lon_lat[1]) * CELLS_PER_DEG -
+        ctx->dems.origin_dem_cellij[1];
+
+
+    // The viewer elevation. I nudge it up a tiny bit to not see fewer bumps
+    // immediately around me
+    int i0 = (int)floorf(viewer_cell_i);
+    int j0 = (int)floorf(viewer_cell_j);
+    float viewer_z =
+        fmaxf( fmaxf(horizonator_dem_sample( &ctx->dems, i0,   j0),
+                     horizonator_dem_sample( &ctx->dems, i0+1, j0)),
+               fmaxf(horizonator_dem_sample( &ctx->dems, i0,   j0+1 ),
+                     horizonator_dem_sample( &ctx->dems, i0+1, j0+1 )) ) + 1.0;
+
+    glUniform1f(ctx->uniform_viewer_cell_i,    viewer_cell_i);
+    assert_opengl();
+    glUniform1f(ctx->uniform_viewer_cell_j,    viewer_cell_j);
+    assert_opengl();
+    glUniform1f(ctx->uniform_viewer_z,         viewer_z);
+    assert_opengl();
+    glUniform1f(ctx->uniform_viewer_lat,             viewer_lat * M_PI / 180.0f );
+    assert_opengl();
+    glUniform1f(ctx->uniform_cos_viewer_lat,   cosf( viewer_lat * M_PI / 180.0f ));
+    assert_opengl();
+    glUniform1f(ctx->uniform_texturemap_lon0,  lon0);
+    assert_opengl();
+    glUniform1f(ctx->uniform_texturemap_lon1,  lon1);
+    assert_opengl();
+    glUniform1f(ctx->uniform_texturemap_dlat0, dlat0);
+    assert_opengl();
+    glUniform1f(ctx->uniform_texturemap_dlat1, dlat1);
+    assert_opengl();
+    glUniform1f(ctx->uniform_texturemap_dlat2, dlat2);
+    assert_opengl();
 }
 
 bool horizonator_zoom(const horizonator_context_t* ctx,

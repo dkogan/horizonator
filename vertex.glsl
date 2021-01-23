@@ -8,7 +8,7 @@ layout (location = 0) in vec3 vertex;
 uniform float viewer_cell_i, viewer_cell_j;
 uniform float viewer_z;
 uniform float DEG_PER_CELL;
-uniform float sin_viewer_lat, cos_viewer_lat;
+uniform float cos_viewer_lat;
 uniform float az_deg0, az_deg1;
 uniform float aspect;
 

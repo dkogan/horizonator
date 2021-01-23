@@ -46,33 +46,16 @@ static void redraw_slippymap( void* mapctrl )
     reinterpret_cast<orb_mapctrl*>(mapctrl)->redraw();
 }
 
-static void newrender(float lat, float lon)
+static void newrender(const horizonator_context_t* ctx,
+                      float lat, float lon)
 {
     g_view.lat = lat;
     g_view.lon = lon;
-}
 
-static void callback_slippymap(Fl_Widget* slippymap __attribute__((unused)),
-                               void*      cookie    __attribute__((unused)) )
-{
-    // Something happened with the slippy-map. If it's a right-click then I do
-    // stuff
-    if(! (Fl::event()        == FL_PUSH &&
-          Fl::event_button() == FL_RIGHT_MOUSE ))
-        return;
-
-    // right mouse button pressed
-    orb_point<double> gps;
-    if( g_slippymap->mousegps(gps) != 0 )
-    {
-        MSG("couldn't get mouse click latlon position for some reason...");
-        return;
-    }
-
-    float lat = (float)gps.get_y();
-    float lon = (float)gps.get_x();
-
-    newrender(lat,lon);
+    // If the context hasn't been inited yet, I don't move the map. It will load
+    // later, in the already-correct spot
+    if(horizonator_context_isvalid(ctx))
+        horizonator_move_viewer_keep_data(ctx, lat, lon);
 }
 
 class GLWidget : public Fl_Gl_Window
@@ -102,9 +85,14 @@ public:
         m_polygon_mode_idx = 0;
     }
 
+    const horizonator_context_t* ctx(void)
+    {
+        return &m_ctx;
+    }
+
     void draw(void)
     {
-        if(m_ctx.Ntriangles == 0)
+        if(!horizonator_context_isvalid(&m_ctx))
         {
             // Docs say to init this here. I don't know why.
             // https://www.fltk.org/doc-1.3/opengl.html
@@ -257,6 +245,32 @@ public:
     }
 };
 
+static void callback_slippymap(Fl_Widget* slippymap __attribute__((unused)),
+                               void*      cookie )
+{
+    // Something happened with the slippy-map. If it's a right-click then I do
+    // stuff
+    if(! (Fl::event()        == FL_PUSH &&
+          Fl::event_button() == FL_RIGHT_MOUSE ))
+        return;
+
+    // right mouse button pressed
+    orb_point<double> gps;
+    if( g_slippymap->mousegps(gps) != 0 )
+    {
+        MSG("couldn't get mouse click latlon position for some reason...");
+        return;
+    }
+
+    float lat = (float)gps.get_y();
+    float lon = (float)gps.get_x();
+
+    GLWidget** ppw = (GLWidget**)cookie;
+    const horizonator_context_t* ctx = (*ppw)->ctx();
+    newrender(ctx, lat, lon);
+    (*ppw)->redraw();
+}
+
 int main(int argc, char** argv)
 {
     const char* usage =
@@ -314,7 +328,7 @@ int main(int argc, char** argv)
         layers.push_back(g_slippymap_annotations);
         g_slippymap->layers(layers);
 
-        g_slippymap->callback( &callback_slippymap, NULL );
+        g_slippymap->callback( &callback_slippymap, (void*)&g_gl_widget );
     }
     {
         g_gl_widget = new GLWidget(0, map_h, g_window->w(), g_window->h()-map_h);
@@ -324,7 +338,8 @@ int main(int argc, char** argv)
     g_window->end();
     g_window->show();
 
-    newrender(34.2884, -117.7134);
+    newrender(g_gl_widget->ctx(),
+              34.2884, -117.7134);
 
     Fl::run();
 
