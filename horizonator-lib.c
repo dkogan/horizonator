@@ -160,8 +160,9 @@ bool horizonator_init1( // output
         int osmtile_highestXY[2];
 
     } texture_ctx_t;
-
     texture_ctx_t texture_ctx = {};
+
+    ctx->render_texture = render_texture;
 
     if(render_texture)
     {

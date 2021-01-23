@@ -5,7 +5,8 @@
 
 typedef struct
 {
-    int     Ntriangles;
+    int Ntriangles;
+    bool render_texture;
 
     // These are GLint. I don't want to #include <GL.h>. I will static_assert()
     // this in the .c to make sure they are compatible
