@@ -10,7 +10,7 @@ VERSION := $(ABI_VERSION).$(TAIL_VERSION)
 ################# standalone tool ###############
 BIN_SOURCES += standalone.c
 
-standalone: dem.o render_terrain.o
+standalone: dem.o horizonator-lib.o
 
 LDLIBS += \
   -lGLU -lGL -lepoxy -lglut \
@@ -20,7 +20,7 @@ LDLIBS += \
 
 CFLAGS += --std=gnu99 -Wno-missing-field-initializers
 
-render_terrain.o: vertex.glsl.h geometry.glsl.h fragment.glsl.h
+horizonator-lib.o: vertex.glsl.h geometry.glsl.h fragment.glsl.h
 
 %.glsl.h: %.glsl
 	sed 's/.*/"&\\n"/g' $^ > $@.tmp && mv $@.tmp $@

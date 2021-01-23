@@ -6,7 +6,7 @@
 #include <FreeImage.h>
 #include <math.h>
 
-#include "render_terrain.h"
+#include "horizonator.h"
 
 int main(int argc, char* argv[])
 {

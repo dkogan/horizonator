@@ -15,7 +15,7 @@
 
 #include <FreeImage.h>
 
-#include "render_terrain.h"
+#include "horizonator.h"
 #include "bench.h"
 #include "dem.h"
 #include "util.h"
