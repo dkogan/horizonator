@@ -67,7 +67,7 @@ public:
                                    ".", "/home/dima/.horizonator/tiles",
                                    true))
             {
-                MSG("%s(): horizonator_init1() failed. Giving up", __func__);
+                MSG("horizonator_init1() failed. Giving up");
                 exit(1);
             };
 
@@ -75,7 +75,7 @@ public:
                                  az_center_deg - az_radius_deg,
                                  az_center_deg + az_radius_deg))
             {
-                MSG("%s(): horizonator_zoom() failed. Giving up", __func__);
+                MSG("horizonator_zoom() failed. Giving up");
                 exit(1);
             };
         }
