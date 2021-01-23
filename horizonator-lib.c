@@ -596,7 +596,6 @@ bool horizonator_init1( // output
     }
 
     ctx->elevation_viewer = viewer_z;
-    ctx->PolygonMode      = PM_FILL;
 
     result = true;
 
@@ -667,9 +666,6 @@ void horizonator_resized(const horizonator_context_t* ctx, int width, int height
 void horizonator_redraw(const horizonator_context_t* ctx)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    const GLenum pmMap[] = {GL_FILL, GL_LINE, GL_POINT};
-    glPolygonMode(GL_FRONT_AND_BACK, pmMap[ ctx->PolygonMode ] );
     glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
 }
 
@@ -822,6 +818,8 @@ bool horizonator_allinone_glut_loop( bool render_texture,
     }
 
     GLenum winding = GL_CCW;
+    const GLenum polygon_modes[] = {GL_FILL, GL_LINE, GL_POINT};
+    int polygon_mode_idx = 0;
     void window_keyPressed(unsigned char key,
                            int x __attribute__((unused)) ,
                            int y __attribute__((unused)) )
@@ -829,8 +827,11 @@ bool horizonator_allinone_glut_loop( bool render_texture,
         switch (key)
         {
         case 'w':
-            if(++ctx.PolygonMode == PM_NUM)
-                ctx.PolygonMode = 0;
+            ;
+            if(++polygon_mode_idx == sizeof(polygon_modes)/sizeof(polygon_modes[0]))
+                polygon_mode_idx = 0;
+
+            glPolygonMode(GL_FRONT_AND_BACK, polygon_modes[ polygon_mode_idx ] );
             break;
 
         case 'r':

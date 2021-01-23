@@ -11,9 +11,7 @@ typedef struct
     // this in the .c to make sure they are compatible
     int32_t uniform_aspect, uniform_az_deg0, uniform_az_deg1;
 
-    float   elevation_viewer;
-
-    enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode;
+    float elevation_viewer;
 } horizonator_context_t;
 
 
