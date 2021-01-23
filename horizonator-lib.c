@@ -91,8 +91,6 @@ bool horizonator_init1( // output
                        // input
                        bool render_texture,
 
-                       // Will be nudged a bit. The latlon we will use are
-                       // returned in the context
                        float viewer_lat, float viewer_lon,
 
                        const char* dir_dems,
@@ -353,15 +351,14 @@ bool horizonator_init1( // output
 
 
 
-        computeTextureMapInterpolationCoeffs(&texture_ctx,
-                                             dem_context.viewer_lon_lat[1]);
+        computeTextureMapInterpolationCoeffs(&texture_ctx, viewer_lat);
 
-        // My render data is in a grid centered on dem_context.viewer_lon_lat[1]/dem_context.viewer_lon_lat[0], branching
+        // My render data is in a grid centered on viewer_lat/viewer_lon, branching
         // RENDER_RADIUS*DEG_PER_CELL degrees in all 4 directions
-        float lowest_E  = dem_context.viewer_lon_lat[0] - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float lowest_N  = dem_context.viewer_lon_lat[1] - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float highest_E = dem_context.viewer_lon_lat[0] + (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float highest_N = dem_context.viewer_lon_lat[1] + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float lowest_E  = viewer_lon - (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float lowest_N  = viewer_lat - (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float highest_E = viewer_lon + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        float highest_N = viewer_lat + (float)RENDER_RADIUS/CELLS_PER_DEG;
 
         // ytile decreases with lat, so I treat it backwards
         getOSMTileID( &texture_ctx.osmtile_lowestXY[0],
@@ -435,7 +432,7 @@ bool horizonator_init1( // output
 #error "This path requires floating-point vertices"
 #endif
                 const float Rearth = 6371000.0;
-                const float cos_viewer_lat = cosf( M_PI / 180.0f * dem_context.viewer_lon_lat[1] );
+                const float cos_viewer_lat = cosf( M_PI / 180.0f * viewer_lat );
                 float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
                 float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
                 float h = (float)z - viewer_z;
@@ -451,7 +448,7 @@ bool horizonator_init1( // output
 #error "This path requires floating-point vertices"
 #endif
                 const float Rearth = 6371000.0;
-                const float cos_viewer_lat = cosf( M_PI / 180.0f * dem_context.viewer_lon_lat[1] );
+                const float cos_viewer_lat = cosf( M_PI / 180.0f * viewer_lat );
                 float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
                 float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
                 float h = (float)z - viewer_z;
@@ -567,8 +564,8 @@ bool horizonator_init1( // output
         make_uniform(f, viewer_cell_j,  viewer_cell[1]);
         make_uniform(f, viewer_z,       viewer_z);
         make_uniform(f, DEG_PER_CELL,   1.0f/ (float)CELLS_PER_DEG );
-        make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
-        make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
+        make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * viewer_lat ));
+        make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * viewer_lat ));
 
         // These may be modified at runtime, so I do it manually, without make_uniform()
         ctx->uniform_aspect  = glGetUniformLocation(program, "aspect");  assert_opengl();
@@ -576,7 +573,7 @@ bool horizonator_init1( // output
         ctx->uniform_az_deg1 = glGetUniformLocation(program, "az_deg1"); assert_opengl();
 
         // For texturing. If we're not texturing, NtilesXY[0] will be 0
-        make_uniform(f, viewer_lat,     dem_context.viewer_lon_lat[1] * M_PI / 180.0f );
+        make_uniform(f, viewer_lat,     viewer_lat * M_PI / 180.0f );
         make_uniform(f, origin_cell_lon_deg,
                      (float)dem_context.origin_dem_lon_lat[0] +
                      (float)dem_context.origin_dem_cellij[0] / (float)CELLS_PER_DEG);
@@ -625,8 +622,6 @@ static bool init( // output
                  bool render_offscreen,
                  bool render_texture,
 
-                 // Will be nudged a bit. The latlon we will use are
-                 // returned in the context
                  float viewer_lat, float viewer_lon,
 
                  // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth

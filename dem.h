@@ -26,12 +26,6 @@ typedef struct
 
     // How many DEMs, in each direction
     int            Ndems_ij          [2];
-
-    // The viewer is sitting at the center of the data, between cell indices
-    // radius_cells-1 and radius_cells. These viewer coordinates are whatever is
-    // input to dem_init(), nudged a bit to avoid sitting directly on a grid
-    // lattice point. That avoids floating-point uncertainty
-    float viewer_lon_lat[2];
 } dem_context_t;
 
 

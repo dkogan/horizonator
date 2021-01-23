@@ -21,8 +21,6 @@ bool horizonator_init1( // output
                        // input
                        bool render_texture,
 
-                       // Will be nudged a bit. The latlon we will use are
-                       // returned in the context
                        float viewer_lat, float viewer_lon,
 
                        const char* dir_dems,

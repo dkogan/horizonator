@@ -63,27 +63,18 @@ bool dem_init(// output
               int radius_cells,
               const char* datadir )
 {
-    *ctx = (dem_context_t){ .viewer_lon_lat = {viewer_lon, viewer_lat} };
+    *ctx = (dem_context_t){};
+
+    const float viewer_lon_lat[] = {viewer_lon, viewer_lat};
 
     for(int i=0; i<2; i++)
     {
-        // If the viewer sits directly on a grid value, I nudge them a bit to
-        // resolve the potential ambiguity
-        float cell_idx         = ctx->viewer_lon_lat[i] * CELLS_PER_DEG;
-        float cell_idx_rounded = roundf( cell_idx );
-
-        if( fabsf( cell_idx - cell_idx_rounded ) < 0.1f )
-        {
-            if( cell_idx > cell_idx_rounded ) ctx->viewer_lon_lat[i] += 0.1f/CELLS_PER_DEG;
-            else                              ctx->viewer_lon_lat[i] -= 0.1f/CELLS_PER_DEG;
-        }
-
         // If radius == 1 -> N = 2 and center = 1.5 -> I have cells 1,2. Same
         // with center = 1.anything
         //
         //   icell_origin  = floor(latlon_view * CELLS_PER_DEG) - (radius-1)
         //   latlon_origin = floor(icell_origin / CELLS_PER_DEG)
-        int   icell_origin   = floor(ctx->viewer_lon_lat[i] * CELLS_PER_DEG) - (radius_cells-1);
+        int   icell_origin   = floor(viewer_lon_lat[i] * CELLS_PER_DEG) - (radius_cells-1);
         float origin_lon_lat = (float)icell_origin / (float)CELLS_PER_DEG;
 
         // Which DEM contains the SW corner of the render data
@@ -95,8 +86,8 @@ bool dem_init(// output
         ctx->origin_dem_cellij [i] = (int)round( (origin_lon_lat - ctx->origin_dem_lon_lat[i]) * CELLS_PER_DEG );
 
         // Let's confirm I did the right thing.
-        assert( radius_cells-1 < (ctx->viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
-        assert( radius_cells   > (ctx->viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
+        assert( radius_cells-1 < (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
+        assert( radius_cells   > (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
 
 
         // I will have 2*radius_cells
