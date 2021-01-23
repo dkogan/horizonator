@@ -33,8 +33,8 @@ class GLWidget : public Fl_Gl_Window
 
     GLenum m_winding;
     int    m_polygon_mode_idx;
-    float  az_center_deg;
-    float  az_radius_deg;
+    float  m_az_center_deg;
+    float  m_az_radius_deg;
 
 
 public:
@@ -49,8 +49,8 @@ public:
         m_polygon_mode_idx = 0;
 
         // Look North initially, with some arbitrary field of view
-        az_center_deg = 0.0f;
-        az_radius_deg = 30.0f;
+        m_az_center_deg = 0.0f;
+        m_az_radius_deg = 30.0f;
     }
 
     void draw(void)
@@ -72,8 +72,8 @@ public:
             }
 
             if(!horizonator_zoom(&m_ctx,
-                                 az_center_deg - az_radius_deg,
-                                 az_center_deg + az_radius_deg))
+                                 m_az_center_deg - m_az_radius_deg,
+                                 m_az_center_deg + m_az_radius_deg))
             {
                 MSG("horizonator_zoom() failed. Giving up");
                 exit(1);
@@ -140,16 +140,16 @@ public:
         case FL_MOUSEWHEEL:
 
             const float pixels_to_move_rad = 100.0f;
-            az_center_deg += az_radius_deg * (float)Fl::event_dx() / pixels_to_move_rad;
+            m_az_center_deg += m_az_radius_deg * (float)Fl::event_dx() / pixels_to_move_rad;
 
             const float pixels_to_double = 20.0f;
             float r = exp2((float)Fl::event_dy() / pixels_to_double);
-            az_radius_deg *= r;
-            if     (az_radius_deg < 1.0f)  az_radius_deg = 1.0f;
-            else if(az_radius_deg > 179.f) az_radius_deg = 179.f;
+            m_az_radius_deg *= r;
+            if     (m_az_radius_deg < 1.0f)  m_az_radius_deg = 1.0f;
+            else if(m_az_radius_deg > 179.f) m_az_radius_deg = 179.f;
             if(!horizonator_zoom(&m_ctx,
-                                 az_center_deg - az_radius_deg,
-                                 az_center_deg + az_radius_deg))
+                                 m_az_center_deg - m_az_radius_deg,
+                                 m_az_center_deg + m_az_radius_deg))
             {
                 MSG("horizonator_zoom() failed. Giving up");
                 delete g_window;
