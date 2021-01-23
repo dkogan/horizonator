@@ -33,6 +33,8 @@ class GLWidget : public Fl_Gl_Window
 
     GLenum m_winding;
     int    m_polygon_mode_idx;
+    float  az_center_deg;
+    float  az_radius_deg;
 
 
 public:
@@ -46,6 +48,9 @@ public:
         m_winding          = GL_CCW;
         m_polygon_mode_idx = 0;
 
+        // Look North initially, with some arbitrary field of view
+        az_center_deg = 0.0f;
+        az_radius_deg = 30.0f;
     }
 
     void draw(void)
@@ -66,7 +71,9 @@ public:
                 exit(1);
             };
 
-            if(!horizonator_zoom(&m_ctx, -40, 100))
+            if(!horizonator_zoom(&m_ctx,
+                                 az_center_deg - az_radius_deg,
+                                 az_center_deg + az_radius_deg))
             {
                 MSG("%s(): horizonator_zoom() failed. Giving up", __func__);
                 exit(1);
@@ -129,6 +136,28 @@ public:
                 delete g_window;
                 return 1;
             }
+
+            break;
+
+        case FL_MOUSEWHEEL:
+
+            const float pixels_to_move_rad = 100.0f;
+            az_center_deg += az_radius_deg * (float)Fl::event_dx() / pixels_to_move_rad;
+
+            const float pixels_to_double = 20.0f;
+            float r = exp2((float)Fl::event_dy() / pixels_to_double);
+            az_radius_deg *= r;
+            if     (az_radius_deg < 1.0f)  az_radius_deg = 1.0f;
+            else if(az_radius_deg > 179.f) az_radius_deg = 179.f;
+            if(!horizonator_zoom(&m_ctx,
+                                 az_center_deg - az_radius_deg,
+                                 az_center_deg + az_radius_deg))
+            {
+                MSG("horizonator_zoom() failed. Giving up");
+                delete g_window;
+            }
+            redraw();
+            return 1;
 
         // case  FL_PUSH:
         //     // click
