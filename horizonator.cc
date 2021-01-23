@@ -35,7 +35,14 @@ class GLWidget : public Fl_Gl_Window
     int    m_polygon_mode_idx;
     float  m_az_center_deg;
     float  m_az_radius_deg;
+    int    m_last_drag_update_xy[2];
 
+
+    void clip_az_radius_deg(void)
+    {
+        if     (m_az_radius_deg < 1.0f)  m_az_radius_deg = 1.0f;
+        else if(m_az_radius_deg > 179.f) m_az_radius_deg = 179.f;
+    }
 
 public:
     GLWidget(int x, int y, int w, int h) :
@@ -138,31 +145,68 @@ public:
             break;
 
         case FL_MOUSEWHEEL:
-
-            const float pixels_to_move_rad = 100.0f;
-            m_az_center_deg += m_az_radius_deg * (float)Fl::event_dx() / pixels_to_move_rad;
-
-            const float pixels_to_double = 20.0f;
-            float r = exp2((float)Fl::event_dy() / pixels_to_double);
-            m_az_radius_deg *= r;
-            if     (m_az_radius_deg < 1.0f)  m_az_radius_deg = 1.0f;
-            else if(m_az_radius_deg > 179.f) m_az_radius_deg = 179.f;
-            if(!horizonator_zoom(&m_ctx,
-                                 m_az_center_deg - m_az_radius_deg,
-                                 m_az_center_deg + m_az_radius_deg))
             {
-                MSG("horizonator_zoom() failed. Giving up");
-                delete g_window;
+                // I pan and zoom with the horizontal/vertical mouse wheel
+                const float pixels_to_move_rad = 100.0f;
+                m_az_center_deg += m_az_radius_deg * (float)Fl::event_dx() / pixels_to_move_rad;
+
+                const float pixels_to_double = 20.0f;
+                const float r = exp2((float)Fl::event_dy() / pixels_to_double);
+                m_az_radius_deg *= r;
+                clip_az_radius_deg();
+                if(!horizonator_zoom(&m_ctx,
+                                     m_az_center_deg - m_az_radius_deg,
+                                     m_az_center_deg + m_az_radius_deg))
+                {
+                    MSG("horizonator_zoom() failed. Giving up");
+                    delete g_window;
+                }
+                redraw();
+                return 1;
             }
-            redraw();
-            return 1;
 
-        // case  FL_PUSH:
-        //     // click
-        //     updatething();
-        //     redraw();
-        //     return 1;
+        case FL_PUSH:
+            // I pan and zoom with left-click-and-drag
+            if(Fl::event_button() == FL_LEFT_MOUSE)
+            {
+                m_last_drag_update_xy[0] = Fl::event_x();
+                m_last_drag_update_xy[1] = Fl::event_y();
+                return 1;
+            }
+            break;
 
+        case FL_DRAG:
+            // I pan and zoom with left-click-and-drag
+            if(Fl::event_state() & FL_BUTTON1)
+            {
+                int dxy[] =
+                    {
+                        Fl::event_x() - m_last_drag_update_xy[0],
+                        Fl::event_y() - m_last_drag_update_xy[1]
+                    };
+
+                m_last_drag_update_xy[0] = Fl::event_x();
+                m_last_drag_update_xy[1] = Fl::event_y();
+
+                const float deg_per_pixel = 2.f*m_az_radius_deg/(float)pixel_w();
+                m_az_center_deg -= deg_per_pixel * (float)dxy[0];
+
+                const float pixels_to_double = 100.0f;
+                float r = exp2((float)dxy[1] / pixels_to_double);
+                m_az_radius_deg *= r;
+                clip_az_radius_deg();
+                if(!horizonator_zoom(&m_ctx,
+                                     m_az_center_deg - m_az_radius_deg,
+                                     m_az_center_deg + m_az_radius_deg))
+                {
+                    MSG("horizonator_zoom() failed. Giving up");
+                    delete g_window;
+                }
+
+                redraw();
+                return 1;
+            }
+            break;
         }
 
         return Fl_Gl_Window::handle(event);
