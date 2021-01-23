@@ -10,8 +10,6 @@ typedef struct
     // These are GLint. I don't want to #include <GL.h>. I will static_assert()
     // this in the .c to make sure they are compatible
     int32_t uniform_aspect, uniform_az_deg0, uniform_az_deg1;
-
-    float elevation_viewer;
 } horizonator_context_t;
 
 

@@ -595,8 +595,6 @@ bool horizonator_init1( // output
 #undef make_uniform
     }
 
-    ctx->elevation_viewer = viewer_z;
-
     result = true;
 
  done:
