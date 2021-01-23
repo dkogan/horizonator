@@ -52,11 +52,26 @@ int orb_tilecache::put(int z, int x, int y, void *buf, size_t nbytes,
 
     char path[1024];
     mkdir( basepath, 0777 );
-    snprintf(path, sizeof(path), "%s/%d", basepath, z);
+    if(sizeof(path) <= (unsigned)snprintf(path, sizeof(path), "%s/%d", basepath, z))
+    {
+        fprintf(stderr, "snprintf out of bounds\n");
+        return 1;
+    }
+
     mkdir( path, 0777 );
-    snprintf(path, sizeof(path), "%s/%d/%d", basepath, z, x);
+    if(sizeof(path) <= (unsigned)snprintf(path, sizeof(path), "%s/%d/%d", basepath, z, x))
+    {
+        fprintf(stderr, "snprintf out of bounds\n");
+        return 1;
+    }
+
     mkdir( path, 0777 );
-    snprintf(path, sizeof(path), "%s/%d/%d/%d.png", basepath, z, x, y);
+    if(sizeof(path) <= (unsigned)snprintf(path, sizeof(path), "%s/%d/%d/%d.png", basepath, z, x, y))
+    {
+        fprintf(stderr, "snprintf out of bounds\n");
+        return 1;
+    }
+
 
     int fd = open( path, O_CREAT | O_WRONLY, 0777  );
     if( fd <= 0 )
@@ -81,7 +96,11 @@ int orb_tilecache::get(int z, int x, int y, unsigned char **buf, size_t *nbytes)
     make_basepath();
 
     char path[1024];
-    snprintf(path, sizeof(path), "%s/%d/%d/%d.png", basepath, z, x, y);
+    if(sizeof(path) <= (unsigned)snprintf(path, sizeof(path), "%s/%d/%d/%d.png", basepath, z, x, y))
+    {
+        fprintf(stderr, "snprintf out of bounds\n");
+        return 1;
+    }
 
     struct stat filestat;
     if( stat( path, &filestat ) != 0 )
