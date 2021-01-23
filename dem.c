@@ -52,8 +52,8 @@ bool dem_filename(// output
     return true;
 }
 
-bool dem_init(// output
-              dem_context_t* ctx,
+bool horizonator_dem_init(// output
+              horizonator_dem_context_t* ctx,
 
               // input
               float viewer_lat,
@@ -63,7 +63,7 @@ bool dem_init(// output
               int radius_cells,
               const char* datadir )
 {
-    *ctx = (dem_context_t){};
+    *ctx = (horizonator_dem_context_t){};
 
     const float viewer_lon_lat[] = {viewer_lon, viewer_lat};
 
@@ -104,7 +104,7 @@ bool dem_init(// output
 
         if( ctx->Ndems_ij[i] > max_Ndems_ij )
         {
-            dem_deinit(ctx);
+            horizonator_dem_deinit(ctx);
             MSG("Requested radius too large. Increase the compile-time-constant max_Ndems_ij from the current value of %d", max_Ndems_ij);
             return false;
         }
@@ -121,7 +121,7 @@ bool dem_init(// output
                                i + ctx->origin_dem_lon_lat[0],
                                datadir) )
             {
-                dem_deinit(ctx);
+                horizonator_dem_deinit(ctx);
                 MSG("Couldn't construct DEM filename" );
                 return false;
             }
@@ -130,7 +130,7 @@ bool dem_init(// output
             ctx->mmap_fd[i][j] = open( filename, O_RDONLY );
             if( ctx->mmap_fd[i][j] <= 0 )
             {
-                dem_deinit(ctx);
+                horizonator_dem_deinit(ctx);
                 MSG("Warning: couldn't open DEM file '%s'. Assuming elevation=0 (sea surface?)", filename );
                 ctx->dems      [i][j] = NULL;
                 ctx->mmap_sizes[i][j] = 0;
@@ -145,14 +145,14 @@ bool dem_init(// output
 
             if( ctx->dems[i][j] == MAP_FAILED )
             {
-                dem_deinit(ctx);
+                horizonator_dem_deinit(ctx);
                 MSG("Couldn't mmap the DEM file '%s'", filename );
                 return false;
             }
 
             if( WDEM*WDEM*2 != sb.st_size )
             {
-                dem_deinit(ctx);
+                horizonator_dem_deinit(ctx);
                 MSG("The DEM file '%s' has unexpected size. Is this a 3-arc-sec SRTM DEM?", filename );
                 return false;
             }
@@ -161,7 +161,7 @@ bool dem_init(// output
     return true;
 }
 
-void dem_deinit( dem_context_t* ctx )
+void horizonator_dem_deinit( horizonator_dem_context_t* ctx )
 {
     for( int i=0; i<max_Ndems_ij; i++)
         for( int j=0; j<max_Ndems_ij; j++)
@@ -180,7 +180,7 @@ void dem_deinit( dem_context_t* ctx )
 }
 
 // Given coordinates index cells, in respect to the origin cell
-int16_t dem_sample(const dem_context_t* ctx,
+int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
                    // Positive = towards East
                    int i,
                    // Positive = towards North

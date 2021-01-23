@@ -102,7 +102,7 @@ bool horizonator_init1( // output
 
     bool          result             = false;
     bool          dem_context_inited = false;
-    dem_context_t dem_context;
+    horizonator_dem_context_t dem_context;
     float         viewer_cell[2];
 
 
@@ -111,7 +111,7 @@ bool horizonator_init1( // output
     glEnable(GL_CULL_FACE);
     glClearColor(0, 0, 1, 0);
 
-    if( !dem_init( &dem_context,
+    if( !horizonator_dem_init( &dem_context,
                    viewer_lat, viewer_lon,
                    RENDER_RADIUS,
                    dir_dems) )
@@ -128,10 +128,10 @@ bool horizonator_init1( // output
 
     // The viewer elevation. I nudge it up a tiny bit to not see the stuff
     // immediately around me
-    const float viewer_z = fmaxf( fmaxf(dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS-1),
-                                        dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS-1)),
-                                  fmaxf(dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS  ),
-                                        dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS  )) ) + 1.0;
+    const float viewer_z = fmaxf( fmaxf(horizonator_dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS-1),
+                                        horizonator_dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS-1)),
+                                  fmaxf(horizonator_dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS  ),
+                                        horizonator_dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS  )) ) + 1.0;
 
     // The spherical equirectangular latlon-to-projection equations (from
     // https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames):
@@ -386,7 +386,7 @@ bool horizonator_init1( // output
     //
     // I fill in the VBO. Each point is a 16-bit integer tuple
     // (ilon,ilat,height). The first 2 args are indices into the virtual DEM
-    // (accessed with dem_sample). The height is in meters
+    // (accessed with horizonator_dem_sample). The height is in meters
     {
         GLuint vertexArrayID;
         glGenVertexArrays(1, &vertexArrayID);
@@ -422,7 +422,7 @@ bool horizonator_init1( // output
         {
             for( int i=0; i<2*RENDER_RADIUS; i++ )
             {
-                int32_t z = dem_sample(&dem_context, i,j);
+                int32_t z = horizonator_dem_sample(&dem_context, i,j);
 
                 // Several paths are available. These require corresponding
                 // updates in the GLSL, and exist for testing
@@ -597,7 +597,7 @@ bool horizonator_init1( // output
 
  done:
     if(dem_context_inited)
-        dem_deinit(&dem_context);
+        horizonator_dem_deinit(&dem_context);
 
     return result;
 }

@@ -26,7 +26,7 @@ typedef struct
 
     // How many DEMs, in each direction
     int            Ndems_ij          [2];
-} dem_context_t;
+} horizonator_dem_context_t;
 
 
 // Prepare square set of cells for rendering. We abstract a set of DEM tiles,
@@ -34,14 +34,14 @@ typedef struct
 //
 // There are (2*radius_cells)**2 cells in the render. This may encompass
 // multiple DEMs. The data is prepared by calling this function, and can the be
-// queries by dem_sample(), which is agnostic about the multiple DEMs being
+// queries by horizonator_dem_sample(), which is agnostic about the multiple DEMs being
 // sampled
 //
 // The grid starts at the SW corner. DEM tiles are named from the SW point
 //
 // The viewer sits between cell radius_cells-1 and radius_cells
-bool dem_init(// output
-              dem_context_t* ctx,
+bool horizonator_dem_init(// output
+              horizonator_dem_context_t* ctx,
 
               // input
               float viewer_lat,
@@ -51,10 +51,10 @@ bool dem_init(// output
               int radius_cells,
               const char* datadir);
 
-void dem_deinit( dem_context_t* ctx );
+void horizonator_dem_deinit( horizonator_dem_context_t* ctx );
 
 // Given coordinates index cells, in respect to the origin cell
-int16_t dem_sample(const dem_context_t* ctx,
+int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
                    // Positive = towards East
                    int i,
                    // Positive = towards North
