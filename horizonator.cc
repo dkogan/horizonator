@@ -69,7 +69,7 @@ public:
             {
                 MSG("horizonator_init1() failed. Giving up");
                 exit(1);
-            };
+            }
 
             if(!horizonator_zoom(&m_ctx,
                                  az_center_deg - az_radius_deg,
@@ -77,13 +77,11 @@ public:
             {
                 MSG("horizonator_zoom() failed. Giving up");
                 exit(1);
-            };
+            }
         }
 
         if(!valid())
-        {
             horizonator_resized(&m_ctx, pixel_w(), pixel_h());
-        }
         horizonator_redraw(&m_ctx);
     }
 
