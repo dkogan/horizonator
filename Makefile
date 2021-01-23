@@ -6,17 +6,16 @@ TAIL_VERSION := 1
 
 VERSION := $(ABI_VERSION).$(TAIL_VERSION)
 
-
-################# standalone tool ###############
-BIN_SOURCES += standalone.c
-
-standalone: dem.o horizonator-lib.o
-
 LDLIBS += \
   -lGLU -lGL -lepoxy -lglut \
   -lfreeimage \
   -lm \
   -pthread
+
+################# standalone tool ###############
+BIN_SOURCES += standalone.c
+
+standalone: horizonator-lib.o dem.o
 
 CFLAGS += --std=gnu99 -Wno-missing-field-initializers
 
@@ -37,7 +36,7 @@ FLORB_SOURCES := $(wildcard			\
                      florb/Fl/*.cpp)
 FLORB_OBJECTS   := $(addsuffix .o,$(basename $(FLORB_SOURCES)))
 
-horizonator: $(FLORB_OBJECTS)
+horizonator: $(FLORB_OBJECTS) horizonator-lib.o dem.o
 
 LDLIBS_FLORB := \
  $(shell fltk-config --use-images --ldflags) \
@@ -57,7 +56,7 @@ CXXFLAGS_FLORB := \
  $(shell pkg-config --cflags tinyxml)
 
 horizonator.o $(FLORB_OBJECTS): CXXFLAGS += $(CXXFLAGS_FLORB)
-horizonator: LDLIBS += $(LDLIBS_FLORB)
+horizonator: LDLIBS += $(LDLIBS_FLORB) -lfltk_gl
 
 florb/orb_mapctrl.o:   CXXFLAGS += -Wno-empty-body
 florb/orb_tilecache.o: CXXFLAGS += -Wno-unused-parameter
