@@ -203,7 +203,7 @@ int main(int argc, char** argv)
 
     std::vector<orb_layer*> layers;
     orb_mapctrl*            slippymap;
-    GLWidget*               gl_widget;
+    GLWidget*               gl_widget __attribute__((unused));
 
     g_window = new Fl_Double_Window( WINDOW_W, WINDOW_H, "Horizonator" );
 
