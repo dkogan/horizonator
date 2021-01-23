@@ -48,7 +48,7 @@ public:
     GLWidget(int x, int y, int w, int h) :
         Fl_Gl_Window(x, y, w, h)
     {
-        mode(FL_RGB8 | FL_DOUBLE | FL_OPENGL3);
+        mode(FL_RGB8 | FL_DOUBLE | FL_OPENGL3 | FL_DEPTH);
         m_ctx = (horizonator_context_t){};
 
 
