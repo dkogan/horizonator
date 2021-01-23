@@ -172,10 +172,10 @@ int main(int argc, char* argv[])
 
     if(output == NULL)
     {
-        render_to_window(render_texture,
-                         lat, lon, az_deg0, az_deg1,
-                         dir_dems, dir_tiles,
-                         allow_downloads);
+        horizonator_glut_loop(render_texture,
+                              lat, lon, az_deg0, az_deg1,
+                              dir_dems, dir_tiles,
+                              allow_downloads);
         return 0;
     }
 
@@ -191,11 +191,11 @@ int main(int argc, char* argv[])
     int height = (int)roundf( (float)width * fovy_deg / (az_deg1-az_deg0));
 
     char* image =
-        render_to_image(render_texture,
-                        lat, lon, az_deg0, az_deg1,
-                        width, height,
-                        dir_dems, dir_tiles,
-                        allow_downloads);
+        horizonator_oneshot_render_to_image(render_texture,
+                                            lat, lon, az_deg0, az_deg1,
+                                            width, height,
+                                            dir_dems, dir_tiles,
+                                            allow_downloads);
     if(image == NULL)
     {
         fprintf(stderr, "Image render failed\n");

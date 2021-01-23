@@ -1,34 +1,69 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
+
+typedef struct
+{
+    int     Ntriangles;
+
+    // These are GLint. I don't want to #include <GL.h>. I will static_assert()
+    // this in the .c to make sure they are compatible
+    int32_t uniform_aspect, uniform_az_deg0, uniform_az_deg1;
+
+    float   elevation_viewer;
+
+    enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode;
+} horizonator_context_t;
+
+
+bool horizonator_init0_glut(bool double_buffered);
+bool horizonator_init1( // output
+                       horizonator_context_t* ctx,
+
+                       // input
+                       bool render_texture,
+
+                       // Will be nudged a bit. The latlon we will use are
+                       // returned in the context
+                       float viewer_lat, float viewer_lon,
+
+                       const char* dir_dems,
+                       const char* dir_tiles,
+                       bool allow_downloads);
+
+void horizonator_resized(const horizonator_context_t* ctx, int width, int height);
+
+void horizonator_redraw(const horizonator_context_t* ctx);
+
 
 // returns the rendered image buffer. NULL on error. It is the caller's
 // responsibility to free() this buffer. The image data is packed
 // 24-bits-per-pixel BGR data stored row-first.
-char* render_to_image(bool render_texture,
-                      float viewer_lat, float viewer_lon,
+char* horizonator_oneshot_render_to_image(bool render_texture,
+                                          float viewer_lat, float viewer_lon,
 
-                      // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                      // edges lie at the edges of the image. So for an image that's
-                      // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                      // elevation extents will be chosen to keep the aspect ratio
-                      // square.
-                      float az_deg0, float az_deg1,
+                                          // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                                          // edges lie at the edges of the image. So for an image that's
+                                          // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                                          // elevation extents will be chosen to keep the aspect ratio
+                                          // square.
+                                          float az_deg0, float az_deg1,
 
-                      int width, int height,
-                      const char* dir_dems,
-                      const char* dir_tiles,
-                      bool allow_downloads);
+                                          int width, int height,
+                                          const char* dir_dems,
+                                          const char* dir_tiles,
+                                          bool allow_downloads);
 
-bool render_to_window( bool render_texture,
-                       float viewer_lat, float viewer_lon,
+bool horizonator_glut_loop( bool render_texture,
+                            float viewer_lat, float viewer_lon,
 
-                       // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                       // edges lie at the edges of the image. So for an image that's
-                       // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                       // elevation extents will be chosen to keep the aspect ratio
-                       // square.
-                       float az_deg0, float az_deg1,
-                       const char* dir_dems,
-                       const char* dir_tiles,
-                       bool allow_downloads);
+                            // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                            // edges lie at the edges of the image. So for an image that's
+                            // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                            // elevation extents will be chosen to keep the aspect ratio
+                            // square.
+                            float az_deg0, float az_deg1,
+                            const char* dir_dems,
+                            const char* dir_tiles,
+                            bool allow_downloads);

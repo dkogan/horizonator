@@ -15,6 +15,7 @@
 
 #include <FreeImage.h>
 
+#include "render_terrain.h"
 #include "bench.h"
 #include "dem.h"
 #include "util.h"
@@ -33,16 +34,6 @@
 #define OSM_TILE_HEIGHT     256
 
 
-typedef struct
-{
-    int    Ntriangles;
-    GLint  uniform_aspect;
-    float  elevation_viewer;
-
-    enum { PM_FILL, PM_LINE, PM_POINT, PM_NUM } PolygonMode;
-} horizonator_context_t;
-
-
 #define assert_opengl()                                 \
     do {                                                \
         int error = glGetError();                       \
@@ -53,33 +44,16 @@ typedef struct
         }                                               \
     } while(0)
 
-static bool init( // output
-                 horizonator_context_t* ctx,
 
-                 // input
-                 bool render_offscreen,
-                 bool render_texture,
-
-                 // Will be nudged a bit. The latlon we will use are
-                 // returned in the context
-                 float viewer_lat, float viewer_lon,
-
-                 // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                 // edges lie at the edges of the image. So for an image that's
-                 // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                 // elevation extents will be chosen to keep the aspect ratio
-                 // square.
-                 float az_deg0, float az_deg1,
-
-                 const char* dir_dems,
-                 const char* dir_tiles,
-                 bool allow_downloads)
+bool horizonator_init0_glut(bool double_buffered)
 {
+
     glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
     glutInitContextVersion(4,2);
     glutInitContextProfile(GLUT_CORE_PROFILE);
     glutInit(&(int){1}, &(char*){"exec"});
-    glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH | ( render_offscreen ? 0 : GLUT_DOUBLE ));
+    glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH |
+                         (double_buffered ? GLUT_DOUBLE : 0) );
 
     // when offscreen, I really don't want to glutCreateWindow(), but for some
     // reason not doing this causes glewInit() to segfault...
@@ -89,8 +63,8 @@ static bool init( // output
     MSG("glGetString(GL_VERSION) says we're using GL %s", version);
     MSG("Epoxy says we're using GL %d", epoxy_gl_version());
 
-    if (version[0] == '1') {
-        /* check for individual extensions */
+    if (version[0] == '1')
+    {
         if (!glutExtensionSupported("GL_ARB_vertex_shader")) {
             MSG("Sorry, GL_ARB_vertex_shader is required.");
             return false;
@@ -108,16 +82,37 @@ static bool init( // output
             return false;
         }
     }
+    return true;
+}
+
+bool horizonator_init1( // output
+                       horizonator_context_t* ctx,
+
+                       // input
+                       bool render_texture,
+
+                       // Will be nudged a bit. The latlon we will use are
+                       // returned in the context
+                       float viewer_lat, float viewer_lon,
+
+                       const char* dir_dems,
+                       const char* dir_tiles,
+                       bool allow_downloads)
+{
+    static_assert(sizeof(GLint) == sizeof(ctx->uniform_aspect),
+                  "horizonator_context_t.uniform_aspect must be a GLint");
+
+    bool          result             = false;
+    bool          dem_context_inited = false;
+    dem_context_t dem_context;
+    float         viewer_cell[2];
+
+
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glClearColor(0, 0, 1, 0);
 
-
-    bool result = false;
-
-    bool dem_context_inited = false;
-    dem_context_t dem_context;
     if( !dem_init( &dem_context,
                    viewer_lat, viewer_lon,
                    RENDER_RADIUS,
@@ -139,11 +134,6 @@ static bool init( // output
                                         dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS-1)),
                                   fmaxf(dem_sample( &dem_context, RENDER_RADIUS-1, RENDER_RADIUS  ),
                                         dem_sample( &dem_context, RENDER_RADIUS,   RENDER_RADIUS  )) ) + 1.0;
-
-    float viewer_cell[2];
-    for(int i=0; i<2; i++)
-        viewer_cell[i] =
-            (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
 
     // The spherical equirectangular latlon-to-projection equations (from
     // https://wiki.openstreetmap.org/wiki/Slippy_map_tilenames):
@@ -172,7 +162,6 @@ static bool init( // output
     } texture_ctx_t;
 
     texture_ctx_t texture_ctx = {};
-
 
     if(render_texture)
     {
@@ -427,6 +416,10 @@ static bool init( // output
 
         int vertex_buf_idx = 0;
 
+        for(int i=0; i<2; i++)
+            viewer_cell[i] =
+                (dem_context.viewer_lon_lat[i] - dem_context.origin_dem_lon_lat[i]) * CELLS_PER_DEG - dem_context.origin_dem_cellij[i];
+
         for( int j=0; j<2*RENDER_RADIUS; j++ )
         {
             for( int i=0; i<2*RENDER_RADIUS; i++ )
@@ -575,11 +568,11 @@ static bool init( // output
         make_uniform(f, DEG_PER_CELL,   1.0f/ (float)CELLS_PER_DEG );
         make_uniform(f, sin_viewer_lat, sin( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
         make_uniform(f, cos_viewer_lat, cos( M_PI / 180.0f * dem_context.viewer_lon_lat[1] ));
-        make_uniform(f, az_deg0,        az_deg0);
-        make_uniform(f, az_deg1,        az_deg1);
 
-        // This may be modified at runtime, so I do it manually, without make_uniform()
-        ctx->uniform_aspect = glGetUniformLocation(program, "aspect");
+        // These may be modified at runtime, so I do it manually, without make_uniform()
+        ctx->uniform_aspect  = glGetUniformLocation(program, "aspect");  assert_opengl();
+        ctx->uniform_az_deg0 = glGetUniformLocation(program, "az_deg0"); assert_opengl();
+        ctx->uniform_az_deg1 = glGetUniformLocation(program, "az_deg1"); assert_opengl();
 
         // For texturing. If we're not texturing, NtilesXY[0] will be 0
         make_uniform(f, viewer_lat,     dem_context.viewer_lon_lat[1] * M_PI / 180.0f );
@@ -614,46 +607,76 @@ static bool init( // output
     return result;
 }
 
+static bool init( // output
+                 horizonator_context_t* ctx,
 
-static void window_reshape(const horizonator_context_t* ctx, int width, int height)
+                 // input
+                 bool render_offscreen,
+                 bool render_texture,
+
+                 // Will be nudged a bit. The latlon we will use are
+                 // returned in the context
+                 float viewer_lat, float viewer_lon,
+
+                 // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                 // edges lie at the edges of the image. So for an image that's
+                 // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                 // elevation extents will be chosen to keep the aspect ratio
+                 // square.
+                 float az_deg0, float az_deg1,
+
+                 const char* dir_dems,
+                 const char* dir_tiles,
+                 bool allow_downloads)
 {
-  glViewport(0, 0, width, height);
+    if(!horizonator_init0_glut( !render_offscreen ))
+        return false;
 
-  glMatrixMode(GL_PROJECTION);
-  glLoadIdentity();
+    if(!horizonator_init1(ctx,
+                          render_texture,
+                          viewer_lat,       viewer_lon,
+                          dir_dems,         dir_tiles,
+                          allow_downloads))
+        return false;
 
-  glMatrixMode(GL_MODELVIEW);
-  glLoadIdentity();
-
-  glUniform1f(ctx->uniform_aspect, (float)width / (float)height);
+    glUniform1f( ctx->uniform_az_deg0, az_deg0); assert_opengl();
+    glUniform1f( ctx->uniform_az_deg1, az_deg1); assert_opengl();
+    return true;
 }
 
-static void draw(const horizonator_context_t* ctx)
-{
-  glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  const GLenum pmMap[] = {GL_FILL, GL_LINE, GL_POINT};
-  glPolygonMode(GL_FRONT_AND_BACK, pmMap[ ctx->PolygonMode ] );
-  glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
+void horizonator_resized(const horizonator_context_t* ctx, int width, int height)
+{
+    glViewport(0, 0, width, height);
+    glUniform1f(ctx->uniform_aspect, (float)width / (float)height);
+}
+
+void horizonator_redraw(const horizonator_context_t* ctx)
+{
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    const GLenum pmMap[] = {GL_FILL, GL_LINE, GL_POINT};
+    glPolygonMode(GL_FRONT_AND_BACK, pmMap[ ctx->PolygonMode ] );
+    glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
 }
 
 // returns the rendered image buffer. NULL on error. It is the caller's
 // responsibility to free() this buffer. The image data is packed
 // 24-bits-per-pixel BGR data stored row-first.
-char* render_to_image(bool render_texture,
-                      float viewer_lat, float viewer_lon,
+char* horizonator_oneshot_render_to_image(bool render_texture,
+                                          float viewer_lat, float viewer_lon,
 
-                      // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                      // edges lie at the edges of the image. So for an image that's
-                      // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                      // elevation extents will be chosen to keep the aspect ratio
-                      // square.
-                      float az_deg0, float az_deg1,
+                                          // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                                          // edges lie at the edges of the image. So for an image that's
+                                          // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                                          // elevation extents will be chosen to keep the aspect ratio
+                                          // square.
+                                          float az_deg0, float az_deg1,
 
-                      int width, int height,
-                      const char* dir_dems,
-                      const char* dir_tiles,
-                      bool allow_downloads)
+                                          int width, int height,
+                                          const char* dir_dems,
+                                          const char* dir_tiles,
+                                          bool allow_downloads)
 {
     char* result = NULL;
     char* img    = NULL;
@@ -711,8 +734,8 @@ char* render_to_image(bool render_texture,
       assert_opengl();
     }
 
-    window_reshape(&ctx, width, height);
-    draw(&ctx);
+    horizonator_resized(&ctx, width, height);
+    horizonator_redraw(&ctx);
 
     img = malloc( (width) * (height) * 3 );
     if(img == NULL)
@@ -754,18 +777,18 @@ char* render_to_image(bool render_texture,
     return result;
 }
 
-bool render_to_window( bool render_texture,
-                       float viewer_lat, float viewer_lon,
+bool horizonator_glut_loop( bool render_texture,
+                            float viewer_lat, float viewer_lon,
 
-                       // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                       // edges lie at the edges of the image. So for an image that's
-                       // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                       // elevation extents will be chosen to keep the aspect ratio
-                       // square.
-                       float az_deg0, float az_deg1,
-                       const char* dir_dems,
-                       const char* dir_tiles,
-                       bool allow_downloads)
+                            // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                            // edges lie at the edges of the image. So for an image that's
+                            // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                            // elevation extents will be chosen to keep the aspect ratio
+                            // square.
+                            float az_deg0, float az_deg1,
+                            const char* dir_dems,
+                            const char* dir_tiles,
+                            bool allow_downloads)
 {
     horizonator_context_t ctx;
 
@@ -781,7 +804,7 @@ bool render_to_window( bool render_texture,
 
     void window_display(void)
     {
-        draw(&ctx);
+        horizonator_redraw(&ctx);
         glutSwapBuffers();
     }
 
@@ -814,14 +837,14 @@ bool render_to_window( bool render_texture,
         glutPostRedisplay();
     }
 
-    void _window_reshape(int width, int height)
+    void _horizonator_resized(int width, int height)
     {
-        window_reshape(&ctx, width, height);
+        horizonator_resized(&ctx, width, height);
     }
 
     glutDisplayFunc (window_display);
     glutKeyboardFunc(window_keyPressed);
-    glutReshapeFunc (_window_reshape);
+    glutReshapeFunc (_horizonator_resized);
 
     int res = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     assert( res == GL_FRAMEBUFFER_COMPLETE );
