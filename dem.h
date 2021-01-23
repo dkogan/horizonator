@@ -26,6 +26,9 @@ typedef struct
 
     // How many DEMs, in each direction
     int            Ndems_ij          [2];
+
+    // Copy of RENDER_RADIUS
+    int radius_cells;
 } horizonator_dem_context_t;
 
 
@@ -59,3 +62,7 @@ int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
                    int i,
                    // Positive = towards North
                    int j);
+
+void horizonator_dem_bounds_latlon_deg(const horizonator_dem_context_t* ctx,
+                                       float* lat0, float* lon0,
+                                       float* lat1, float* lon1);

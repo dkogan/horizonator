@@ -63,7 +63,7 @@ bool horizonator_dem_init(// output
               int radius_cells,
               const char* datadir )
 {
-    *ctx = (horizonator_dem_context_t){};
+    *ctx = (horizonator_dem_context_t){.radius_cells = radius_cells};
 
     const float viewer_lon_lat[] = {viewer_lon, viewer_lat};
 
@@ -225,4 +225,25 @@ int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
     // Each value is big-endian, so I flip the bytes
     int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
     return (z < 0) ? 0 : z;
+}
+
+
+// Reports the lat/lon of the first and last cells. These are INCLUSIVE
+void horizonator_dem_bounds_latlon_deg(const horizonator_dem_context_t* ctx,
+                                       float* lat0, float* lon0,
+                                       float* lat1, float* lon1)
+{
+    *lon0 =
+        (float)ctx->origin_dem_lon_lat[0] +
+        (float)ctx->origin_dem_cellij[0] / (float)CELLS_PER_DEG;
+    *lat0 =
+        (float)ctx->origin_dem_lon_lat[1] +
+        (float)ctx->origin_dem_cellij[1] / (float)CELLS_PER_DEG;
+
+    *lon1 =
+        (float)ctx->origin_dem_lon_lat[0] +
+        ((float)ctx->origin_dem_cellij[0] + 2*ctx->radius_cells-1) / (float)CELLS_PER_DEG;
+    *lat1 =
+        (float)ctx->origin_dem_lon_lat[1] +
+        ((float)ctx->origin_dem_cellij[1] + 2*ctx->radius_cells-1) / (float)CELLS_PER_DEG;
 }

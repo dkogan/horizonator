@@ -245,7 +245,7 @@ public:
     }
 };
 
-static void callback_slippymap(Fl_Widget* slippymap __attribute__((unused)),
+static void callback_slippymap(Fl_Widget* slippymap,
                                void*      cookie )
 {
     // Something happened with the slippy-map. If it's a right-click then I do
@@ -256,7 +256,7 @@ static void callback_slippymap(Fl_Widget* slippymap __attribute__((unused)),
 
     // right mouse button pressed
     orb_point<double> gps;
-    if( g_slippymap->mousegps(gps) != 0 )
+    if( ((orb_mapctrl*)slippymap)->mousegps(gps) != 0 )
     {
         MSG("couldn't get mouse click latlon position for some reason...");
         return;
@@ -265,10 +265,11 @@ static void callback_slippymap(Fl_Widget* slippymap __attribute__((unused)),
     float lat = (float)gps.get_y();
     float lon = (float)gps.get_x();
 
-    GLWidget** ppw = (GLWidget**)cookie;
-    const horizonator_context_t* ctx = (*ppw)->ctx();
+    GLWidget* w = (GLWidget*)cookie;
+    const horizonator_context_t* ctx = w->ctx();
     newrender(ctx, lat, lon);
-    (*ppw)->redraw();
+    w->redraw();
+    slippymap->redraw();
 }
 
 int main(int argc, char** argv)
@@ -319,20 +320,23 @@ int main(int argc, char** argv)
         g_slippymap->labelsize(14);
         g_slippymap->labelcolor(FL_FOREGROUND_COLOR);
         g_slippymap->align(Fl_Align(FL_ALIGN_CENTER));
-
-        orb_osmlayer* osmlayer  = new orb_osmlayer;
-        g_slippymap_annotations = new SlippymapAnnotations(&g_view);
-        osmlayer->callback( &redraw_slippymap, g_slippymap );
-
-        layers.push_back(osmlayer);
-        layers.push_back(g_slippymap_annotations);
-        g_slippymap->layers(layers);
-
-        g_slippymap->callback( &callback_slippymap, (void*)&g_gl_widget );
     }
     {
         g_gl_widget = new GLWidget(0, map_h, g_window->w(), g_window->h()-map_h);
     }
+
+
+    orb_osmlayer* osmlayer  = new orb_osmlayer;
+    g_slippymap_annotations = new SlippymapAnnotations(&g_view, g_gl_widget->ctx());
+    osmlayer->callback( &redraw_slippymap, g_slippymap );
+
+    layers.push_back(osmlayer);
+    layers.push_back(g_slippymap_annotations);
+    g_slippymap->layers(layers);
+
+    g_slippymap->callback( &callback_slippymap, (void*)g_gl_widget );
+
+
 
     g_window->resizable(g_window);
     g_window->end();

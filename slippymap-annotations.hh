@@ -5,11 +5,18 @@
 #include "orb_viewport.hpp"
 #include "orb_layer.hpp"
 
+extern "C"
+{
+#include "horizonator.h"
+}
+
+
 // A class to markup the slippy map. It draws
 //
 // - The view point
 // - The bounds of the azimuth being viewed
 // - The point picked by the user from the render
+// - The extents of the loaded DEMs
 
 
 // this or less means "no pick". Duplicated in .cc
@@ -26,12 +33,14 @@ struct view_t
 class SlippymapAnnotations : public orb_layer
 {
     const view_t* view;
+    const horizonator_context_t* ctx;
+
     float pick_lat, pick_lon;
 
 public:
 
-    SlippymapAnnotations(const view_t* _view)
-        : view(_view),
+    SlippymapAnnotations(const view_t* _view, const horizonator_context_t* _ctx)
+        : view(_view), ctx(_ctx),
           pick_lat(MIN_VALID_ANGLE),
           pick_lon(MIN_VALID_ANGLE)
     {
