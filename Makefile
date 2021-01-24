@@ -1,4 +1,4 @@
-include /usr/include/mrbuild/Makefile.common.header
+include mrbuild/Makefile.common.header
 
 PROJECT_NAME := horizonator
 ABI_VERSION  := 0
@@ -61,4 +61,4 @@ horizonator: LDLIBS += $(LDLIBS_FLORB) -lfltk_gl
 florb/orb_mapctrl.o:   CXXFLAGS += -Wno-empty-body
 florb/orb_tilecache.o: CXXFLAGS += -Wno-unused-parameter
 
-include /usr/include/mrbuild/Makefile.common.footer
+include mrbuild/Makefile.common.footer
