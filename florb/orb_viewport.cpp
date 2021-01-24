@@ -207,7 +207,7 @@ int orb_viewport::w(unsigned int w)
         else
             m_x -= dx;
     } else {
-        dx = (m_w - w)/2;
+        dx = m_w - w;
         m_x += (dx/2);
     }
 
