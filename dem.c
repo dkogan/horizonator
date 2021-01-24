@@ -101,10 +101,12 @@ bool horizonator_dem_init(// output
         // This round() is here only for floating-point fuzz. It SHOULD be an integer already
         ctx->origin_dem_cellij [i] = (int)round( (origin_lon_lat - ctx->origin_dem_lon_lat[i]) * CELLS_PER_DEG );
 
-        // Let's confirm I did the right thing.
-        assert( radius_cells-1 < (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
-        assert( radius_cells   > (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
-
+        // Let's confirm I did the right thing....
+        // I'm disabling these asserts because floating-point fuzz may make them
+        // fail. I left them enabled long-enough to be confident that this stuff
+        // works
+        // assert( radius_cells-1 < (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
+        // assert( radius_cells   > (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
 
         // I will have 2*radius_cells
         int cellij_last = ctx->origin_dem_cellij[i] + radius_cells*2-1;
