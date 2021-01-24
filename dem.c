@@ -44,11 +44,27 @@ bool dem_filename(// output
         demfileE *= -1;
     }
 
-    if( snprintf(path, bufsize, "%s/%c%.2d%c%.3d.hgt",
-                 datadir,
-                 ns, demfileN, we, demfileE) >= bufsize )
-        return false;
-
+    if(datadir[0] == '~' && datadir[1] == '/' )
+    {
+        const char* home = getenv("HOME");
+        if(home == NULL)
+        {
+            MSG("User asked for ~, but the 'HOME' env var isn't defined");
+            return false;
+        }
+        if( snprintf(path, bufsize, "%s/%s/%c%.2d%c%.3d.hgt",
+                     home,
+                     &datadir[2],
+                     ns, demfileN, we, demfileE) >= bufsize )
+            return false;
+    }
+    else
+    {
+        if( snprintf(path, bufsize, "%s/%c%.2d%c%.3d.hgt",
+                     datadir,
+                     ns, demfileN, we, demfileE) >= bufsize )
+            return false;
+    }
     return true;
 }
 

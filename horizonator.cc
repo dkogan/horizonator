@@ -101,7 +101,8 @@ public:
                                    false,
                                    g_view.lat, g_view.lon,
 
-                                   ".", "/home/dima/.horizonator/tiles",
+                                   "~/.horizonator/DEMs_SRTM3",
+                                   "~/.horizonator/tiles",
                                    true))
             {
                 MSG("horizonator_init1() failed. Giving up");

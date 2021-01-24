@@ -195,9 +195,25 @@ bool horizonator_init1( // output
             char directory[256];
             int len;
 
-            len = snprintf(filename, sizeof(filename),
-                           "%s/%d/%d/%d.png",
-                           dir_tiles, OSM_RENDER_ZOOM, osmTileX, osmTileY);
+            if(dir_tiles[0] == '~' && dir_tiles[1] == '/' )
+            {
+                const char* home = getenv("HOME");
+                if(home == NULL)
+                {
+                    MSG("User asked for ~, but the 'HOME' env var isn't defined");
+                    assert(0);
+                }
+
+                len = snprintf(filename, sizeof(filename),
+                               "%s/%s/%d/%d/%d.png",
+                               home,
+                               &dir_tiles[2], OSM_RENDER_ZOOM, osmTileX, osmTileY);
+            }
+            else
+                len = snprintf(filename, sizeof(filename),
+                               "%s/%d/%d/%d.png",
+                               dir_tiles, OSM_RENDER_ZOOM, osmTileX, osmTileY);
+
             assert(len < (int)sizeof(filename));
 
 
