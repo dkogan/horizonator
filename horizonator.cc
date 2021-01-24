@@ -108,7 +108,7 @@ public:
                 exit(1);
             }
 
-            if(!horizonator_zoom(&m_ctx,
+            if(!horizonator_pan_zoom(&m_ctx,
                                  g_view.az_center_deg - g_view.az_radius_deg,
                                  g_view.az_center_deg + g_view.az_radius_deg))
             {
@@ -184,7 +184,7 @@ public:
                 const float r = exp2((float)Fl::event_dy() / pixels_to_double);
                 g_view.az_radius_deg *= r;
                 clip_az_radius_deg();
-                if(!horizonator_zoom(&m_ctx,
+                if(!horizonator_pan_zoom(&m_ctx,
                                      g_view.az_center_deg - g_view.az_radius_deg,
                                      g_view.az_center_deg + g_view.az_radius_deg))
                 {
@@ -230,23 +230,31 @@ public:
                         Fl::event_x() - m_last_drag_update_xy[0],
                         Fl::event_y() - m_last_drag_update_xy[1]
                     };
-
                 m_last_drag_update_xy[0] = Fl::event_x();
                 m_last_drag_update_xy[1] = Fl::event_y();
 
-                const float deg_per_pixel = 2.f*g_view.az_radius_deg/(float)pixel_w();
-                g_view.az_center_deg -= deg_per_pixel * (float)dxy[0];
-
-                const float pixels_to_double = 100.0f;
-                float r = exp2((float)dxy[1] / pixels_to_double);
-                g_view.az_radius_deg *= r;
-                clip_az_radius_deg();
-                if(!horizonator_zoom(&m_ctx,
-                                     g_view.az_center_deg - g_view.az_radius_deg,
-                                     g_view.az_center_deg + g_view.az_radius_deg))
+                // For friendlier UI, I handle either vertical or horizontal
+                // events at a time only. This prevents unintentional zooming
+                // while panning, and vice versa
+                if(dxy[0]*dxy[0] > dxy[1]*dxy[1])
+                {
+                    const float deg_per_pixel = 2.f*g_view.az_radius_deg/(float)pixel_w();
+                    g_view.az_center_deg -= deg_per_pixel * (float)dxy[0];
+                }
+                else
+                {
+                    const float pixels_to_double = 200.0f;
+                    float r = exp2((float)dxy[1] / pixels_to_double);
+                    g_view.az_radius_deg *= r;
+                    clip_az_radius_deg();
+                }
+                if(!horizonator_pan_zoom(&m_ctx,
+                                         g_view.az_center_deg - g_view.az_radius_deg,
+                                         g_view.az_center_deg + g_view.az_radius_deg))
                 {
                     MSG("horizonator_zoom() failed. Giving up");
                     delete g_window;
+                    return 1;
                 }
 
                 redraw();

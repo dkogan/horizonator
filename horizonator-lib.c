@@ -629,7 +629,7 @@ void horizonator_move_viewer_keep_data(horizonator_context_t* ctx,
     ctx->viewer_lon = viewer_lon;
 }
 
-bool horizonator_zoom(const horizonator_context_t* ctx,
+bool horizonator_pan_zoom(const horizonator_context_t* ctx,
                       // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
                       // edges lie at the edges of the image. So for an image that's
                       // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
@@ -672,7 +672,7 @@ static bool init( // output
                           allow_downloads))
         return false;
 
-    if(!horizonator_zoom(ctx, az_deg0, az_deg1))
+    if(!horizonator_pan_zoom(ctx, az_deg0, az_deg1))
         return false;
 
     return true;

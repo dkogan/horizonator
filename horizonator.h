@@ -60,7 +60,7 @@ bool horizonator_init1( // output
 void horizonator_resized(const horizonator_context_t* ctx, int width, int height);
 
 // Must be called at least once before horizonator_redraw()
-bool horizonator_zoom(const horizonator_context_t* ctx,
+bool horizonator_pan_zoom(const horizonator_context_t* ctx,
                       // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
                       // edges lie at the edges of the image. So for an image that's
                       // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
