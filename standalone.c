@@ -31,11 +31,11 @@ int main(int argc, char* argv[])
         "By default we colorcode the renders by range. If --texture, we\n"
         "use a set of image tiles to texture the render instead\n"
         "\n"
-        "The DEMs are in the directory given by --dirdems, or the CURRENT\n"
-        "directory if omitted.\n"
+        "The DEMs are in the directory given by --dirdems, or in\n"
+        "~/.horizonator/DEMs_SRTM3/ if omitted.\n"
         "\n"
-        "The tiles are in the directory given by --dirtiles, or the CURRENT\n"
-        "directory if omitted. This is relevant only if --texture\n";
+        "The tiles are in the directory given by --dirtiles, or in\n"
+        "~/.horizonator/tiles if omitted.\n";
 
     struct option opts[] = {
         { "width",             required_argument, NULL, 'w' },
@@ -51,8 +51,8 @@ int main(int argc, char* argv[])
 
     int         width           = 0;
     const char* output          = NULL;
-    const char* dir_dems        = ".";
-    const char* dir_tiles       = ".";
+    const char* dir_dems        = "~/.horizonator/DEMs_SRTM3";
+    const char* dir_tiles       = "~/.horizonator/tiles";
     bool        render_texture  = false;
     bool        allow_downloads = false;
 
