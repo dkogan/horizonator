@@ -35,7 +35,12 @@ static GLWidget*             g_gl_widget;
 
 //// The observer state
 // Look North initially, with some arbitrary field of view
-static view_t g_view = {0.0f, 30.0f, -1000.f, -1000.f};
+static view_t g_view =
+    { // default az_center_deg, az_radius_deg. Can be set on the commandline
+      0.0f, 30.0f,
+
+      // default lat, lon. These WILL be set on the commandline
+      -1000.f, -1000.f};
 
 
 
@@ -61,6 +66,7 @@ static void newrender(horizonator_context_t* ctx,
 class GLWidget : public Fl_Gl_Window
 {
     horizonator_context_t m_ctx;
+    bool render_texture;
 
     GLenum m_winding;
     int    m_polygon_mode_idx;
@@ -74,8 +80,10 @@ class GLWidget : public Fl_Gl_Window
     }
 
 public:
-    GLWidget(int x, int y, int w, int h) :
-        Fl_Gl_Window(x, y, w, h)
+    GLWidget(int x, int y, int w, int h,
+             bool _render_texture) :
+        Fl_Gl_Window(x, y, w, h),
+        render_texture(_render_texture)
     {
         mode(FL_RGB8 | FL_DOUBLE | FL_OPENGL3 | FL_DEPTH);
         m_ctx = (horizonator_context_t){};
@@ -98,7 +106,7 @@ public:
             // https://www.fltk.org/doc-1.3/opengl.html
             if(!horizonator_init1( &m_ctx,
 
-                                   false,
+                                   render_texture,
                                    g_view.lat, g_view.lon,
 
                                    "~/.horizonator/DEMs_SRTM3",
@@ -299,32 +307,87 @@ static void callback_slippymap(Fl_Widget* slippymap,
 int main(int argc, char** argv)
 {
     const char* usage =
-        "%s [--help]\n";
+        "%s [--texture]\n"
+        "   LAT LON [AZ_CENTER_DEG AZ_RADIUS_DEG]\n"
+        "\n"
+        "This is an interactive tool, so the viewer position and azimuth bounds\n"
+        "given on the commandline are just starting points. The viewer position\n"
+        "is required, but the azimuth bounds may be omitted; some reasonable\n"
+        "defaults will be used."
+        "\n"
+        "By default we colorcode the renders by range. If --texture, we\n"
+        "use a set of image tiles to texture the render instead\n";
 
-    struct option long_options[] =
-        {
-            {"help",     no_argument,       NULL, 'h' },
-            {}
-        };
+    struct option opts[] = {
+        { "texture",           no_argument,       NULL, 'T' },
+        { "help",              no_argument,       NULL, 'h' },
+        {}
+    };
 
-    int getopt_res;
+
+    bool render_texture = false;
+
+    int opt;
     do
     {
-        getopt_res = getopt_long(argc, argv, "", long_options, NULL);
-        switch( getopt_res )
+        // "h" means -h does something
+        opt = getopt_long(argc, argv, "h1234567890.", opts, NULL);
+        switch(opt)
         {
-        case '?':
-            fprintf(stderr, "Unknown cmdline option encountered\nUsage: ");
-            fprintf(stderr, usage, argv[0]);
-            return 1;
+        case -1:
+            break;
+
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+        case '.':
+            // these are numbers that aren't actually arguments. I stop parsing
+            // here
+            opt = -1;
+            optind--;
+            break;
+
 
         case 'h':
-            fprintf(stdout, usage, argv[0]);
+            printf(usage, argv[0]);
             return 0;
 
-        default: ;
+        case 'T':
+            render_texture = true;
+            break;
+
+        case '?':
+            fprintf(stderr, "Unknown option\n\n");
+            fprintf(stderr, usage, argv[0]);
+            return 1;
         }
-    } while(getopt_res != -1);
+    } while( opt != -1 );
+
+    int Nargs_remaining = argc-optind;
+    if( !(Nargs_remaining == 2 || Nargs_remaining == 4) )
+    {
+        fprintf(stderr, "Need exactly 2 or 4 non-option arguments. Got %d\n\n",Nargs_remaining);
+        fprintf(stderr, usage, argv[0]);
+        return 1;
+    }
+
+    g_view.lat = (float)atof(argv[optind+0]);
+    g_view.lon = (float)atof(argv[optind+1]);
+    if(Nargs_remaining == 4)
+    {
+        g_view.az_center_deg = (float)atof(argv[optind+2]);
+        g_view.az_radius_deg = (float)atof(argv[optind+3]);
+    }
+
+    ////////////// Done cmdline-option parsing. Let's do the thing.
+
 
     Fl::lock();
 
@@ -346,7 +409,8 @@ int main(int argc, char** argv)
         g_slippymap->align(Fl_Align(FL_ALIGN_CENTER));
     }
     {
-        g_gl_widget = new GLWidget(0, map_h, g_window->w(), g_window->h()-map_h);
+        g_gl_widget = new GLWidget(0, map_h, g_window->w(), g_window->h()-map_h,
+                                   render_texture);
     }
 
 
@@ -360,14 +424,9 @@ int main(int argc, char** argv)
 
     g_slippymap->callback( &callback_slippymap, (void*)g_gl_widget );
 
-
-
     g_window->resizable(g_window);
     g_window->end();
     g_window->show();
-
-    newrender(g_gl_widget->ctx(),
-              34.2884, -117.7134);
 
     Fl::run();
 
