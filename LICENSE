@@ -1,2 +1,6 @@
 This project is released by Dima Kogan under the terms of the GNU LGPL
 (any version).
+
+This license applies to all the sources except the contents of the florb/
+directory. The florb/ license and copyright appears in florb/LICENSE.txt
+
