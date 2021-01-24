@@ -40,7 +40,8 @@ class orb_mapctrl : public Fl_Widget
         virtual void resize(int x, int y, int w, int h);
 
         int mousegps(orb_point<double> &gps);
-        
+        int center_at( float lat, float lon );
+
         int zoom_get(unsigned int &z);
         int zoom_set(unsigned int z);
 

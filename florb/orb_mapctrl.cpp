@@ -92,6 +92,21 @@ int orb_mapctrl::mousegps(orb_point<double> &gps)
     return 0;
 }
 
+
+
+int orb_mapctrl::center_at( float lat, float lon )
+{
+    orb_point<unsigned int> px;
+    orb_point<double> lonlat(lon,lat);
+
+    if(orb_viewport::gps2px(m_viewport->z(), lonlat, px))
+        return 1;
+
+    int dx = (int)px.get_x() - m_viewport->x() - m_viewport->w()/2;
+    int dy = (int)px.get_y() - m_viewport->y() - m_viewport->h()/2;
+    return m_viewport->move(dx, dy);
+}
+
 int orb_mapctrl::refresh()
 {
     // Make sure the current zoomlevel is valid

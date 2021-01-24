@@ -407,6 +407,8 @@ int main(int argc, char** argv)
         g_slippymap->labelsize(14);
         g_slippymap->labelcolor(FL_FOREGROUND_COLOR);
         g_slippymap->align(Fl_Align(FL_ALIGN_CENTER));
+
+        g_slippymap->center_at(g_view.lat, g_view.lon);
     }
     {
         g_gl_widget = new GLWidget(0, map_h, g_window->w(), g_window->h()-map_h,
