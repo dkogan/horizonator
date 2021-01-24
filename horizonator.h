@@ -24,6 +24,10 @@ typedef struct
     int32_t uniform_texturemap_dlat1;
     int32_t uniform_texturemap_dlat2;
 
+    uint32_t program;
+
+    float viewer_lat, viewer_lon;
+
     horizonator_dem_context_t dems;
 } horizonator_context_t;
 
@@ -67,11 +71,20 @@ bool horizonator_zoom(const horizonator_context_t* ctx,
 // Called after horizonator_init1(). Moves the viewer around in the space of
 // loaded DEMs. If the viewer moves a LOT, new DEMs should be loaded, and this
 // function is no longer appropriate
-void horizonator_move_viewer_keep_data(const horizonator_context_t* ctx,
+void horizonator_move_viewer_keep_data(horizonator_context_t* ctx,
                                        float viewer_lat, float viewer_lon);
 
 void horizonator_redraw(const horizonator_context_t* ctx);
 
+// returns true if an intersection is found
+bool horizonator_pick(const horizonator_context_t* ctx,
+
+                      // output
+                      float* lat, float* lon,
+
+                      // input
+                      // pixel coordinates in the render
+                      int x, int y );
 
 /////////////// The horizonator_allinone_...() functions are to be used
 /////////////// standalone. No other init functions should be called

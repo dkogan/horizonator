@@ -46,7 +46,7 @@ static void redraw_slippymap( void* mapctrl )
     reinterpret_cast<orb_mapctrl*>(mapctrl)->redraw();
 }
 
-static void newrender(const horizonator_context_t* ctx,
+static void newrender(horizonator_context_t* ctx,
                       float lat, float lon)
 {
     g_view.lat = lat;
@@ -85,7 +85,7 @@ public:
         m_polygon_mode_idx = 0;
     }
 
-    const horizonator_context_t* ctx(void)
+    horizonator_context_t* ctx(void)
     {
         return &m_ctx;
     }
@@ -197,13 +197,28 @@ public:
             }
 
         case FL_PUSH:
-            // I pan and zoom with left-click-and-drag
             if(Fl::event_button() == FL_LEFT_MOUSE)
             {
+                // I pan and zoom with left-click-and-drag
                 m_last_drag_update_xy[0] = Fl::event_x();
                 m_last_drag_update_xy[1] = Fl::event_y();
                 return 1;
             }
+
+            if(Fl::event_button() == FL_RIGHT_MOUSE)
+            {
+                // Right-click. I figure out where the user clicked, and show
+                // that point on the map
+                float lon, lat;
+                if(!horizonator_pick(&m_ctx,
+                                     &lat, &lon,
+                                     Fl::event_x(), Fl::event_y()))
+                    g_slippymap_annotations->unset_pick();
+                else
+                    g_slippymap_annotations->set_pick(lat, lon);
+                g_slippymap->redraw();
+            }
+
             break;
 
         case FL_DRAG:
@@ -266,7 +281,7 @@ static void callback_slippymap(Fl_Widget* slippymap,
     float lon = (float)gps.get_x();
 
     GLWidget* w = (GLWidget*)cookie;
-    const horizonator_context_t* ctx = w->ctx();
+    horizonator_context_t* ctx = w->ctx();
     newrender(ctx, lat, lon);
     w->redraw();
     slippymap->redraw();

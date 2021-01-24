@@ -47,10 +47,10 @@ public:
         name(std::string("Slippy-map annotations"));
     }
 
-    void set_pick( float lon, float lat )
+    void set_pick( float lat, float lon )
     {
-        pick_lon = lon;
         pick_lat = lat;
+        pick_lon = lon;
     }
 
     void unset_pick(void)

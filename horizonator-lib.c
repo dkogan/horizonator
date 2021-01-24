@@ -33,6 +33,10 @@
 #define OSM_TILE_WIDTH      256
 #define OSM_TILE_HEIGHT     256
 
+// these define the front and back clipping planes, in meters
+#define ZNEAR 100.0f
+#define ZFAR  40000.0f
+
 
 #define assert_opengl()                                 \
     do {                                                \
@@ -433,7 +437,7 @@ bool horizonator_init1( // output
 
         char msg[1024];
         int len;
-        GLuint program = glCreateProgram();
+        ctx->program = glCreateProgram();
         assert_opengl();
 
 
@@ -450,7 +454,7 @@ bool horizonator_init1( // output
         if( strlen(msg) )                                               \
             printf(#type " shader info: %s\n", msg);                    \
                                                                         \
-        glAttachShader(program, type ##Shader);                         \
+        glAttachShader(ctx->program, type ##Shader);                         \
         assert_opengl();
 
 
@@ -459,19 +463,19 @@ bool horizonator_init1( // output
         install_shader(fragment, FRAGMENT);
         install_shader(geometry, GEOMETRY);
 
-        glLinkProgram(program); assert_opengl();
-        glGetProgramInfoLog( program, sizeof(msg), &len, msg );
+        glLinkProgram(ctx->program); assert_opengl();
+        glGetProgramInfoLog( ctx->program, sizeof(msg), &len, msg );
         if( strlen(msg) )
             printf("program info after glLinkProgram(): %s\n", msg);
 
-        glUseProgram(program);  assert_opengl();
-        glGetProgramInfoLog( program, sizeof(msg), &len, msg );
+        glUseProgram(ctx->program);  assert_opengl();
+        glGetProgramInfoLog( ctx->program, sizeof(msg), &len, msg );
         if( strlen(msg) )
             printf("program info after glUseProgram: %s\n", msg);
 
 
 #define make_and_set_uniform(gltype, name, expr) do {                   \
-            GLint uniform_ ## name = glGetUniformLocation(program, #name); \
+            GLint uniform_ ## name = glGetUniformLocation(ctx->program, #name); \
             assert_opengl();                                            \
             glUniform1 ## gltype ( uniform_ ## name, expr);             \
             assert_opengl();                                            \
@@ -489,21 +493,23 @@ bool horizonator_init1( // output
         make_and_set_uniform(i, NtilesY,         texture_ctx.NtilesXY[1]);
         make_and_set_uniform(i, osmtile_lowestX, texture_ctx.osmtile_lowestXY[0]);
         make_and_set_uniform(i, osmtile_lowestY, texture_ctx.osmtile_lowestXY[1]);
+        make_and_set_uniform(f, znear,           ZNEAR);
+        make_and_set_uniform(f, zfar,            ZFAR);
 
         // These may be modified at runtime, so I make, but don't set
-        ctx->uniform_aspect           = glGetUniformLocation(program, "aspect");           assert_opengl();
-        ctx->uniform_az_deg0          = glGetUniformLocation(program, "az_deg0");          assert_opengl();
-        ctx->uniform_az_deg1          = glGetUniformLocation(program, "az_deg1");          assert_opengl();
-        ctx->uniform_viewer_cell_i    = glGetUniformLocation(program, "viewer_cell_i");    assert_opengl();
-        ctx->uniform_viewer_cell_j    = glGetUniformLocation(program, "viewer_cell_j");    assert_opengl();
-        ctx->uniform_viewer_z         = glGetUniformLocation(program, "viewer_z");         assert_opengl();
-        ctx->uniform_viewer_lat       = glGetUniformLocation(program, "viewer_lat");       assert_opengl();
-        ctx->uniform_cos_viewer_lat   = glGetUniformLocation(program, "cos_viewer_lat");   assert_opengl();
-        ctx->uniform_texturemap_lon0  = glGetUniformLocation(program, "texturemap_lon0");  assert_opengl();
-        ctx->uniform_texturemap_lon1  = glGetUniformLocation(program, "texturemap_lon1");  assert_opengl();
-        ctx->uniform_texturemap_dlat0 = glGetUniformLocation(program, "texturemap_dlat0"); assert_opengl();
-        ctx->uniform_texturemap_dlat1 = glGetUniformLocation(program, "texturemap_dlat1"); assert_opengl();
-        ctx->uniform_texturemap_dlat2 = glGetUniformLocation(program, "texturemap_dlat2"); assert_opengl();
+        ctx->uniform_aspect           = glGetUniformLocation(ctx->program, "aspect");           assert_opengl();
+        ctx->uniform_az_deg0          = glGetUniformLocation(ctx->program, "az_deg0");          assert_opengl();
+        ctx->uniform_az_deg1          = glGetUniformLocation(ctx->program, "az_deg1");          assert_opengl();
+        ctx->uniform_viewer_cell_i    = glGetUniformLocation(ctx->program, "viewer_cell_i");    assert_opengl();
+        ctx->uniform_viewer_cell_j    = glGetUniformLocation(ctx->program, "viewer_cell_j");    assert_opengl();
+        ctx->uniform_viewer_z         = glGetUniformLocation(ctx->program, "viewer_z");         assert_opengl();
+        ctx->uniform_viewer_lat       = glGetUniformLocation(ctx->program, "viewer_lat");       assert_opengl();
+        ctx->uniform_cos_viewer_lat   = glGetUniformLocation(ctx->program, "cos_viewer_lat");   assert_opengl();
+        ctx->uniform_texturemap_lon0  = glGetUniformLocation(ctx->program, "texturemap_lon0");  assert_opengl();
+        ctx->uniform_texturemap_lon1  = glGetUniformLocation(ctx->program, "texturemap_lon1");  assert_opengl();
+        ctx->uniform_texturemap_dlat0 = glGetUniformLocation(ctx->program, "texturemap_dlat0"); assert_opengl();
+        ctx->uniform_texturemap_dlat1 = glGetUniformLocation(ctx->program, "texturemap_dlat1"); assert_opengl();
+        ctx->uniform_texturemap_dlat2 = glGetUniformLocation(ctx->program, "texturemap_dlat2"); assert_opengl();
 #undef make_and_set_uniform
 
         // And I set the other uniforms
@@ -519,7 +525,7 @@ bool horizonator_init1( // output
     return result;
 }
 
-void horizonator_move_viewer_keep_data(const horizonator_context_t* ctx,
+void horizonator_move_viewer_keep_data(horizonator_context_t* ctx,
                                        float viewer_lat, float viewer_lon)
 {
     void texture_coeffs(// output
@@ -618,6 +624,9 @@ void horizonator_move_viewer_keep_data(const horizonator_context_t* ctx,
     assert_opengl();
     glUniform1f(ctx->uniform_texturemap_dlat2, dlat2);
     assert_opengl();
+
+    ctx->viewer_lat = viewer_lat;
+    ctx->viewer_lon = viewer_lon;
 }
 
 bool horizonator_zoom(const horizonator_context_t* ctx,
@@ -769,24 +778,6 @@ char* horizonator_allinone_render_to_image(bool render_texture,
                  GL_BGR, GL_UNSIGNED_BYTE, img);
     glutExit();
 
-    // depth-querying stuff
-#if 0
-    if( !ctx->dotexture )
-    {
-        if( ctx->depth == NULL )
-        {
-            ctx->depth = cvCreateMat( img->height, img->width, CV_8UC1 );
-            assert(ctx->depth);
-        }
-
-        // I extract the third channel to a separate 'ctx->depth' image, and zero it out
-        // in the image I draw. The ctx->depth image is used for picking only
-        cvSetImageCOI( img, 3 );
-        cvCopy( img, ctx->depth, NULL );
-        cvSetImageCOI( img, 0 );
-    }
-#endif
-
     result = img;
 
  done:
@@ -880,52 +871,82 @@ bool horizonator_allinone_glut_loop( bool render_texture,
     return true;
 }
 
-// pick and depth stuff
-// not yet translated
-#if 0
 // returns true if an intersection is found
-bool render_pick(// output
-                 float* lon, float* lat,
+bool horizonator_pick(const horizonator_context_t* ctx,
 
-                 // input
-                 int x, int y )
+                      // output
+                      float* lat, float* lon,
+
+                      // input
+                      // pixel coordinates in the render
+                      int x, int y )
 {
-    // I have rendered pixel coord (x,y); I want to map these to the source
-    // triangles. The 'x' gives me the azimuth of the view. I also have a
-    // 'ctx->depth' layer that gives me a distance along this azimuth.
-    assert(ctx->depth);
-    assert( x >= 0 && x < ctx->depth->cols &&
-            y >= 0 && y < ctx->depth->rows );
+    // az = 0:     North
+    // az = 90deg: East
+    // xy coords are (e,n)
+    // My projection function that I need to reverse:
+    /*
+      en = { (lon - lon0) * Rearth * pi/180. * cos_viewer_lat,
+             (lat - lat0) * Rearth * pi/180. };
 
-    // If we have maximum ctx->depth, this click shoots above the mesh
-    uint8_t d = ctx->depth->data.ptr[x + y*ctx->depth->cols];
-    if( d == 255 )
+      az = atan(en.x, en.y);
+
+      az_center = (az0 + az1)/2.;
+      az_ndc    = (az - az_center) * 2 / (az1 - az0);
+
+      aspect = width / height
+      el_ndc = atan(z, length(en)) * aspect * 2 / (az1 - az0);
+
+      depth = ((length(en) - znear) / (zfar - znear))
+    */
+
+    union
+    {
+        GLint viewport[4];
+        struct
+        {
+            GLint x0,y0,width,height;
+        };
+    } u;
+    glGetIntegerv(GL_VIEWPORT, u.viewport);
+
+    float depth;
+    glReadPixels(x, u.height-1 - y,
+                 1,1,
+                 GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+    if(depth >= 1.0f)
         return false;
 
-    // OK, we're pointing at the mesh. Let's get the vector direction. The ctx->depth
-    // is the distance along that vector
-    //
-    // In my coordinate system, if I apply the small angle approximation, I get
-    //
-    // N = dlat
-    // E = dlon cos(viewer_lat)
-    // I have tan(az) = (-east)/(-north). I want to
-    // break this into delta-n and delta-e => tan(az) = sin(az)/cos(az) =>
-    // sin(az) = -east, cos(az) = -north
-    float dn, de;
-    sincosf((float)x * 2.0f * (float)M_PI / (float)ctx->image_width,
-            &de, &dn);
-    dn *= cos( (float)ctx->viewer_lat * (float)M_PI / 180.0f );
+    float length_en = depth * (ZFAR-ZNEAR) + ZNEAR;
 
-    float l = hypot(dn,de);
-    *lon = ctx->viewer_lon - de*(float)d/l/255.0f;
-    *lat = ctx->viewer_lat - dn*(float)d/l/255.0f;
+    float az_deg0, az_deg1, cos_viewer_lat;
+    glGetUniformfv(ctx->program, ctx->uniform_az_deg0,        &az_deg0);
+    assert_opengl();
+    glGetUniformfv(ctx->program, ctx->uniform_az_deg1,        &az_deg1);
+    assert_opengl();
+    glGetUniformfv(ctx->program, ctx->uniform_cos_viewer_lat, &cos_viewer_lat);
+    assert_opengl();
 
+    const float Rearth = 6371000.0;
+
+    // The viewport is "width" pixels wide. The center of the first pixel is at
+    // x=0.5. The center of the last pixel is at x=width-0.5
+    float az_ndc = ((float)x + 0.5f) / (float)u.width * 2.f - 1.f;
+    float az     = (az_ndc * (az_deg1-az_deg0) / 2.f + (az_deg1+az_deg0)/2.f) * M_PI/180.0f;
+
+    // Could be useful, but I don't need these
+    // float el_ndc = ((float)y + 0.5f) / (float)u.height * 2.f - 1.f;
+    // float aspect = (float)u.width / (float)u.height;
+    // float el     = el_ndc * (az_deg1-az_deg0) / 2.f / aspect * M_PI/180.0f;
+
+    // I have some p = (e,n,z)
+    //   e = length_en sin(az)
+    //   n = length_en cos(az)
+    //   z = length_en tan(el)
+    float e = length_en * sinf(az);
+    float n = length_en * cosf(az);
+
+    *lon = ctx->viewer_lon + e / Rearth / M_PI * 180. / cos_viewer_lat;
+    *lat = ctx->viewer_lat + n / Rearth / M_PI * 180.;
     return true;
 }
-
-const CvMat* render_terrain_getdepth(void)
-{
-    return ctx->depth;
-}
-#endif

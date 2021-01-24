@@ -20,16 +20,14 @@ uniform float texturemap_dlat0, texturemap_dlat1, texturemap_dlat2;
 uniform int NtilesX, NtilesY;
 uniform int osmtile_lowestX, osmtile_lowestY;
 
+uniform float znear, zfar;
+
 // We send these to the fragment shader
 out vec3 rgb;
 out vec2 tex;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
-
-// these define the front and back clipping planes, in meters
-const float znear = 100.0;
-const float zfar  = 40000.0;
 
 // Past this distance the render color doesn't change, in meters
 const float zfar_color = 20000.0;
