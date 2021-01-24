@@ -79,6 +79,33 @@ class GLWidget : public Fl_Gl_Window
         else if(g_view.az_radius_deg > 179.f) g_view.az_radius_deg = 179.f;
     }
 
+    bool pan_and_zoom(int dx, int dy,
+                      float kx, float ky)
+    {
+        // For friendlier UI, I handle either vertical or horizontal
+        // events at a time only. This prevents unintentional zooming
+        // while panning, and vice versa
+        if(dx*dx > dy*dy)
+            g_view.az_center_deg += kx * (float)dx;
+        else
+        {
+            float r = exp2(ky * (float)dy);
+            g_view.az_radius_deg *= r;
+            clip_az_radius_deg();
+        }
+        if(!horizonator_pan_zoom(&m_ctx,
+                                 g_view.az_center_deg - g_view.az_radius_deg,
+                                 g_view.az_center_deg + g_view.az_radius_deg))
+        {
+            MSG("horizonator_zoom() failed. Giving up");
+            return false;
+        }
+
+        redraw();
+        g_slippymap->redraw();
+        return true;
+    }
+
 public:
     GLWidget(int x, int y, int w, int h,
              bool _render_texture) :
@@ -185,23 +212,16 @@ public:
 
         case FL_MOUSEWHEEL:
             {
-                // I pan and zoom with the horizontal/vertical mouse wheel
                 const float pixels_to_move_rad = 100.0f;
-                g_view.az_center_deg += g_view.az_radius_deg * (float)Fl::event_dx() / pixels_to_move_rad;
-
                 const float pixels_to_double = 20.0f;
-                const float r = exp2((float)Fl::event_dy() / pixels_to_double);
-                g_view.az_radius_deg *= r;
-                clip_az_radius_deg();
-                if(!horizonator_pan_zoom(&m_ctx,
-                                     g_view.az_center_deg - g_view.az_radius_deg,
-                                     g_view.az_center_deg + g_view.az_radius_deg))
+                if(!pan_and_zoom( Fl::event_dx(), Fl::event_dy(),
+                                  g_view.az_radius_deg  / pixels_to_move_rad,
+                                  1.f / pixels_to_double))
                 {
-                    MSG("horizonator_zoom() failed. Giving up");
+                    // Error!
                     delete g_window;
+                    return 1;
                 }
-                redraw();
-                g_slippymap->redraw();
                 return 1;
             }
 
@@ -234,40 +254,20 @@ public:
             // I pan and zoom with left-click-and-drag
             if(Fl::event_state() & FL_BUTTON1)
             {
-                int dxy[] =
-                    {
-                        Fl::event_x() - m_last_drag_update_xy[0],
-                        Fl::event_y() - m_last_drag_update_xy[1]
-                    };
-                m_last_drag_update_xy[0] = Fl::event_x();
-                m_last_drag_update_xy[1] = Fl::event_y();
-
-                // For friendlier UI, I handle either vertical or horizontal
-                // events at a time only. This prevents unintentional zooming
-                // while panning, and vice versa
-                if(dxy[0]*dxy[0] > dxy[1]*dxy[1])
+                const float deg_per_pixel = 2.f*g_view.az_radius_deg/(float)pixel_w();
+                const float pixels_to_double = 200.0f;
+                if(!pan_and_zoom( Fl::event_x() - m_last_drag_update_xy[0],
+                                  Fl::event_y() - m_last_drag_update_xy[1],
+                                  -deg_per_pixel,
+                                  1.f / pixels_to_double  ))
                 {
-                    const float deg_per_pixel = 2.f*g_view.az_radius_deg/(float)pixel_w();
-                    g_view.az_center_deg -= deg_per_pixel * (float)dxy[0];
-                }
-                else
-                {
-                    const float pixels_to_double = 200.0f;
-                    float r = exp2((float)dxy[1] / pixels_to_double);
-                    g_view.az_radius_deg *= r;
-                    clip_az_radius_deg();
-                }
-                if(!horizonator_pan_zoom(&m_ctx,
-                                         g_view.az_center_deg - g_view.az_radius_deg,
-                                         g_view.az_center_deg + g_view.az_radius_deg))
-                {
-                    MSG("horizonator_zoom() failed. Giving up");
+                    // Error!
                     delete g_window;
                     return 1;
                 }
 
-                redraw();
-                g_slippymap->redraw();
+                m_last_drag_update_xy[0] = Fl::event_x();
+                m_last_drag_update_xy[1] = Fl::event_y();
                 return 1;
             }
             break;
