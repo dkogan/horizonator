@@ -7,21 +7,21 @@
 #include <math.h>
 
 #include "horizonator.h"
+#include "util.h"
 
 int main(int argc, char* argv[])
 {
     const char* usage =
-        "%s [--width WIDTH_PIXELS] [--output OUT.png]\n"
+        "%s [--width WIDTH_PIXELS] [--image OUT.png] [--ranges RANGES.DAT]\n"
         "   [--texture]\n"
         "   [--allow-tile-downloads]\n"
         "   [--dirdems DIRECTORY]\n"
         "   [--dirtiles DIRECTORY]\n"
         "   LAT LON AZ_DEG0 AZ_DEG1\n"
         "\n"
-        "By default, we render to a window. If --width and --output\n"
-        "are given, we render to an image on disk instead. --width and\n"
-        "--output must appear together. The output filename MUST be\n"
-        "a .png file\n"
+        "By default, we render to a window. If --width is given, we render\n"
+        "to an image (--image) and/or a binary range table (--ranges) instead.\n"
+        "The image filename MUST be a .png file\n"
         "\n"
         "When plotting to a window, AZ_DEG are the azimuth bounds of the\n"
         "VIEWPORT. When rendering to an image, AZ_DEG are the\n"
@@ -39,7 +39,8 @@ int main(int argc, char* argv[])
 
     struct option opts[] = {
         { "width",             required_argument, NULL, 'w' },
-        { "output",            required_argument, NULL, 'o' },
+        { "image",             required_argument, NULL, 'i' },
+        { "ranges",            required_argument, NULL, 'r' },
         { "dirdems",           required_argument, NULL, 'd' },
         { "dirtiles",          required_argument, NULL, 't' },
         { "texture",           no_argument,       NULL, 'T' },
@@ -50,7 +51,8 @@ int main(int argc, char* argv[])
 
 
     int         width           = 0;
-    const char* output          = NULL;
+    const char* filename_image  = NULL;
+    const char* filename_ranges = NULL;
     const char* dir_dems        = "~/.horizonator/DEMs_SRTM3";
     const char* dir_tiles       = "~/.horizonator/tiles";
     bool        render_texture  = false;
@@ -90,10 +92,19 @@ int main(int argc, char* argv[])
 
         case 'w':
             width = atoi(optarg);
+            if(width <= 0)
+            {
+                fprintf(stderr, "--width must have an integer argument > 0\n");
+                return 1;
+            }
             break;
 
-        case 'o':
-            output = optarg;
+        case 'i':
+            filename_image = optarg;
+            break;
+
+        case 'r':
+            filename_ranges = optarg;
             break;
 
         case 'd':
@@ -127,20 +138,20 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if( (width >  0 && output == NULL) ||
-        (width <= 0 && output != NULL) )
+    if( (width >  0 && !(filename_image != NULL || filename_ranges != NULL)) ||
+        (width <= 0 &&  (filename_image != NULL || filename_ranges != NULL)) )
     {
-        fprintf(stderr, "Either both or neither of --width and --output must be given\n\n");
+        fprintf(stderr, "--width makes sense only with (--image or --ranges)\n\n");
         fprintf(stderr, usage, argv[0]);
         return 1;
     }
 
-    if(output != NULL)
+    if(filename_image != NULL)
     {
-        int l = strlen(output);
-        if(l < 5 || 0 != strcasecmp(".png", &output[l-4]))
+        int l = strlen(filename_image);
+        if(l < 5 || 0 != strcasecmp(".png", &filename_image[l-4]))
         {
-            fprintf(stderr, "--output MUST be given a '.png' filename\n\n");
+            fprintf(stderr, "--image MUST be given a '.png' filename\n\n");
             fprintf(stderr, usage, argv[0]);
             return 1;
         }
@@ -170,7 +181,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if(output == NULL)
+    if(filename_image == NULL && filename_ranges == NULL)
     {
         horizonator_allinone_glut_loop(render_texture,
                                        lat, lon, az_deg0, az_deg1,
@@ -190,34 +201,81 @@ int main(int argc, char* argv[])
     const float fovy_deg = 20.0f;
     int height = (int)roundf( (float)width * fovy_deg / (az_deg1-az_deg0));
 
-    char* image =
-        horizonator_allinone_render_to_image(render_texture,
+    char*  image  = NULL;
+    float* ranges = NULL;
+
+    if(filename_image != NULL)
+    {
+        image = malloc( width*height * 3 );
+        if(image == NULL)
+        {
+            MSG("image buffer malloc() failed");
+            return 1;
+        }
+    }
+
+    if(filename_ranges != NULL)
+    {
+        ranges = malloc( width*height * sizeof(float) );
+        if(ranges == NULL)
+        {
+            MSG("ranges buffer malloc() failed");
+            return 1;
+        }
+    }
+
+    if(!horizonator_allinone_render_to_image(image, ranges,
+                                             render_texture,
                                              lat, lon, az_deg0, az_deg1,
                                              width, height,
                                              dir_dems, dir_tiles,
-                                             allow_downloads);
-    if(image == NULL)
+                                             allow_downloads))
     {
         fprintf(stderr, "Image render failed\n");
         return 1;
     }
 
-    FreeImage_Initialise(true);
-    FIBITMAP* fib = FreeImage_ConvertFromRawBits((BYTE*)image, width, height,
-                                                 3*width, 24,
-                                                 0,0,0,
-                                                 false);
-
-    int result = 0;
-    if(!FreeImage_Save(FIF_PNG, fib, output, 0))
+    if(filename_image != NULL)
     {
-        fprintf(stderr, "Couldn't save to '%s'\n", output);
-        result = 1;
+        FreeImage_Initialise(true);
+        FIBITMAP* fib = FreeImage_ConvertFromRawBits((BYTE*)image, width, height,
+                                                     3*width, 24,
+                                                     0,0,0,
+                                                     // Bottom row is stored first
+                                                     false);
+
+        if(!FreeImage_Save(FIF_PNG, fib, filename_image, 0))
+        {
+            fprintf(stderr, "Couldn't save to '%s'\n", filename_image);
+            return 1;
+        }
+        FreeImage_Unload(fib);
+        FreeImage_DeInitialise();
+        free(image);
     }
-    FreeImage_Unload(fib);
-    FreeImage_DeInitialise();
 
-    free(image);
+    if(filename_ranges != NULL)
+    {
+        FILE* fp = fopen(filename_ranges, "w");
+        if(fp == NULL)
+        {
+            MSG("Cannot open ranges image at '%s'. Giving up", filename_ranges);
+            return 1;
+        }
 
-    return result;
+        // The image is upside-down, so I write the data out row-by-row in the
+        // normal order: top row first
+        for(int y=0; y<height; y++)
+        {
+            if((unsigned int)(width) != fwrite(&ranges[width*(height-1-y)],
+                                               sizeof(float), width, fp))
+            {
+                MSG("Failed to write complete 'ranges' data");
+                return 1;
+            }
+        }
+        fclose(fp);
+    }
+
+    return 0;
 }

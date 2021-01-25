@@ -706,27 +706,31 @@ void horizonator_redraw(const horizonator_context_t* ctx)
     glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
 }
 
-// returns the rendered image buffer. NULL on error. It is the caller's
-// responsibility to free() this buffer. The image data is packed
-// 24-bits-per-pixel BGR data stored row-first.
-char* horizonator_allinone_render_to_image(bool render_texture,
-                                           float viewer_lat, float viewer_lon,
+// returns true on success. The image and ranges buffers must be large-enough to
+// contain packed 24-bits-per-pixel BGR data and 32-bit floats respectively. The
+// images are returned using the OpenGL convention: bottom row is stored first.
+// This is opposite of the usual image convention: top row is first
+// Invisible points have ranges <0
+bool horizonator_allinone_render_to_image(// output
+                                          // either may be NULL
+                                          char* image, float* ranges,
+                                          bool render_texture,
 
-                                           // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                                           // edges lie at the edges of the image. So for an image that's
-                                           // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                                           // elevation extents will be chosen to keep the aspect ratio
-                                           // square.
-                                           float az_deg0, float az_deg1,
+                                          // inputs
+                                          float viewer_lat, float viewer_lon,
 
-                                           int width, int height,
-                                           const char* dir_dems,
-                                           const char* dir_tiles,
-                                           bool allow_downloads)
+                                          // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                                          // edges lie at the edges of the image. So for an image that's
+                                          // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                                          // elevation extents will be chosen to keep the aspect ratio
+                                          // square.
+                                          float az_deg0, float az_deg1,
+
+                                          int width, int height,
+                                          const char* dir_dems,
+                                          const char* dir_tiles,
+                                          bool allow_downloads)
 {
-    char* result = NULL;
-    char* img    = NULL;
-
     horizonator_context_t ctx;
 
     if( !init( &ctx,
@@ -737,7 +741,7 @@ char* horizonator_allinone_render_to_image(bool render_texture,
                dir_dems,
                dir_tiles,
                allow_downloads) )
-        return NULL;
+        return false;
 
     GLuint frameBufID;
     {
@@ -783,26 +787,70 @@ char* horizonator_allinone_render_to_image(bool render_texture,
     horizonator_resized(&ctx, width, height);
     horizonator_redraw(&ctx);
 
-    img = malloc( (width) * (height) * 3 );
-    if(img == NULL)
-    {
-        MSG("image buffer malloc() failed");
-        goto done;
-    }
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
-    glReadPixels(0,0, width, height,
-                 GL_BGR, GL_UNSIGNED_BYTE, img);
+    if(image != NULL)
+        glReadPixels(0,0, width, height,
+                     GL_BGR, GL_UNSIGNED_BYTE, image);
+    if(ranges != NULL)
+    {
+        glReadPixels(0,0, width, height,
+                     GL_DEPTH_COMPONENT, GL_FLOAT, ranges);
+
+        // I just read the depth buffer. depth is in [0,1] and it describes
+        // gl_Position.z/gl_Position.w in the vertex shader, except THAT
+        // quantity is in [-1,1]. I convert each "depth" value to a "range"
+
+        // In vertex.glsl we have:
+        //
+        // az = 0:     North
+        // az = 90deg: East
+        // xy coords are (e,n)
+        /*
+          en = { (lon - lon0) * Rearth * pi/180. * cos_viewer_lat,
+                 (lat - lat0) * Rearth * pi/180. };
+
+          az = atan(en.x, en.y);
+
+          az_center = (az0 + az1)/2.;
+          az_ndc    = (az - az_center) * 2 / (az1 - az0);
+
+          aspect = width / height
+          el_ndc = atan(z, length(en)) * aspect * 2 / (az1 - az0);
+
+          depth = ((length(en) - znear) / (zfar - znear))
+        */
+
+        // The viewport is "width" pixels wide. The center of the first pixel is
+        // at x=0.5. The center of the last pixel is at x=width-0.5
+        for(int y=0; y<height; y++)
+        {
+            for(int x=0; x<width; x++)
+            {
+                float depth = ranges[y*width + x];
+                if(depth == 1.0f)
+                    ranges[y*width + x] = -1.0f;
+                else
+                {
+                    float length_en = depth * (ZFAR-ZNEAR) + ZNEAR;
+
+                    // float az_ndc = ((float)x + 0.5f) / (float)width * 2.f - 1.f;
+                    // float az     = (az_ndc * (az_deg1-az_deg0) / 2.f + (az_deg1+az_deg0)/2.f) * M_PI/180.0f;
+
+                    float el_ndc = ((float)y + 0.5f) / (float)height * 2.f - 1.f;
+                    float aspect = (float)width / (float)height;
+                    float el     = el_ndc * (az_deg1-az_deg0) / 2.f / aspect * M_PI/180.0f;
+
+                    float z = tanf(el) * length_en;
+                    ranges[y*width + x] = hypotf(length_en, z);
+                }
+            }
+        }
+    }
     glutExit();
 
-    result = img;
-
- done:
-    if(result == NULL)
-    {
-        free(img);
-        // deinit(ctx);
-    }
-    return result;
+    // I don't have a deinit() function yet. Once I do, call that here:
+    // deinit(ctx);
+    return true;
 }
 
 bool horizonator_allinone_glut_loop( bool render_texture,
@@ -933,6 +981,8 @@ bool horizonator_pick(const horizonator_context_t* ctx,
     if(depth >= 1.0f)
         return false;
 
+    // depth is in [0,1] and it describes gl_Position.z/gl_Position.w in the
+    // vertex shader, except THAT quantity is in [-1,1]
     float length_en = depth * (ZFAR-ZNEAR) + ZNEAR;
 
     float az_deg0, az_deg1, cos_viewer_lat;
