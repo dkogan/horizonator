@@ -113,7 +113,7 @@ public:
         render_texture(_render_texture)
     {
         mode(FL_RGB8 | FL_DOUBLE | FL_OPENGL3 | FL_DEPTH);
-        m_ctx = (horizonator_context_t){};
+        memset(&m_ctx, 0, sizeof(m_ctx));
 
 
         m_winding          = GL_CCW;
