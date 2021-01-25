@@ -15,7 +15,7 @@ BuildRequires:  freeimage-devel
 BuildRequires:  tinyxml-devel
 BuildRequires:  libpng-devel
 BuildRequires:  libcurl-devel
-BuildRequires:  fltk-devel
+BuildRequires:  fltk-devel >= 1.3.4
 
 BuildRequires:  wget
 
