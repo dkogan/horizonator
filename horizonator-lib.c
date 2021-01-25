@@ -64,8 +64,9 @@ bool horizonator_init0_glut(bool double_buffered)
     glutCreateWindow("horizonator");
 
     const char* version = (const char*)glGetString(GL_VERSION);
-    MSG("glGetString(GL_VERSION) says we're using GL %s", version);
-    MSG("Epoxy says we're using GL %d", epoxy_gl_version());
+
+    // MSG("glGetString(GL_VERSION) says we're using GL %s", version);
+    // MSG("Epoxy says we're using GL %d", epoxy_gl_version());
 
     if (version[0] == '1')
     {
