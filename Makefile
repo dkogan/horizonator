@@ -56,7 +56,7 @@ CXXFLAGS_FLORB := \
  $(shell pkg-config --cflags tinyxml)
 
 horizonator.o slippymap-annotations.o $(FLORB_OBJECTS): CXXFLAGS += $(CXXFLAGS_FLORB)
-horizonator: LDLIBS += $(LDLIBS_FLORB) -lfltk_gl
+horizonator: LDLIBS += $(LDLIBS_FLORB) -lfltk_gl -lX11
 
 florb/orb_mapctrl.o:   CXXFLAGS += -Wno-empty-body
 florb/orb_tilecache.o: CXXFLAGS += -Wno-unused-parameter
