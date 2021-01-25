@@ -1,0 +1,148 @@
+#+TITLE: Horizonator!
+
+* Overview
+This tool renders terrain data, and can be used to simulate views captured by
+cameras. This is most useful in areas with significant topographic relief.
+
+There are a number of other, more polished tools to do this
+
+- http://www.udeuschle.selfhost.pro/panoramas/makepanoramas_en.htm
+- https://www.peakfinder.org/
+- https://www.caltopo.com (right click, "point info", "view from here")
+
+Although less polished, the implementation in the horizonator is freely licensed
+(under any version of the LGPL), and is a good base for experimentation. The
+horizonator isn't completely fit for end-user consumption, and the intent /is/
+to serve as a building block for other tools.
+
+The horizonator consists of a [[https://github.com/dkogan/horizonator/blob/master/horizonator.h][C library]] and two user-facing tools:
+
+- The =horizonator= tool: an interactive [[https://www.fltk.org/][FLTK]] application that displays an
+  overhead map and a render, allowing the user to move around in both of them
+
+- The =standalone= tool: a one-render application. Can produce either a static
+  GLUT window or a =.png= image on disk
+
+* Building the horizonator
+On Debian, you need the following packages (I believe that's it; may be missing
+one or two):
+
+- libfltk1.3-dev
+- libboost-filesystem-dev
+- libboost-system-dev
+- libboost-thread-dev
+- libcurl4-gnutls-dev
+- libgl1-mesa-dev
+- libepoxy-dev
+- libglu-dev
+- libpng12-dev
+- libfreeimage-dev
+- libtinyxml-dev
+
+Once you have those, run =make=. You also need =wget= at runtime to download
+the tiles.
+
+* Using the horizonator 
+Before running the tool, you need data to render. The horizonator uses 3sec [[https://en.wikipedia.org/wiki/Shuttle_Radar_Topography_Mission][SRTM]]
+DEMs. Raw SRTM data has holes here and there, so I usually use the hole-filled
+SRTM data from
+
+  http://viewfinderpanoramas.org/dem3.html
+
+You need to download the archive for your area (for North America, you can [[http://viewfinderpanoramas.org/Coverage%20map%20viewfinderpanoramas_org3.htm][pick
+from a map]]). Then extract the =.hgt= files to
+
+  =~/.horizonator/DEMs_SRTM3=
+
+The tiles are downloaded automatically, so that's it. The tool can be used in
+an interactive mode, or a commandline mode:
+
+** Interactive
+The interactive tool is invoked by running the =./horizonator= executable.
+=./horizonator --help= has basic usage instructions. The only required arguments
+are the latitude and longitude of the viewer.
+
+This brings up a window where the top half shows an OpenStreetMap slippy map.
+This can be panned by dragging with the left mouse button, and zoomed with the
+mouse wheel, as usual. OSM tiles are downloaded (and cached locally to
+=~/.horizonator/tiles/=) as required. The extents of the current view are shown
+as lines in the render. The currently-loaded data is also shown, as a rectangle.
+The data is loaded at the beginning, centered on the latitude,longitude given on
+the commandline. The load a different set of data, re-launch the application.
+
+The bottom half shows the render. By default, the shade of red encodes the
+distance to the viewer. It is possible instead to texture the render using the
+map; pass =--texture= to select this mode. Currently this uses the same
+OpenStreetMap tiles that are used in the slippy-map, which isn't terribly
+useful. Eventually topography or aerial imagery should be hooked in here.
+
+As with the slippy map, the render can be panned left/right (yawing the camera)
+by clicking/dragging left/right with the left mouse button. Clicking/dragging
+up/down zooms in the view. The viewer always look out parallel to the ground
+plane (pitch, roll are always 0). The same pan/zoom controls are available with
+the horizontal, vertical mouse wheels.
+
+The initial render is made from the latitude,longitude position given on the
+commandline (the altitude is sampled from the DEM). To move the viewpoint,
+right-click on the slippy map. This does /not/ reload the data, so only
+reasonably-small motions will produce reasonable results. It is possible to move
+off the mesh entirely, but that's probably not useful. The pan/zoom and viewer
+motions are displayed in the slippy map.
+
+Right-clicking on the render finds the corresponding map on the slippy map, and
+draws a circle there. This allows the user to identify specific features visible
+on the render.
+
+To cycle between filled triangles, wireframe and point renders, press =w=. To
+cycle between the two winding directions, press =r=; this is only useful for
+debugging.
+
+** Commandline
+If all we want is a single render from a known position, with known azimuth
+bounds, run the =./standalone= tool. This can either run a static GLUT
+application, or it can render to a =.png= image on disk. Run with =--help= for
+details.
+
+* Render details
+The tool uses an equirectangular projection. The x coordinate of the rendered
+image represents the azimuth: the viewing direction. The y coordinate represents
+the elevation: the angle above/below the horizontal. The same angular resolution
+is used in both directions. As elevation increases, this projection acquires
+more and more distortion, but with small elevation angles (the usual case)
+things works well.
+
+The view straight ahead (elevation = 0) is at the center of the render.
+
+This tool operates in the tangent plane to the viewer, so it assumes that
+locally, the Earth is flat. This produces small inaccuracies, but unless we care
+about tiny pixel-level errors, this is a good approximation.
+
+* Nice-to-have improvements
+In no particular order:
+
+- Texturing with aerial imagery
+- Being more efficient about data loading: the DEM and texture resolution needs
+  to be high close-in, but can be dramatically lower further out.
+- Higher-res DEMs are available (1sec SRTM instead of 3sec). It would be nice to
+  use them, /if/ we can do so efficiently
+- Nicer handling of the mesh immediately near the viewer.
+- Intelligently loading faraway data. Currently we load data a constant number
+  of cells away from the viewer
+- Peak-labelling the render
+- More UI stuff
+  - text showing the current lat, lon, az bounds
+  - text inputs to change the current lat, lon, az bounds
+  - controls to re-center the data, to get more data in some particular
+    direction
+  - controls to change the texturing, shading configuration, etc
+  - controls to save renders to disk
+- Auto-downloading DEMs
+
+* License and copyright
+** Horizonator (everything except =florb/=)
+Copyright 2012-2021 Dima Kogan <dima@secretsauce.net>
+Released under the terms of the GNU LGPL (any version)
+
+** =florb/=
+Copyright (c) 2010, Björn Rehm (bjoern@shugaa.de)
+Released under the terms of the MIT license
