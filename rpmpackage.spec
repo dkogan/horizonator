@@ -12,7 +12,12 @@ Source0:        https://www.github.com/dkogan/horizonator/archive/%{version}.tar
 BuildRequires:  libepoxy-devel
 BuildRequires:  freeglut-devel
 BuildRequires:  freeimage-devel
-BuildRequires:  mrbuild
+BuildRequires:  tinyxml-devel
+BuildRequires:  libpng-devel
+BuildRequires:  libcurl-devel
+BuildRequires:  fltk-devel
+
+BuildRequires:  wget
 
 %description
 SRTM terrain renderer
