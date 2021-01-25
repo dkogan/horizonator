@@ -100,8 +100,8 @@ debugging.
 ** Commandline
 If all we want is a single render from a known position, with known azimuth
 bounds, run the =./standalone= tool. This can either run a static GLUT
-application, or it can render to a =.png= image on disk. Run with =--help= for
-details.
+application, or it can render to a =.png= image on disk and/or a binary range
+image. Run with =--help= for details.
 
 * Render details
 The tool uses an equirectangular projection. The x coordinate of the rendered
