@@ -13,13 +13,17 @@ out vec2 tex_fragment;
 void main()
 {
     // The azimuth is gl_Position.x. Any triangles on the seam (some vertices
-    // off on the left, and some off on the right) need to be thrown out
-    if( (gl_in[0].gl_Position.x >=  1. ||
-         gl_in[1].gl_Position.x >=  1. ||
-         gl_in[2].gl_Position.x >=  1.) &&
-        (gl_in[0].gl_Position.x <= -1. ||
-         gl_in[1].gl_Position.x <= -1. ||
-         gl_in[2].gl_Position.x <= -1.) )
+    // off on the left, and some off on the right) need to be thrown out. Those
+    // triangle will have max-az > 1 and min-az < -1 for max-min > 2. But I can
+    // be even more general. Any triangles that have max-min > 0.5 span more
+    // that 1/4 of the width of the viewport. This is never what we want, so I
+    // throw those out too.
+    if( max(max(gl_in[0].gl_Position.x,
+                gl_in[1].gl_Position.x),
+            gl_in[2].gl_Position.x) -
+        min(min(gl_in[0].gl_Position.x,
+                gl_in[1].gl_Position.x),
+            gl_in[2].gl_Position.x) > 0.5 )
         return;
 
     for(int i=0; i<3; i++)
