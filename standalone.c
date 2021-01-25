@@ -203,14 +203,10 @@ int main(int argc, char* argv[])
     }
 
     FreeImage_Initialise(true);
-
-    FIBITMAP* fib = FreeImage_ConvertFromRawBitsEx(false,
-                                                   (BYTE*)image,
-                                                   FIT_BITMAP,
-                                                   width, height,
-                                                   3*width, 24,
-                                                   0,0,0,
-                                                   false);
+    FIBITMAP* fib = FreeImage_ConvertFromRawBits((BYTE*)image, width, height,
+                                                 3*width, 24,
+                                                 0,0,0,
+                                                 false);
 
     int result = 0;
     if(!FreeImage_Save(FIF_PNG, fib, output, 0))
