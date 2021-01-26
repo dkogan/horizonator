@@ -131,16 +131,16 @@ public:
         {
             // Docs say to init this here. I don't know why.
             // https://www.fltk.org/doc-1.3/opengl.html
-            if(!horizonator_init1( &m_ctx,
+            if(!horizonator_init( &m_ctx,
+                                  false, -1, -1,
+                                  render_texture,
+                                  g_view.lat, g_view.lon,
 
-                                   render_texture,
-                                   g_view.lat, g_view.lon,
-
-                                   "~/.horizonator/DEMs_SRTM3",
-                                   "~/.horizonator/tiles",
-                                   true))
+                                  "~/.horizonator/DEMs_SRTM3",
+                                  "~/.horizonator/tiles",
+                                  true))
             {
-                MSG("horizonator_init1() failed. Giving up");
+                MSG("horizonator_init() failed. Giving up");
                 exit(1);
             }
 

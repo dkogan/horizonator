@@ -10,7 +10,7 @@ typedef struct
     int Ntriangles;
     bool render_texture;
 
-    // These are int32_t, but should be GLint. I don't want to #include <GL.h>.
+    // These should be GLint, but I don't want to #include <GL.h>.
     // I will static_assert() this in the .c to make sure they are compatible
     int32_t uniform_aspect, uniform_az_deg0, uniform_az_deg1;
     int32_t uniform_viewer_cell_i;
@@ -29,6 +29,16 @@ typedef struct
     float viewer_lat, viewer_lon;
 
     horizonator_dem_context_t dems;
+
+    struct
+    {
+        bool inited;
+        // These should be GLuint, but I don't want to #include <GL.h>.
+        // I will static_assert() this in the .c to make sure they are compatible
+        uint32_t frameBufID;
+        uint32_t renderBufID;
+        uint32_t depthBufID;
+    } offscreen;
 } horizonator_context_t;
 
 
@@ -38,21 +48,31 @@ static bool horizonator_context_isvalid(const horizonator_context_t* ctx)
     return ctx->Ntriangles > 0;
 }
 
-// If using GLUT, call this as part of the initialization sequence
-bool horizonator_init0_glut(bool double_buffered);
-
-// Call this after horizonator_init0_glut() to initialize. If not using GLUT,
-// this is the only init function. We load the DEMs around the viewer. The
-// viewer ends up at the center of the DEMs. They can then be moved around
-// within the same data by calling horizonator_move_viewer_keep_data()
-bool horizonator_init1( // output
+// The main init routine. We support 3 modes:
+//
+// - GLUT: static window    (use_glut = true, offscreen_width <= 0)
+// - GLUT: offscreen render (use_glut = true, offscreen_width > 0)
+// - no GLUT: higher-level application (use_glut = false)
+//
+// This routine loads the DEMs around the viewer (viewer is at the center of the
+// DEMs). The render can then be updated by calling any of
+// - horizonator_move_viewer_keep_data()
+// - horizonator_pan_zoom()
+// - horizonator_resized()
+// and then
+// - horizonator_redraw()
+//
+// If rendering off-screen, horizonator_resized() is not allowed.
+// horizonator_pan_zoom() must be called to update the azimuth extents.
+// Completely arbitrarily, these are set to -45deg - 45deg initially
+bool horizonator_init( // output
                        horizonator_context_t* ctx,
 
                        // input
+                       bool use_glut,
+                       int offscreen_width, int offscreen_height,
                        bool render_texture,
-
                        float viewer_lat, float viewer_lon,
-
                        const char* dir_dems,
                        const char* dir_tiles,
                        bool allow_downloads);
@@ -68,7 +88,7 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
                       // square.
                       float az_deg0, float az_deg1);
 
-// Called after horizonator_init1(). Moves the viewer around in the space of
+// Called after horizonator_init(). Moves the viewer around in the space of
 // loaded DEMs. If the viewer moves a LOT, new DEMs should be loaded, and this
 // function is no longer appropriate
 void horizonator_move_viewer_keep_data(horizonator_context_t* ctx,

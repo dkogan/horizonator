@@ -49,64 +49,82 @@
     } while(0)
 
 
-bool horizonator_init0_glut(bool double_buffered)
-{
-
-    glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
-    glutInitContextVersion(4,2);
-    glutInitContextProfile(GLUT_CORE_PROFILE);
-    glutInit(&(int){1}, &(char*){"exec"});
-    glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH |
-                         (double_buffered ? GLUT_DOUBLE : 0) );
-
-    // when offscreen, I really don't want to glutCreateWindow(), but for some
-    // reason not doing this causes glewInit() to segfault...
-    glutCreateWindow("horizonator");
-
-    const char* version = (const char*)glGetString(GL_VERSION);
-
-    // MSG("glGetString(GL_VERSION) says we're using GL %s", version);
-    // MSG("Epoxy says we're using GL %d", epoxy_gl_version());
-
-    if (version[0] == '1')
-    {
-        if (!glutExtensionSupported("GL_ARB_vertex_shader")) {
-            MSG("Sorry, GL_ARB_vertex_shader is required.");
-            return false;
-        }
-        if (!glutExtensionSupported("GL_ARB_fragment_shader")) {
-            MSG("Sorry, GL_ARB_fragment_shader is required.");
-            return false;
-        }
-        if (!glutExtensionSupported("GL_ARB_vertex_buffer_object")) {
-            MSG("Sorry, GL_ARB_vertex_buffer_object is required.");
-            return false;
-        }
-        if (!glutExtensionSupported("GL_EXT_framebuffer_object")) {
-            MSG("GL_EXT_framebuffer_object not found!");
-            return false;
-        }
-    }
-    return true;
-}
-
-bool horizonator_init1( // output
+// The main init routine. We support 3 modes:
+//
+// - GLUT: static window    (use_glut = true, offscreen_width <= 0)
+// - GLUT: offscreen render (use_glut = true, offscreen_width > 0)
+// - no GLUT: higher-level application (use_glut = false)
+//
+// This routine loads the DEMs around the viewer (viewer is at the center of the
+// DEMs). The render can then be updated by calling any of
+// - horizonator_move_viewer_keep_data()
+// - horizonator_pan_zoom()
+// - horizonator_resized()
+// and then
+// - horizonator_redraw()
+//
+// If rendering off-screen, horizonator_resized() is not allowed.
+// horizonator_pan_zoom() must be called to update the azimuth extents.
+// Completely arbitrarily, these are set to -45deg - 45deg initially
+bool horizonator_init( // output
                        horizonator_context_t* ctx,
 
                        // input
+                       bool use_glut,
+                       int offscreen_width, int offscreen_height,
                        bool render_texture,
-
                        float viewer_lat, float viewer_lon,
-
                        const char* dir_dems,
                        const char* dir_tiles,
                        bool allow_downloads)
 {
+    bool result             = false;
+    bool dem_context_inited = false;
+
+
+    if(use_glut)
+    {
+        bool double_buffered = offscreen_width <= 0;
+
+        glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
+        glutInitContextVersion(4,2);
+        glutInitContextProfile(GLUT_CORE_PROFILE);
+        glutInit(&(int){1}, &(char*){"exec"});
+        glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH |
+                             (double_buffered ? GLUT_DOUBLE : 0) );
+
+        // when offscreen, I really don't want to glutCreateWindow(), but for some
+        // reason not doing this causes glewInit() to segfault...
+        glutCreateWindow("horizonator");
+
+        const char* version = (const char*)glGetString(GL_VERSION);
+
+        // MSG("glGetString(GL_VERSION) says we're using GL %s", version);
+        // MSG("Epoxy says we're using GL %d", epoxy_gl_version());
+
+        if (version[0] == '1')
+        {
+            if (!glutExtensionSupported("GL_ARB_vertex_shader")) {
+                MSG("Sorry, GL_ARB_vertex_shader is required.");
+                goto done;
+            }
+            if (!glutExtensionSupported("GL_ARB_fragment_shader")) {
+                MSG("Sorry, GL_ARB_fragment_shader is required.");
+                goto done;
+            }
+            if (!glutExtensionSupported("GL_ARB_vertex_buffer_object")) {
+                MSG("Sorry, GL_ARB_vertex_buffer_object is required.");
+                goto done;
+            }
+            if (!glutExtensionSupported("GL_EXT_framebuffer_object")) {
+                MSG("GL_EXT_framebuffer_object not found!");
+                goto done;
+            }
+        }
+    }
+
     static_assert(sizeof(GLint) == sizeof(ctx->uniform_aspect),
                   "horizonator_context_t.uniform_... must be a GLint");
-
-    bool                      result             = false;
-    bool                      dem_context_inited = false;
 
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
@@ -531,7 +549,51 @@ bool horizonator_init1( // output
 
         // And I set the other uniforms
         horizonator_move_viewer_keep_data(ctx, viewer_lat, viewer_lon);
-   }
+    }
+
+    if(offscreen_width > 0)
+    {
+        static_assert(sizeof(GLuint) == sizeof(ctx->offscreen.frameBufID),
+                      "horizonator_context_t.offscreen.... must be a GLuint");
+
+        glGenFramebuffers(1, &ctx->offscreen.frameBufID);
+        assert_opengl();
+        glBindFramebuffer(GL_FRAMEBUFFER, ctx->offscreen.frameBufID);
+        assert_opengl();
+
+        glGenRenderbuffers(1, &ctx->offscreen.renderBufID);
+        assert_opengl();
+        glBindRenderbuffer(GL_RENDERBUFFER, ctx->offscreen.renderBufID);
+        assert_opengl();
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB,
+                              offscreen_width, offscreen_height);
+        assert_opengl();
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                                  GL_RENDERBUFFER, ctx->offscreen.renderBufID);
+        assert_opengl();
+
+        glGenRenderbuffers(1, &ctx->offscreen.depthBufID);
+        assert_opengl();
+        glBindRenderbuffer(GL_RENDERBUFFER, ctx->offscreen.depthBufID);
+        assert_opengl();
+        glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT,
+                              offscreen_width, offscreen_height);
+        assert_opengl();
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                                  GL_RENDERBUFFER, ctx->offscreen.depthBufID);
+        assert_opengl();
+
+        glViewport(0, 0, offscreen_width, offscreen_height);
+        glUniform1f(ctx->uniform_aspect,
+                    (float)offscreen_width / (float)offscreen_height);
+
+        ctx->offscreen.inited = true;
+    }
+
+
+    // arbitrary az bounds initially
+    if(!horizonator_pan_zoom(ctx, -45.f, 45.f))
+        goto done;
 
     result = true;
 
@@ -659,44 +721,14 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
     return true;
 }
 
-static bool init( // output
-                 horizonator_context_t* ctx,
-
-                 // input
-                 bool render_offscreen,
-                 bool render_texture,
-
-                 float viewer_lat, float viewer_lon,
-
-                 // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                 // edges lie at the edges of the image. So for an image that's
-                 // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                 // elevation extents will be chosen to keep the aspect ratio
-                 // square.
-                 float az_deg0, float az_deg1,
-
-                 const char* dir_dems,
-                 const char* dir_tiles,
-                 bool allow_downloads)
-{
-    if(!horizonator_init0_glut( !render_offscreen ))
-        return false;
-
-    if(!horizonator_init1(ctx,
-                          render_texture,
-                          viewer_lat,       viewer_lon,
-                          dir_dems,         dir_tiles,
-                          allow_downloads))
-        return false;
-
-    if(!horizonator_pan_zoom(ctx, az_deg0, az_deg1))
-        return false;
-
-    return true;
-}
-
 void horizonator_resized(const horizonator_context_t* ctx, int width, int height)
 {
+    if( ctx->offscreen.inited )
+    {
+        MSG("Resising an offscreen window is not yet supported");
+        assert(0);
+    }
+
     glViewport(0, 0, width, height);
     glUniform1f(ctx->uniform_aspect, (float)width / (float)height);
 }
@@ -734,58 +766,19 @@ bool horizonator_allinone_render_to_image(// output
 {
     horizonator_context_t ctx;
 
-    if( !init( &ctx,
-               true,
-               render_texture,
-               viewer_lat, viewer_lon,
-               az_deg0, az_deg1,
-               dir_dems,
-               dir_tiles,
-               allow_downloads) )
+    if( !horizonator_init( &ctx,
+                           true,
+                           width, height,
+                           render_texture,
+                           viewer_lat, viewer_lon,
+                           dir_dems,
+                           dir_tiles,
+                           allow_downloads) )
         return false;
 
-    GLuint frameBufID;
-    {
-      glGenFramebuffers(1, &frameBufID);
-      assert_opengl();
+    if(!horizonator_pan_zoom( &ctx, az_deg0, az_deg1))
+        return false;
 
-      glBindFramebuffer(GL_FRAMEBUFFER, frameBufID);
-      assert_opengl();
-    }
-
-    {
-      GLuint renderBufID;
-      glGenRenderbuffers(1, &renderBufID);
-      assert_opengl();
-
-      glBindRenderbuffer(GL_RENDERBUFFER, renderBufID);
-      assert_opengl();
-
-      glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB, width, height);
-      assert_opengl();
-
-      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                                GL_RENDERBUFFER, renderBufID);
-      assert_opengl();
-    }
-
-    {
-      GLuint depthBufID;
-      glGenRenderbuffers(1, &depthBufID);
-      assert_opengl();
-
-      glBindRenderbuffer(GL_RENDERBUFFER, depthBufID);
-      assert_opengl();
-
-      glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height);
-      assert_opengl();
-
-      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-                                GL_RENDERBUFFER, depthBufID);
-      assert_opengl();
-    }
-
-    horizonator_resized(&ctx, width, height);
     horizonator_redraw(&ctx);
 
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
@@ -869,14 +862,17 @@ bool horizonator_allinone_glut_loop( bool render_texture,
 {
     horizonator_context_t ctx;
 
-    if( !init( &ctx,
-               false,
-               render_texture,
-               viewer_lat, viewer_lon,
-               az_deg0, az_deg1,
-               dir_dems,
-               dir_tiles,
-               allow_downloads) )
+    if( !horizonator_init( &ctx,
+                           true,
+                           -1, -1,
+                           render_texture,
+                           viewer_lat, viewer_lon,
+                           dir_dems,
+                           dir_tiles,
+                           allow_downloads) )
+        return false;
+
+    if(!horizonator_pan_zoom( &ctx, az_deg0, az_deg1))
         return false;
 
     void window_display(void)
