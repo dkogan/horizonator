@@ -4,29 +4,24 @@ PROJECT_NAME := horizonator
 ABI_VERSION  := 0
 TAIL_VERSION := 1
 
-VERSION := $(ABI_VERSION).$(TAIL_VERSION)
-
 LDLIBS += \
   -lGLU -lGL -lepoxy -lglut \
   -lfreeimage \
   -lm \
   -pthread
 
-################# standalone tool ###############
-BIN_SOURCES += standalone.c
-
-standalone: horizonator-lib.o dem.o
-
 CFLAGS += --std=gnu99 -Wno-missing-field-initializers
 
+################# library ###############
+LIB_SOURCES += horizonator-lib.c dem.c
 horizonator-lib.o: vertex.glsl.h geometry.glsl.h fragment.glsl.h
-
 %.glsl.h: %.glsl
 	sed 's/.*/"&\\n"/g' $^ > $@.tmp && mv $@.tmp $@
 EXTRA_CLEAN += *.glsl.h
 
 
-
+################# standalone tool ###############
+BIN_SOURCES += standalone.c
 
 ############### fltk tool #####################
 BIN_SOURCES += horizonator.cc
@@ -36,7 +31,7 @@ FLORB_SOURCES := $(wildcard			\
                      florb/Fl/*.cpp)
 FLORB_OBJECTS   := $(addsuffix .o,$(basename $(FLORB_SOURCES)))
 
-horizonator: $(FLORB_OBJECTS) horizonator-lib.o dem.o slippymap-annotations.o
+horizonator: $(FLORB_OBJECTS) slippymap-annotations.o
 
 LDLIBS_FLORB := \
  $(shell fltk-config --use-images --ldflags) \
