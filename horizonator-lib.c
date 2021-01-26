@@ -588,6 +588,10 @@ bool horizonator_init( // output
                     (float)offscreen_width / (float)offscreen_height);
 
         ctx->offscreen.inited = true;
+        ctx->offscreen.width  = offscreen_width;
+        ctx->offscreen.height = offscreen_height;
+
+        atexit(glutExit);
     }
 
 
@@ -739,47 +743,33 @@ void horizonator_redraw(const horizonator_context_t* ctx)
     glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
 }
 
-// returns true on success. The image and ranges buffers must be large-enough to
-// contain packed 24-bits-per-pixel BGR data and 32-bit floats respectively. The
-// images are returned using the OpenGL convention: bottom row is stored first.
-// This is opposite of the usual image convention: top row is first
-// Invisible points have ranges <0
-bool horizonator_allinone_render_to_image(// output
-                                          // either may be NULL
-                                          char* image, float* ranges,
-                                          bool render_texture,
+// Renders a given scene to an RGB image and/or a range image.
+// horizonator_init() must have been called first with use_glut=true and
+// offscreen_width,height > 0. Then the viewer and camera must have been
+// configured with horizonator_move_viewer_keep_data() horizonator_pan_zoom()
+//
+// Renders a given scene to an RGB image and/or a range image. Returns true on
+// success. The image and ranges buffers must be large-enough to contain packed
+// 24-bits-per-pixel BGR data and 32-bit floats respectively. The images are
+// returned using the OpenGL convention: bottom row is stored first. This is
+// opposite of the usual image convention: top row is first. Invisible points
+// have ranges <0
+bool horizonator_render_offscreen(// output
+                                  // either may be NULL
+                                  char* image, float* ranges,
 
-                                          // inputs
-                                          float viewer_lat, float viewer_lon,
-
-                                          // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                                          // edges lie at the edges of the image. So for an image that's
-                                          // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                                          // elevation extents will be chosen to keep the aspect ratio
-                                          // square.
-                                          float az_deg0, float az_deg1,
-
-                                          int width, int height,
-                                          const char* dir_dems,
-                                          const char* dir_tiles,
-                                          bool allow_downloads)
+                                  const horizonator_context_t* ctx)
 {
-    horizonator_context_t ctx;
-
-    if( !horizonator_init( &ctx,
-                           true,
-                           width, height,
-                           render_texture,
-                           viewer_lat, viewer_lon,
-                           dir_dems,
-                           dir_tiles,
-                           allow_downloads) )
+    if(!ctx->offscreen.inited)
+    {
+        MSG("Prior to calling horizonator_render_offscreen(), the context must have been inited for offscreen rendering with horizonator_init(use_glut=true, offscreen_width,height > 0)");
         return false;
+    }
 
-    if(!horizonator_pan_zoom( &ctx, az_deg0, az_deg1))
-        return false;
+    int width  = ctx->offscreen.width;
+    int height = ctx->offscreen.height;
 
-    horizonator_redraw(&ctx);
+    horizonator_redraw(ctx);
 
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
     if(image != NULL)
@@ -789,6 +779,12 @@ bool horizonator_allinone_render_to_image(// output
     {
         glReadPixels(0,0, width, height,
                      GL_DEPTH_COMPONENT, GL_FLOAT, ranges);
+
+        float az_deg0, az_deg1;
+        glGetUniformfv(ctx->program, ctx->uniform_az_deg0,        &az_deg0);
+        assert_opengl();
+        glGetUniformfv(ctx->program, ctx->uniform_az_deg1,        &az_deg1);
+        assert_opengl();
 
         // I just read the depth buffer. depth is in [0,1] and it describes
         // gl_Position.z/gl_Position.w in the vertex shader, except THAT
@@ -840,10 +836,7 @@ bool horizonator_allinone_render_to_image(// output
             }
         }
     }
-    glutExit();
 
-    // I don't have a deinit() function yet. Once I do, call that here:
-    // deinit(ctx);
     return true;
 }
 

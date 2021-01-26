@@ -38,6 +38,8 @@ typedef struct
         uint32_t frameBufID;
         uint32_t renderBufID;
         uint32_t depthBufID;
+
+        int width, height;
     } offscreen;
 } horizonator_context_t;
 
@@ -106,33 +108,27 @@ bool horizonator_pick(const horizonator_context_t* ctx,
                       // pixel coordinates in the render
                       int x, int y );
 
+
+// Renders a given scene to an RGB image and/or a range image.
+// horizonator_init() must have been called first with use_glut=true and
+// offscreen_width,height > 0. Then the viewer and camera must have been
+// configured with horizonator_move_viewer_keep_data() horizonator_pan_zoom()
+//
+// Returns true on
+// success. The image and ranges buffers must be large-enough to contain packed
+// 24-bits-per-pixel BGR data and 32-bit floats respectively. The images are
+// returned using the OpenGL convention: bottom row is stored first. This is
+// opposite of the usual image convention: top row is first. Invisible points
+// have ranges <0
+bool horizonator_render_offscreen(// output
+                                  // either may be NULL
+                                  char* image, float* ranges,
+
+                                  // input
+                                  const horizonator_context_t* ctx);
+
 /////////////// The horizonator_allinone_...() functions are to be used
 /////////////// standalone. No other init functions should be called
-
-// returns true on success. The image and ranges buffers must be large-enough to
-// contain packed 24-bits-per-pixel BGR data and 32-bit floats respectively. The
-// images are returned using the OpenGL convention: bottom row is stored first.
-// This is opposite of the usual image convention: top row is first.
-// Invisible points have ranges <0
-bool horizonator_allinone_render_to_image(// output
-                                          // either may be NULL
-                                          char* image, float* ranges,
-                                          bool render_texture,
-
-                                          // inputs
-                                          float viewer_lat, float viewer_lon,
-
-                                          // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                                          // edges lie at the edges of the image. So for an image that's
-                                          // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                                          // elevation extents will be chosen to keep the aspect ratio
-                                          // square.
-                                          float az_deg0, float az_deg1,
-
-                                          int width, int height,
-                                          const char* dir_dems,
-                                          const char* dir_tiles,
-                                          bool allow_downloads);
 
 bool horizonator_allinone_glut_loop( bool render_texture,
                                      float viewer_lat, float viewer_lon,

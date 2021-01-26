@@ -230,14 +230,30 @@ int main(int argc, char* argv[])
         }
     }
 
-    if(!horizonator_allinone_render_to_image(image, ranges,
-                                             render_texture,
-                                             lat, lon, az_deg0, az_deg1,
-                                             width, height,
-                                             dir_dems, dir_tiles,
-                                             allow_downloads))
+
+    horizonator_context_t ctx;
+    if( !horizonator_init( &ctx,
+                           true,
+                           width, height,
+                           render_texture,
+                           lat, lon,
+                           dir_dems,
+                           dir_tiles,
+                           allow_downloads) )
     {
-        fprintf(stderr, "Image render failed\n");
+        fprintf(stderr, "horizonator_init() failed\n");
+        return false;
+    }
+
+    if(!horizonator_pan_zoom( &ctx, az_deg0, az_deg1))
+    {
+        fprintf(stderr, "horizonator_pan_zoom() failed");
+        return false;
+    }
+
+    if(!horizonator_render_offscreen(image, ranges, &ctx))
+    {
+        fprintf(stderr, "render failed\n");
         return 1;
     }
 
