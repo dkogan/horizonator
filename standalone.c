@@ -12,7 +12,8 @@
 int main(int argc, char* argv[])
 {
     const char* usage =
-        "%s [--width WIDTH_PIXELS] [--image OUT.png] [--ranges RANGES.DAT]\n"
+        "%s [--width WIDTH_PIXELS] [--width HEIGHT_PIXELS]\n"
+        "   [--image OUT.png] [--ranges RANGES.DAT]\n"
         "   [--texture]\n"
         "   [--allow-tile-downloads]\n"
         "   [--dirdems DIRECTORY]\n"
@@ -21,6 +22,8 @@ int main(int argc, char* argv[])
         "\n"
         "By default, we render to a window. If --width is given, we render\n"
         "to an image (--image) and/or a binary range table (--ranges) instead.\n"
+        "--height applies only if --width is given, and is optional; a reasonable\n"
+        "field-of-view will be assumed if --height is omitted."
         "The image filename MUST be a .png file\n"
         "\n"
         "When plotting to a window, AZ_DEG are the azimuth bounds of the\n"
@@ -39,6 +42,7 @@ int main(int argc, char* argv[])
 
     struct option opts[] = {
         { "width",             required_argument, NULL, 'w' },
+        { "height",            required_argument, NULL, 'H' },
         { "image",             required_argument, NULL, 'i' },
         { "ranges",            required_argument, NULL, 'r' },
         { "dirdems",           required_argument, NULL, 'd' },
@@ -51,6 +55,7 @@ int main(int argc, char* argv[])
 
 
     int         width           = 0;
+    int         height          = 0;
     const char* filename_image  = NULL;
     const char* filename_ranges = NULL;
     const char* dir_dems        = "~/.horizonator/DEMs_SRTM3";
@@ -77,6 +82,15 @@ int main(int argc, char* argv[])
             if(width <= 0)
             {
                 fprintf(stderr, "--width must have an integer argument > 0\n");
+                return 1;
+            }
+            break;
+
+        case 'H':
+            height = atoi(optarg);
+            if(height <= 0)
+            {
+                fprintf(stderr, "--height must have an integer argument > 0\n");
                 return 1;
             }
             break;
@@ -124,6 +138,12 @@ int main(int argc, char* argv[])
         (width <= 0 &&  (filename_image != NULL || filename_ranges != NULL)) )
     {
         fprintf(stderr, "--width makes sense only with (--image or --ranges)\n\n");
+        fprintf(stderr, usage, argv[0]);
+        return 1;
+    }
+    if( height > 0 && width <= 0 )
+    {
+        fprintf(stderr, "--height makes sense only with --width\n\n");
         fprintf(stderr, usage, argv[0]);
         return 1;
     }
@@ -180,8 +200,12 @@ int main(int argc, char* argv[])
     az_deg0 -= az_per_pixel/2.f;
     az_deg1 += az_per_pixel/2.f;
 
-    const float fovy_deg = 20.0f;
-    int height = (int)roundf( (float)width * fovy_deg / (az_deg1-az_deg0));
+    if(height <= 0)
+    {
+        // Assume a 20deg fov if no height requested
+        const float fovy_deg = 20.0f;
+        height = (int)roundf( (float)width * fovy_deg / (az_deg1-az_deg0));
+    }
 
     char*  image  = NULL;
     float* ranges = NULL;
