@@ -1,0 +1,55 @@
+Rendering of SRTM terrain from Python
+
+SYNOPSIS
+
+    import horizonator
+    import cv2
+
+    h = horizonator.horizonator(34.2884, -117.7134,
+                                3600, 450)
+
+    (image, ranges) = h.render(-40, 100)
+
+    print(image.shape)
+    ===> (450, 3600, 3)
+
+    print(ranges.shape)
+    ===> (450, 3600)
+
+    cv2.imwrite("iron-mountain.png", image)
+
+The horizonator tool renders SRTM topography to simulate views at any location
+where this data is available. The general call sequence is
+
+- h = horizonator.horizonator(...)
+- h.render(...)
+- h.render(...)
+- h.render(...)
+
+The constructor loads the DEMs centered around some point, and each render(...)
+call produces images based on looking at those DEMs from different locations.
+The constructor is relatively slow, and the render(...) calls are relatively
+fast.
+
+ARGUMENTS
+
+The __init__() function takes
+
+- lat, lon: the latitude and longitude of the center point, around which the
+  DEMs are loaded. Initially the camera is positioned at this center point, but
+  this may be moved around with each subsequent render() call
+
+- width, height: the dimensions of the images we will be producing
+
+- render_texture: optional boolean, defaulting to False. if not render_texture:
+  we color-code the resulting image by distance. If render_texture: we use
+  openstreetmap tiles to texture the image
+
+- dir_dems: optional string, defaulting to "~/.horizonator/DEMs_SRTM3". The path
+  to the .hgt files containing the SRTM DEMs
+
+- dir_tiles: optional string, defaulting to "~/.horizonator/tiles". Ths
+  OpenStreetMap tiles are downloaded and stored here.
+
+- allow_downloads: optional boolean, defaulting to True. If True: we try to
+  download missing OpenStreetMap tiles.

@@ -56,4 +56,21 @@ horizonator: LDLIBS += $(LDLIBS_FLORB) -lfltk_gl -lX11
 florb/orb_mapctrl.o:   CXXFLAGS += -Wno-empty-body
 florb/orb_tilecache.o: CXXFLAGS += -Wno-unused-parameter
 
+
+############### python #####################
+# In the python api I have to cast a PyCFunctionWithKeywords to a PyCFunction,
+# and the compiler complains. But that's how Python does it! So I tell the
+# compiler to chill
+horizonator-pywrap.o: CFLAGS += -Wno-cast-function-type
+
+horizonator-pywrap.o: CFLAGS += $(PY_MRBUILD_CFLAGS)
+horizonator-pywrap.o: $(addsuffix .h,$(wildcard *.docstring))
+
+horizonator$(PY_EXT_SUFFIX): horizonator-pywrap.o libhorizonator.so
+	$(PY_MRBUILD_LINKER) $(PY_MRBUILD_LDFLAGS) $^ -o $@
+
+DIST_PY3_MODULES := horizonator$(PY_EXT_SUFFIX)
+
+all: horizonator$(PY_EXT_SUFFIX)
+
 include mrbuild/Makefile.common.footer

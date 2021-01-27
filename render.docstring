@@ -1,0 +1,79 @@
+Rendering of SRTM terrain from Python
+
+SYNOPSIS
+
+    import horizonator
+    import cv2
+
+    h = horizonator.horizonator(34.2884, -117.7134,
+                                3600, 450)
+
+    (image, ranges) = h.render(-40, 100)
+
+    print(image.shape)
+    ===> (450, 3600, 3)
+
+    print(ranges.shape)
+    ===> (450, 3600)
+
+    cv2.imwrite("iron-mountain.png", image)
+
+The horizonator tool renders SRTM topography to simulate views at any location
+where this data is available. The general call sequence is
+
+- h = horizonator.horizonator(...)
+- h.render(...)
+- h.render(...)
+- h.render(...)
+
+The constructor loads the DEMs centered around some point, and each render(...)
+call produces images based on looking at those DEMs from different locations.
+The constructor is relatively slow, and the render(...) calls are relatively
+fast.
+
+The render(...) call uses the pre-loaded DEMs, and a number of settings selected
+in the contructor are fixed from its perspective (imager dimensions, texturing,
+etc). The render(...) call allows the user to move the camera, and to change the
+field of view.
+
+This function can return the rendered RGB image and a range map. By default,
+both are returned in a tuple (in that order). Just one can be requested by
+setting return_image=False or return_ranges=False.
+
+ARGUMENTS
+
+- az_deg0, az_deg1: the azimuth extents of the render. By default
+  (az_extents_use_pixel_centers is False) these describe the width of the
+  viewport: from the left edge of the first pixel to the right edge of the last
+  pixel. If az_extents_use_pixel_centers: these describe the center of the first
+  pixel and the center of the last pixel
+
+- lat, lon: optional coordinates of the latitude and longitude of the center
+  point. If omitted, the previously-selected (in the constructor or the previous
+  render(...) call) coordinates are used.
+
+- return_image: optional boolean, defaulting to True. If return_image: the RGB
+  image is returned. See RETURNED VALUES for details
+
+- return_ranges: optional boolean, defaulting to True. If return_ranges: the
+  range image is returned. See RETURNED VALUES for details
+
+- az_extents_use_pixel_centers: optional boolean, defaulting to False. If not
+  az_extents_use_pixel_centers: the azimuth extents represent the OpenGL
+  viewport: the distance between the left edge of the leftmost pixels and the
+  right edge of the rightmost mpixels. Else: the azimuth extents represent the
+  distance between the centers of the leftmost and rightmost pixels.
+
+RETURNED VALUES
+
+We return the image(s) as numpy arrays. The RGB image is a numpy array of shape
+(height,width,3) containing 8-bit unsigned integers. The range image is a numpy
+array of shape (height,width) containing 32-bit floats.
+
+If not return_image and not return_ranges: we return ()
+
+If return_image and not return_ranges: we return the RGB image
+
+If not return_image and return_ranges: we return the range image
+
+If return_image and return_ranges: we return a tuple (RGB image, range image)
