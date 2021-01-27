@@ -120,12 +120,11 @@ bool horizonator_pick(const horizonator_context_t* ctx,
 // returned using the OpenGL convention: bottom row is stored first. This is
 // opposite of the usual image convention: top row is first. Invisible points
 // have ranges <0
-bool horizonator_render_offscreen(// output
-                                  // either may be NULL
-                                  char* image, float* ranges,
+bool horizonator_render_offscreen(const horizonator_context_t* ctx,
 
-                                  // input
-                                  const horizonator_context_t* ctx);
+                                  // output
+                                  // either may be NULL
+                                  char* image, float* ranges);
 
 /////////////// The horizonator_allinone_...() functions are to be used
 /////////////// standalone. No other init functions should be called

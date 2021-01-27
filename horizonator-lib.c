@@ -756,11 +756,11 @@ void horizonator_redraw(const horizonator_context_t* ctx)
 // returned using the OpenGL convention: bottom row is stored first. This is
 // opposite of the usual image convention: top row is first. Invisible points
 // have ranges <0
-bool horizonator_render_offscreen(// output
-                                  // either may be NULL
-                                  char* image, float* ranges,
+bool horizonator_render_offscreen(const horizonator_context_t* ctx,
 
-                                  const horizonator_context_t* ctx)
+                                  // output
+                                  // either may be NULL
+                                  char* image, float* ranges)
 {
     if(!ctx->offscreen.inited)
     {

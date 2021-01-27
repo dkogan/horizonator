@@ -250,7 +250,7 @@ int main(int argc, char* argv[])
         return false;
     }
 
-    if(!horizonator_render_offscreen(image, ranges, &ctx))
+    if(!horizonator_render_offscreen(&ctx, image, ranges))
     {
         fprintf(stderr, "render failed\n");
         return 1;
