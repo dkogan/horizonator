@@ -132,9 +132,9 @@ public:
             // Docs say to init this here. I don't know why.
             // https://www.fltk.org/doc-1.3/opengl.html
             if(!horizonator_init( &m_ctx,
-                                  false, -1, -1,
-                                  render_texture,
                                   g_view.lat, g_view.lon,
+                                  -1, -1, false,
+                                  render_texture,
 
                                   "~/.horizonator/DEMs_SRTM3",
                                   "~/.horizonator/tiles",

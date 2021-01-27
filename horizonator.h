@@ -71,10 +71,10 @@ bool horizonator_init( // output
                        horizonator_context_t* ctx,
 
                        // input
-                       bool use_glut,
-                       int offscreen_width, int offscreen_height,
-                       bool render_texture,
                        float viewer_lat, float viewer_lon,
+                       int offscreen_width, int offscreen_height,
+                       bool use_glut,
+                       bool render_texture,
                        const char* dir_dems,
                        const char* dir_tiles,
                        bool allow_downloads);

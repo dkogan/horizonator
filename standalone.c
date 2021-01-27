@@ -233,10 +233,10 @@ int main(int argc, char* argv[])
 
     horizonator_context_t ctx;
     if( !horizonator_init( &ctx,
-                           true,
-                           width, height,
-                           render_texture,
                            lat, lon,
+                           width, height,
+                           true,
+                           render_texture,
                            dir_dems,
                            dir_tiles,
                            allow_downloads) )
