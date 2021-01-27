@@ -610,7 +610,7 @@ bool horizonator_init( // output
     return result;
 }
 
-void horizonator_move(horizonator_context_t* ctx,
+bool horizonator_move(horizonator_context_t* ctx,
                       float viewer_lat, float viewer_lon)
 {
     void texture_coeffs(// output
@@ -712,6 +712,8 @@ void horizonator_move(horizonator_context_t* ctx,
 
     ctx->viewer_lat = viewer_lat;
     ctx->viewer_lon = viewer_lon;
+
+    return true;
 }
 
 bool horizonator_pan_zoom(const horizonator_context_t* ctx,
@@ -727,7 +729,7 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
     return true;
 }
 
-void horizonator_resized(const horizonator_context_t* ctx, int width, int height)
+bool horizonator_resized(const horizonator_context_t* ctx, int width, int height)
 {
     if( ctx->offscreen.inited )
     {
@@ -737,12 +739,14 @@ void horizonator_resized(const horizonator_context_t* ctx, int width, int height
 
     glViewport(0, 0, width, height);
     glUniform1f(ctx->uniform_aspect, (float)width / (float)height);
+    return true;
 }
 
-void horizonator_redraw(const horizonator_context_t* ctx)
+bool horizonator_redraw(const horizonator_context_t* ctx)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
+    return true;
 }
 
 // Renders a given scene to an RGB image and/or a range image.

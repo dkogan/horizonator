@@ -79,7 +79,7 @@ bool horizonator_init( // output
                        const char* dir_tiles,
                        bool allow_downloads);
 
-void horizonator_resized(const horizonator_context_t* ctx, int width, int height);
+bool horizonator_resized(const horizonator_context_t* ctx, int width, int height);
 
 // Must be called at least once before horizonator_redraw()
 bool horizonator_pan_zoom(const horizonator_context_t* ctx,
@@ -93,10 +93,10 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
 // Called after horizonator_init(). Moves the viewer around in the space of
 // loaded DEMs. If the viewer moves a LOT, new DEMs should be loaded, and this
 // function is no longer appropriate
-void horizonator_move(horizonator_context_t* ctx,
+bool horizonator_move(horizonator_context_t* ctx,
                       float viewer_lat, float viewer_lon);
 
-void horizonator_redraw(const horizonator_context_t* ctx);
+bool horizonator_redraw(const horizonator_context_t* ctx);
 
 // returns true if an intersection is found
 bool horizonator_pick(const horizonator_context_t* ctx,
