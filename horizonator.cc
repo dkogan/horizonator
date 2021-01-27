@@ -329,29 +329,11 @@ int main(int argc, char** argv)
     do
     {
         // "h" means -h does something
-        opt = getopt_long(argc, argv, "h1234567890.", opts, NULL);
+        opt = getopt_long(argc, argv, "+h", opts, NULL);
         switch(opt)
         {
         case -1:
             break;
-
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-        case '.':
-            // these are numbers that aren't actually arguments. I stop parsing
-            // here
-            opt = -1;
-            optind--;
-            break;
-
 
         case 'h':
             printf(usage, argv[0]);
