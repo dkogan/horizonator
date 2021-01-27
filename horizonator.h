@@ -58,7 +58,7 @@ static bool horizonator_context_isvalid(const horizonator_context_t* ctx)
 //
 // This routine loads the DEMs around the viewer (viewer is at the center of the
 // DEMs). The render can then be updated by calling any of
-// - horizonator_move_viewer_keep_data()
+// - horizonator_move()
 // - horizonator_pan_zoom()
 // - horizonator_resized()
 // and then
@@ -93,8 +93,8 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
 // Called after horizonator_init(). Moves the viewer around in the space of
 // loaded DEMs. If the viewer moves a LOT, new DEMs should be loaded, and this
 // function is no longer appropriate
-void horizonator_move_viewer_keep_data(horizonator_context_t* ctx,
-                                       float viewer_lat, float viewer_lon);
+void horizonator_move(horizonator_context_t* ctx,
+                      float viewer_lat, float viewer_lon);
 
 void horizonator_redraw(const horizonator_context_t* ctx);
 
@@ -112,7 +112,7 @@ bool horizonator_pick(const horizonator_context_t* ctx,
 // Renders a given scene to an RGB image and/or a range image.
 // horizonator_init() must have been called first with use_glut=true and
 // offscreen_width,height > 0. Then the viewer and camera must have been
-// configured with horizonator_move_viewer_keep_data() horizonator_pan_zoom()
+// configured with horizonator_move() and horizonator_pan_zoom()
 //
 // Returns true on
 // success. The image and ranges buffers must be large-enough to contain packed

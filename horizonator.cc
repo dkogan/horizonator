@@ -60,7 +60,7 @@ static void newrender(horizonator_context_t* ctx,
     // If the context hasn't been inited yet, I don't move the map. It will load
     // later, in the already-correct spot
     if(horizonator_context_isvalid(ctx))
-        horizonator_move_viewer_keep_data(ctx, lat, lon);
+        horizonator_move(ctx, lat, lon);
 }
 
 class GLWidget : public Fl_Gl_Window

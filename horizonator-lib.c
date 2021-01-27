@@ -57,7 +57,7 @@
 //
 // This routine loads the DEMs around the viewer (viewer is at the center of the
 // DEMs). The render can then be updated by calling any of
-// - horizonator_move_viewer_keep_data()
+// - horizonator_move()
 // - horizonator_pan_zoom()
 // - horizonator_resized()
 // and then
@@ -548,7 +548,7 @@ bool horizonator_init( // output
 #undef make_and_set_uniform
 
         // And I set the other uniforms
-        horizonator_move_viewer_keep_data(ctx, viewer_lat, viewer_lon);
+        horizonator_move(ctx, viewer_lat, viewer_lon);
     }
 
     if(offscreen_width > 0)
@@ -608,8 +608,8 @@ bool horizonator_init( // output
     return result;
 }
 
-void horizonator_move_viewer_keep_data(horizonator_context_t* ctx,
-                                       float viewer_lat, float viewer_lon)
+void horizonator_move(horizonator_context_t* ctx,
+                      float viewer_lat, float viewer_lon)
 {
     void texture_coeffs(// output
                         float* lon0,
@@ -746,7 +746,7 @@ void horizonator_redraw(const horizonator_context_t* ctx)
 // Renders a given scene to an RGB image and/or a range image.
 // horizonator_init() must have been called first with use_glut=true and
 // offscreen_width,height > 0. Then the viewer and camera must have been
-// configured with horizonator_move_viewer_keep_data() horizonator_pan_zoom()
+// configured with horizonator_move() and horizonator_pan_zoom()
 //
 // Renders a given scene to an RGB image and/or a range image. Returns true on
 // success. The image and ranges buffers must be large-enough to contain packed
