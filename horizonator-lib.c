@@ -754,12 +754,11 @@ bool horizonator_redraw(const horizonator_context_t* ctx)
 // offscreen_width,height > 0. Then the viewer and camera must have been
 // configured with horizonator_move() and horizonator_pan_zoom()
 //
-// Renders a given scene to an RGB image and/or a range image. Returns true on
-// success. The image and ranges buffers must be large-enough to contain packed
-// 24-bits-per-pixel BGR data and 32-bit floats respectively. The images are
-// returned using the OpenGL convention: bottom row is stored first. This is
-// opposite of the usual image convention: top row is first. Invisible points
-// have ranges <0
+// Returns true on success. The image and ranges buffers must be large-enough to
+// contain packed 24-bits-per-pixel BGR data and 32-bit floats respectively. The
+// images are returned using the usual convention: the top row is stored first.
+// This is opposite of the OpenGL convention: bottom row is first. Invisible
+// points have ranges <0
 bool horizonator_render_offscreen(const horizonator_context_t* ctx,
 
                                   // output
@@ -779,8 +778,29 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
 
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
     if(image != NULL)
+    {
         glReadPixels(0,0, width, height,
                      GL_BGR, GL_UNSIGNED_BYTE, image);
+
+        // Flip the image around to compensate for OpenGL giving me upside-down
+        // images
+        void swap(int i0, int i1)
+        {
+            char t = image[i0];
+            image[i0] = image[i1];
+            image[i1] = t;
+        }
+        for(int y=0; y<height/2; y++)
+            for(int x=0; x<width; x++)
+            {
+                swap((x + y             *width)*3 + 0,
+                     (x + (height-1 - y)*width)*3 + 0);
+                swap((x + y             *width)*3 + 1,
+                     (x + (height-1 - y)*width)*3 + 1);
+                swap((x + y             *width)*3 + 2,
+                     (x + (height-1 - y)*width)*3 + 2);
+            }
+    }
     if(ranges != NULL)
     {
         glReadPixels(0,0, width, height,
@@ -818,28 +838,49 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
 
         // The viewport is "width" pixels wide. The center of the first pixel is
         // at x=0.5. The center of the last pixel is at x=width-0.5
-        for(int y=0; y<height; y++)
+        //
+        // I also flip the image vertically here
+        float aspect = (float)width / (float)height;
+        float get_tanel(int y)
         {
+            float el_ndc = ((float)y + 0.5f) / (float)height * 2.f - 1.f;
+            float el     = el_ndc * (az_deg1-az_deg0) / 2.f / aspect * M_PI/180.0f;
+            return tanf(el);
+        }
+        float range(int x, int y, float tanel)
+        {
+            float depth = ranges[y*width + x];
+            if(depth == 1.0f) return -1.0f;
+
+            float length_en = depth * (ZFAR-ZNEAR) + ZNEAR;
+
+            // float az_ndc = ((float)x + 0.5f) / (float)width * 2.f - 1.f;
+            // float az     = (az_ndc * (az_deg1-az_deg0) / 2.f + (az_deg1+az_deg0)/2.f) * M_PI/180.0f;
+
+            float z = tanel * length_en;
+            return hypotf(length_en, z);
+        }
+        for(int y=0; y<height/2; y++)
+        {
+            float tanel = get_tanel(y);
             for(int x=0; x<width; x++)
             {
-                float depth = ranges[y*width + x];
-                if(depth == 1.0f)
-                    ranges[y*width + x] = -1.0f;
-                else
-                {
-                    float length_en = depth * (ZFAR-ZNEAR) + ZNEAR;
-
-                    // float az_ndc = ((float)x + 0.5f) / (float)width * 2.f - 1.f;
-                    // float az     = (az_ndc * (az_deg1-az_deg0) / 2.f + (az_deg1+az_deg0)/2.f) * M_PI/180.0f;
-
-                    float el_ndc = ((float)y + 0.5f) / (float)height * 2.f - 1.f;
-                    float aspect = (float)width / (float)height;
-                    float el     = el_ndc * (az_deg1-az_deg0) / 2.f / aspect * M_PI/180.0f;
-
-                    float z = tanf(el) * length_en;
-                    ranges[y*width + x] = hypotf(length_en, z);
-                }
+                // tan(el) in the opposite row is negative. And it doesn't
+                // matter for the range computation anyway
+                float depth0 = range(x, y,           tanel);
+                float depth1 = range(x, height-1-y, -tanel);
+                ranges[y           *width + x] = depth1;
+                ranges[(height-1-y)*width + x] = depth0;
             }
+        }
+        if(height&1)
+        {
+            // height is odd, so I need the depth->range for the center row
+            // separately
+            int y = height/2;
+            float tanel = get_tanel(y);
+            for(int x=0; x<width; x++)
+                ranges[y*width + x] = range(x, y, tanel);
         }
     }
 

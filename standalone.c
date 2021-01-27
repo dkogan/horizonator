@@ -262,8 +262,8 @@ int main(int argc, char* argv[])
         FIBITMAP* fib = FreeImage_ConvertFromRawBits((BYTE*)image, width, height,
                                                      3*width, 24,
                                                      0,0,0,
-                                                     // Bottom row is stored first
-                                                     false);
+                                                     // Top row is stored first
+                                                     true);
 
         if(!FreeImage_Save(FIF_PNG, fib, filename_image, 0))
         {
@@ -284,16 +284,11 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        // The image is upside-down, so I write the data out row-by-row in the
-        // normal order: top row first
-        for(int y=0; y<height; y++)
+        if((unsigned int)(width*height) != fwrite(ranges,
+                                                  sizeof(float), width*height, fp))
         {
-            if((unsigned int)(width) != fwrite(&ranges[width*(height-1-y)],
-                                               sizeof(float), width, fp))
-            {
-                MSG("Failed to write complete 'ranges' data");
-                return 1;
-            }
+            MSG("Failed to write complete 'ranges' data");
+            return 1;
         }
         fclose(fp);
     }

@@ -114,12 +114,11 @@ bool horizonator_pick(const horizonator_context_t* ctx,
 // offscreen_width,height > 0. Then the viewer and camera must have been
 // configured with horizonator_move() and horizonator_pan_zoom()
 //
-// Returns true on
-// success. The image and ranges buffers must be large-enough to contain packed
-// 24-bits-per-pixel BGR data and 32-bit floats respectively. The images are
-// returned using the OpenGL convention: bottom row is stored first. This is
-// opposite of the usual image convention: top row is first. Invisible points
-// have ranges <0
+// Returns true on success. The image and ranges buffers must be large-enough to
+// contain packed 24-bits-per-pixel BGR data and 32-bit floats respectively. The
+// images are returned using the usual convention: the top row is stored first.
+// This is opposite of the OpenGL convention: bottom row is first. Invisible
+// points have ranges <0
 bool horizonator_render_offscreen(const horizonator_context_t* ctx,
 
                                   // output
