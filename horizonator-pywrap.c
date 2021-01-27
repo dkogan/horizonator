@@ -152,7 +152,7 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         // The user gave me az_deg referring to the center of the pixels at the
         // edge. I need to convert them to represent the edges of the viewport.
         // That's 0.5 pixels extra on either side
-        double az_per_pixel = (az_deg1 - az_deg0) / (double)(ctx->offscreen.width-1);
+        double az_per_pixel = (az_deg1 - az_deg0) / (double)(self->ctx.offscreen.width-1);
         az_deg0 -= az_per_pixel/2.;
         az_deg1 += az_per_pixel/2.;
     }
