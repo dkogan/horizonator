@@ -34,8 +34,8 @@
 #define OSM_TILE_HEIGHT     256
 
 // these define the front and back clipping planes, in meters
-#define ZNEAR 100.0f
-#define ZFAR  40000.0f
+#define ZNEAR_DEFAULT 100.0f
+#define ZFAR_DEFAULT  40000.0f
 
 
 #define assert_opengl()                                 \
@@ -530,8 +530,6 @@ bool horizonator_init( // output
         make_and_set_uniform(i, NtilesY,         texture_ctx.NtilesXY[1]);
         make_and_set_uniform(i, osmtile_lowestX, texture_ctx.osmtile_lowestXY[0]);
         make_and_set_uniform(i, osmtile_lowestY, texture_ctx.osmtile_lowestXY[1]);
-        make_and_set_uniform(f, znear,           ZNEAR);
-        make_and_set_uniform(f, zfar,            ZFAR);
 
         // These may be modified at runtime, so I make, but don't set
         ctx->uniform_aspect           = glGetUniformLocation(ctx->program, "aspect");           assert_opengl();
@@ -547,10 +545,15 @@ bool horizonator_init( // output
         ctx->uniform_texturemap_dlat0 = glGetUniformLocation(ctx->program, "texturemap_dlat0"); assert_opengl();
         ctx->uniform_texturemap_dlat1 = glGetUniformLocation(ctx->program, "texturemap_dlat1"); assert_opengl();
         ctx->uniform_texturemap_dlat2 = glGetUniformLocation(ctx->program, "texturemap_dlat2"); assert_opengl();
+        ctx->uniform_znear            = glGetUniformLocation(ctx->program, "znear");            assert_opengl();
+        ctx->uniform_zfar             = glGetUniformLocation(ctx->program, "zfar");             assert_opengl();
+        ctx->uniform_znear_color      = glGetUniformLocation(ctx->program, "znear_color");      assert_opengl();
+        ctx->uniform_zfar_color       = glGetUniformLocation(ctx->program, "zfar_color");       assert_opengl();
 #undef make_and_set_uniform
 
         // And I set the other uniforms
         horizonator_move(ctx, viewer_lat, viewer_lon);
+        horizonator_set_zextents(ctx, ZNEAR_DEFAULT, ZFAR_DEFAULT, ZNEAR_DEFAULT, ZFAR_DEFAULT);
     }
 
     if(offscreen_width > 0)
@@ -742,6 +745,27 @@ bool horizonator_resized(const horizonator_context_t* ctx, int width, int height
     return true;
 }
 
+// set the position of the clipping planes. The horizontal distance from the
+// viewer is compared against these positions. Only points in [znear,zfar] are
+// rendered. The render is color-coded by this distance, using znear_color and
+// zfar_color as the bounds for the color-coding.
+//
+// Any value <0 is untouched by this call
+bool horizonator_set_zextents(horizonator_context_t* ctx,
+                              float znear, float zfar,
+                              float znear_color, float zfar_color)
+{
+    if(znear > 0.0f)
+       glUniform1f( ctx->uniform_znear,       znear);       assert_opengl();
+    if(zfar > 0.0f)
+       glUniform1f( ctx->uniform_zfar,        zfar);        assert_opengl();
+    if(znear_color > 0.0f)
+       glUniform1f( ctx->uniform_znear_color, znear_color); assert_opengl();
+    if(zfar_color > 0.0f)
+       glUniform1f( ctx->uniform_zfar_color,  zfar_color);  assert_opengl();
+    return true;
+}
+
 bool horizonator_redraw(const horizonator_context_t* ctx)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -807,10 +831,17 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
                      GL_DEPTH_COMPONENT, GL_FLOAT, ranges);
 
         float az_deg0, az_deg1;
-        glGetUniformfv(ctx->program, ctx->uniform_az_deg0,        &az_deg0);
+        glGetUniformfv(ctx->program, ctx->uniform_az_deg0, &az_deg0);
         assert_opengl();
-        glGetUniformfv(ctx->program, ctx->uniform_az_deg1,        &az_deg1);
+        glGetUniformfv(ctx->program, ctx->uniform_az_deg1, &az_deg1);
         assert_opengl();
+
+        float znear, zfar;
+        glGetUniformfv(ctx->program, ctx->uniform_znear, &znear);
+        assert_opengl();
+        glGetUniformfv(ctx->program, ctx->uniform_zfar, &zfar);
+        assert_opengl();
+
 
         // I just read the depth buffer. depth is in [0,1] and it describes
         // gl_Position.z/gl_Position.w in the vertex shader, except THAT
@@ -852,7 +883,7 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
             float depth = ranges[y*width + x];
             if(depth == 1.0f) return -1.0f;
 
-            float length_en = depth * (ZFAR-ZNEAR) + ZNEAR;
+            float length_en = depth * (zfar-znear) + znear;
 
             // float az_ndc = ((float)x + 0.5f) / (float)width * 2.f - 1.f;
             // float az     = (az_ndc * (az_deg1-az_deg0) / 2.f + (az_deg1+az_deg0)/2.f) * M_PI/180.0f;
@@ -1011,6 +1042,12 @@ bool horizonator_pick(const horizonator_context_t* ctx,
     } u;
     glGetIntegerv(GL_VIEWPORT, u.viewport);
 
+    float znear, zfar;
+    glGetUniformfv(ctx->program, ctx->uniform_znear, &znear);
+    assert_opengl();
+    glGetUniformfv(ctx->program, ctx->uniform_zfar, &zfar);
+    assert_opengl();
+
     float depth;
     glReadPixels(x, u.height-1 - y,
                  1,1,
@@ -1020,7 +1057,7 @@ bool horizonator_pick(const horizonator_context_t* ctx,
 
     // depth is in [0,1] and it describes gl_Position.z/gl_Position.w in the
     // vertex shader, except THAT quantity is in [-1,1]
-    float length_en = depth * (ZFAR-ZNEAR) + ZNEAR;
+    float length_en = depth * (zfar-znear) + znear;
 
     float az_deg0, az_deg1, cos_viewer_lat;
     glGetUniformfv(ctx->program, ctx->uniform_az_deg0,        &az_deg0);

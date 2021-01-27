@@ -23,6 +23,8 @@ typedef struct
     int32_t uniform_texturemap_dlat0;
     int32_t uniform_texturemap_dlat1;
     int32_t uniform_texturemap_dlat2;
+    int32_t uniform_znear, uniform_zfar;
+    int32_t uniform_znear_color, uniform_zfar_color;
 
     uint32_t program;
 
@@ -95,6 +97,16 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
 // function is no longer appropriate
 bool horizonator_move(horizonator_context_t* ctx,
                       float viewer_lat, float viewer_lon);
+
+// set the position of the clipping planes. The horizontal distance from the
+// viewer is compared against these positions. Only points in [znear,zfar] are
+// rendered. The render is color-coded by this distance, using znear_color and
+// zfar_color as the bounds for the color-coding
+//
+// Any value <0 is untouched by this call
+bool horizonator_set_zextents(horizonator_context_t* ctx,
+                              float znear, float zfar,
+                              float znear_color, float zfar_color);
 
 bool horizonator_redraw(const horizonator_context_t* ctx);
 

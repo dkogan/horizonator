@@ -64,6 +64,18 @@ ARGUMENTS
   right edge of the rightmost mpixels. Else: the azimuth extents represent the
   distance between the centers of the leftmost and rightmost pixels.
 
+- znear, zfar: optional values, defaulting to -1. These set the clipping planes
+  used by the renderer. Any points with a horizontal distance < znear or > zfar
+  are excluded from the render. A value of <=0 means "use the previously-set
+  value"
+
+- znear_color, zfar_color: optional values, defaulting to -1. These set the z
+  extents used for the color-coding of the render. The red channel in the image
+  is set to linearly increase with increasing horizontal distance from the
+  viewer. Points with a distance <= znear_color are set to 0 and points with
+  distance >= zfar_color are set to 1, with linear interpolation in-between. A
+  value of <=0 means "use the previously-set value"
+
 RETURNED VALUES
 
 We return the image(s) as numpy arrays. The RGB image is a numpy array of shape

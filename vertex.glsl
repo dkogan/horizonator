@@ -21,6 +21,7 @@ uniform int NtilesX, NtilesY;
 uniform int osmtile_lowestX, osmtile_lowestY;
 
 uniform float znear, zfar;
+uniform float znear_color, zfar_color;
 
 // We send these to the fragment shader
 out vec3 rgb;
@@ -28,9 +29,6 @@ out vec2 tex;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
-
-// Past this distance the render color doesn't change, in meters
-const float zfar_color = 20000.0;
 
 // Unwraps an angle x to lie within pi of an angle near. All angles in radians
 float unwrap_near_rad(float x, float near)
@@ -158,7 +156,8 @@ void main(void)
                             1.0 );
     }
 
-    rgb.r = (distance_ne - znear) / (zfar_color - znear);
+    rgb.r = max(min((distance_ne - znear_color) / (zfar_color - znear_color),
+                    1.0), 0.0);
     rgb.g = 0.;
     rgb.b = 0.;
 }

@@ -125,20 +125,28 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     double az_deg0, az_deg1;
     int return_image = true, return_ranges = true;
     int az_extents_use_pixel_centers = false;
+    double znear       = -1.;
+    double zfar        = -1.;
+    double znear_color = -1.;
+    double zfar_color  = -1.;
 
     char* keywords[] = {
         "az_deg0", "az_deg1",
         "lat", "lon",
         "return_image", "return_ranges",
         "az_extents_use_pixel_centers",
+        "znear", "zfar",
+        "znear_color", "zfar_color",
         NULL};
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "dd|ddppp", keywords,
+                                     "dd|ddpppdddd", keywords,
                                      &az_deg0, &az_deg1,
                                      &lat, &lon,
                                      &return_image, &return_ranges,
-                                     &az_extents_use_pixel_centers) )
+                                     &az_extents_use_pixel_centers,
+                                     &znear, &zfar,
+                                     &znear_color, &zfar_color) )
         goto done;
 
     if(!return_image && !return_ranges)
@@ -169,6 +177,13 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
             BARF("horizonator_move() failed");
             goto done;
         }
+
+    if( !horizonator_set_zextents( &self->ctx,
+                                   znear, zfar, znear_color, zfar_color))
+    {
+        BARF("horizonator_set_zextents() failed");
+        goto done;
+    }
 
     if(return_image)
     {
