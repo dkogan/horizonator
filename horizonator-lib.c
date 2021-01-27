@@ -81,6 +81,8 @@ bool horizonator_init( // output
     bool result             = false;
     bool dem_context_inited = false;
 
+    if(dir_dems  == NULL) dir_dems  = "~/.horizonator/DEMs_SRTM3";
+    if(dir_tiles == NULL) dir_tiles = "~/.horizonator/tiles";
 
     if(use_glut)
     {

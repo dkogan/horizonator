@@ -53,13 +53,12 @@ int main(int argc, char* argv[])
         {}
     };
 
-
     int         width           = 0;
     int         height          = 0;
     const char* filename_image  = NULL;
     const char* filename_ranges = NULL;
-    const char* dir_dems        = "~/.horizonator/DEMs_SRTM3";
-    const char* dir_tiles       = "~/.horizonator/tiles";
+    const char* dir_dems        = NULL;
+    const char* dir_tiles       = NULL;
     bool        render_texture  = false;
     bool        allow_downloads = false;
 

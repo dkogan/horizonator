@@ -135,9 +135,7 @@ public:
                                   g_view.lat, g_view.lon,
                                   -1, -1, false,
                                   render_texture,
-
-                                  "~/.horizonator/DEMs_SRTM3",
-                                  "~/.horizonator/tiles",
+                                  NULL,NULL,
                                   true))
             {
                 MSG("horizonator_init() failed. Giving up");
