@@ -53,3 +53,6 @@ The __init__() function takes
 
 - allow_downloads: optional boolean, defaulting to True. If True: we try to
   download missing OpenStreetMap tiles.
+
+- radius: optional integer, with some reasonable default. Specifies the size of
+  the DEM to load. This many cells are loaded to the N, S, E and W of the viewer.

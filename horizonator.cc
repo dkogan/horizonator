@@ -19,6 +19,8 @@ extern "C"
 }
 
 
+#define RENDER_RADIUS_CELLS_DEFAULT 1000
+
 #define WINDOW_W 800
 #define WINDOW_H 600
 
@@ -133,7 +135,9 @@ public:
             // https://www.fltk.org/doc-1.3/opengl.html
             if(!horizonator_init( &m_ctx,
                                   g_view.lat, g_view.lon,
-                                  -1, -1, false,
+                                  -1, -1,
+                                  RENDER_RADIUS_CELLS_DEFAULT,
+                                  false,
                                   render_texture,
                                   NULL,NULL,
                                   true))

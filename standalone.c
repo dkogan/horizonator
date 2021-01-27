@@ -14,6 +14,7 @@ int main(int argc, char* argv[])
     const char* usage =
         "%s [--width WIDTH_PIXELS] [--width HEIGHT_PIXELS]\n"
         "   [--image OUT.png] [--ranges RANGES.DAT]\n"
+        "   [--radius RENDER_RADIUS_CELLS]\n"
         "   [--texture]\n"
         "   [--allow-tile-downloads]\n"
         "   [--dirdems DIRECTORY]\n"
@@ -25,6 +26,9 @@ int main(int argc, char* argv[])
         "--height applies only if --width is given, and is optional; a reasonable\n"
         "field-of-view will be assumed if --height is omitted."
         "The image filename MUST be a .png file\n"
+        "\n"
+        "I load RENDER_RADIUS_CELLS of the DEM in each direction off the center\n"
+        "point. If --radius is omitted, a reasonable default is chosen\n"
         "\n"
         "When plotting to a window, AZ_DEG are the azimuth bounds of the\n"
         "VIEWPORT. When rendering to an image, AZ_DEG are the\n"
@@ -44,6 +48,7 @@ int main(int argc, char* argv[])
         { "width",             required_argument, NULL, 'w' },
         { "height",            required_argument, NULL, 'H' },
         { "image",             required_argument, NULL, 'i' },
+        { "radius",            required_argument, NULL, 'R' },
         { "ranges",            required_argument, NULL, 'r' },
         { "dirdems",           required_argument, NULL, 'd' },
         { "dirtiles",          required_argument, NULL, 't' },
@@ -61,6 +66,7 @@ int main(int argc, char* argv[])
     const char* dir_tiles       = NULL;
     bool        render_texture  = false;
     bool        allow_downloads = false;
+    int         render_radius_cells = 1000;
 
     int opt;
     do
@@ -90,6 +96,15 @@ int main(int argc, char* argv[])
             if(height <= 0)
             {
                 fprintf(stderr, "--height must have an integer argument > 0\n");
+                return 1;
+            }
+            break;
+
+        case 'R':
+            render_radius_cells = atoi(optarg);
+            if(height <= 0)
+            {
+                fprintf(stderr, "--radius must have an integer argument > 0\n");
                 return 1;
             }
             break;
@@ -186,6 +201,7 @@ int main(int argc, char* argv[])
     {
         horizonator_allinone_glut_loop(render_texture,
                                        lat, lon, az_deg0, az_deg1,
+                                       render_radius_cells,
                                        dir_dems, dir_tiles,
                                        allow_downloads);
         return 0;
@@ -234,6 +250,7 @@ int main(int argc, char* argv[])
     if( !horizonator_init( &ctx,
                            lat, lon,
                            width, height,
+                           render_radius_cells,
                            true,
                            render_texture,
                            dir_dems,

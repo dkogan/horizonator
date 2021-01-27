@@ -21,13 +21,6 @@
 #include "util.h"
 
 
-//////////////////// These are all used for 360-deg panorama renders. Leave them
-//////////////////// at 0 otherwise
-
-// We will render a square grid of data that is at most RENDER_RADIUS cells away
-// from the viewer in the N or E direction
-#define RENDER_RADIUS       500
-
 // for texture rendering
 #define OSM_RENDER_ZOOM     12
 #define OSM_TILE_WIDTH      256
@@ -72,6 +65,7 @@ bool horizonator_init( // output
                        // input
                        float viewer_lat, float viewer_lon,
                        int offscreen_width, int offscreen_height,
+                       int render_radius_cells,
                        bool use_glut,
                        bool render_texture,
                        const char* dir_dems,
@@ -134,7 +128,7 @@ bool horizonator_init( // output
 
     if( !horizonator_dem_init( &ctx->dems,
                    viewer_lat, viewer_lon,
-                   RENDER_RADIUS,
+                   render_radius_cells,
                    dir_dems) )
     {
         MSG("Couldn't init DEMs. Giving up");
@@ -143,8 +137,8 @@ bool horizonator_init( // output
     dem_context_inited = true;
 
     // Dense triangulation. This may be adjusted below
-    int Nvertices   = (2*RENDER_RADIUS) * (2*RENDER_RADIUS);
-    ctx->Ntriangles = (2*RENDER_RADIUS - 1)*(2*RENDER_RADIUS - 1) * 2;
+    int Nvertices   = (2*render_radius_cells) * (2*render_radius_cells);
+    ctx->Ntriangles = (2*render_radius_cells - 1)*(2*render_radius_cells - 1) * 2;
 
     typedef struct
     {
@@ -316,11 +310,11 @@ bool horizonator_init( // output
         }
 
         // My render data is in a grid centered on viewer_lat/viewer_lon, branching
-        // RENDER_RADIUS*DEG_PER_CELL degrees in all 4 directions
-        float lowest_E  = viewer_lon - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float lowest_N  = viewer_lat - (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float highest_E = viewer_lon + (float)RENDER_RADIUS/CELLS_PER_DEG;
-        float highest_N = viewer_lat + (float)RENDER_RADIUS/CELLS_PER_DEG;
+        // render_radius_cells*DEG_PER_CELL degrees in all 4 directions
+        float lowest_E  = viewer_lon - (float)render_radius_cells/CELLS_PER_DEG;
+        float lowest_N  = viewer_lat - (float)render_radius_cells/CELLS_PER_DEG;
+        float highest_E = viewer_lon + (float)render_radius_cells/CELLS_PER_DEG;
+        float highest_N = viewer_lat + (float)render_radius_cells/CELLS_PER_DEG;
 
         // ytile decreases with lat, so I treat it backwards
         getOSMTileID( &texture_ctx.osmtile_lowestXY[0],
@@ -376,9 +370,9 @@ bool horizonator_init( // output
 
         int vertex_buf_idx = 0;
 
-        for( int j=0; j<2*RENDER_RADIUS; j++ )
+        for( int j=0; j<2*render_radius_cells; j++ )
         {
-            for( int i=0; i<2*RENDER_RADIUS; i++ )
+            for( int i=0; i<2*render_radius_cells; i++ )
             {
                 int32_t z = horizonator_dem_sample(&ctx->dems, i,j);
 
@@ -437,17 +431,17 @@ bool horizonator_init( // output
 
         GLuint* indices = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
         int idx = 0;
-        for( int j=0; j<(2*RENDER_RADIUS-1); j++ )
+        for( int j=0; j<(2*render_radius_cells-1); j++ )
         {
-            for( int i=0; i<(2*RENDER_RADIUS-1); i++ )
+            for( int i=0; i<(2*render_radius_cells-1); i++ )
             {
-                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
-                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 1);
-                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 0);
+                indices[idx++] = (j + 0)*(2*render_radius_cells) + (i + 0);
+                indices[idx++] = (j + 1)*(2*render_radius_cells) + (i + 1);
+                indices[idx++] = (j + 1)*(2*render_radius_cells) + (i + 0);
 
-                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 0);
-                indices[idx++] = (j + 0)*(2*RENDER_RADIUS) + (i + 1);
-                indices[idx++] = (j + 1)*(2*RENDER_RADIUS) + (i + 1);
+                indices[idx++] = (j + 0)*(2*render_radius_cells) + (i + 0);
+                indices[idx++] = (j + 0)*(2*render_radius_cells) + (i + 1);
+                indices[idx++] = (j + 1)*(2*render_radius_cells) + (i + 1);
             }
         }
         int res = glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
@@ -927,6 +921,7 @@ bool horizonator_allinone_glut_loop( bool render_texture,
                             // elevation extents will be chosen to keep the aspect ratio
                             // square.
                             float az_deg0, float az_deg1,
+                            int render_radius_cells,
                             const char* dir_dems,
                             const char* dir_tiles,
                             bool allow_downloads)
@@ -936,6 +931,7 @@ bool horizonator_allinone_glut_loop( bool render_texture,
     if( !horizonator_init( &ctx,
                            viewer_lat, viewer_lon,
                            -1, -1,
+                           render_radius_cells,
                            true,
                            render_texture,
                            dir_dems,

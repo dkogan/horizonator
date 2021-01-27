@@ -58,12 +58,15 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     int allow_downloads   = true;
     const char* dir_dems  = NULL;
     const char* dir_tiles = NULL;
+    unsigned int render_radius_cells = 1000; // default
+
 
     char* keywords[] = {
         "lat", "lon",
         "width", "height",
         "render_texture",
         "dir_dems", "dir_tiles", "allow_downloads",
+        "radius",
         NULL};
 
 
@@ -82,14 +85,16 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
 
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "ddII|pssp", keywords,
+                                     "ddII|psspI", keywords,
                                      &lat, &lon, &width, &height,
                                      &render_texture, &dir_dems, &dir_tiles,
-                                     &allow_downloads))
+                                     &allow_downloads,
+                                     &render_radius_cells))
         goto done;
 
     if(! horizonator_init( &self->ctx,
                            lat, lon, width, height,
+                           render_radius_cells,
                            true, render_texture, dir_dems, dir_tiles,
                            allow_downloads ) )
         goto done;

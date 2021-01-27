@@ -75,6 +75,7 @@ bool horizonator_init( // output
                        // input
                        float viewer_lat, float viewer_lon,
                        int offscreen_width, int offscreen_height,
+                       int render_radius_cells,
                        bool use_glut,
                        bool render_texture,
                        const char* dir_dems,
@@ -149,6 +150,7 @@ bool horizonator_allinone_glut_loop( bool render_texture,
                                      // elevation extents will be chosen to keep the aspect ratio
                                      // square.
                                      float az_deg0, float az_deg1,
+                                     int render_radius_cells,
                                      const char* dir_dems,
                                      const char* dir_tiles,
                                      bool allow_downloads);
