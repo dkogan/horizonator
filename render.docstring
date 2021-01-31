@@ -38,7 +38,7 @@ field of view.
 
 This function can return the rendered RGB image and a range map. By default,
 both are returned in a tuple (in that order). Just one can be requested by
-setting return_image=False or return_ranges=False.
+setting return_image=False or return_range=False.
 
 ARGUMENTS
 
@@ -55,7 +55,7 @@ ARGUMENTS
 - return_image: optional boolean, defaulting to True. If return_image: the RGB
   image is returned. See RETURNED VALUES for details
 
-- return_ranges: optional boolean, defaulting to True. If return_ranges: the
+- return_range: optional boolean, defaulting to True. If return_range: the
   range image is returned. See RETURNED VALUES for details
 
 - az_extents_use_pixel_centers: optional boolean, defaulting to False. If not
@@ -82,10 +82,10 @@ We return the image(s) as numpy arrays. The RGB image is a numpy array of shape
 (height,width,3) containing 8-bit unsigned integers. The range image is a numpy
 array of shape (height,width) containing 32-bit floats.
 
-If not return_image and not return_ranges: we return ()
+If not return_image and not return_range: we return ()
 
-If return_image and not return_ranges: we return the RGB image
+If return_image and not return_range: we return the RGB image
 
-If not return_image and return_ranges: we return the range image
+If not return_image and return_range: we return the range image
 
-If return_image and return_ranges: we return a tuple (RGB image, range image)
+If return_image and return_range: we return a tuple (RGB image, range image)

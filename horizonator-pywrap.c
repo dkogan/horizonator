@@ -128,7 +128,7 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
 
     double lat = -1000., lon = -1000.;
     double az_deg0, az_deg1;
-    int return_image = true, return_ranges = true;
+    int return_image = true, return_range = true;
     int az_extents_use_pixel_centers = false;
     double znear       = -1.;
     double zfar        = -1.;
@@ -138,7 +138,7 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     char* keywords[] = {
         "az_deg0", "az_deg1",
         "lat", "lon",
-        "return_image", "return_ranges",
+        "return_image", "return_range",
         "az_extents_use_pixel_centers",
         "znear", "zfar",
         "znear_color", "zfar_color",
@@ -148,13 +148,13 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
                                      "dd|ddpppdddd", keywords,
                                      &az_deg0, &az_deg1,
                                      &lat, &lon,
-                                     &return_image, &return_ranges,
+                                     &return_image, &return_range,
                                      &az_extents_use_pixel_centers,
                                      &znear, &zfar,
                                      &znear_color, &zfar_color) )
         goto done;
 
-    if(!return_image && !return_ranges)
+    if(!return_image && !return_range)
     {
         result = PyTuple_New(0);
         goto done;
@@ -199,7 +199,7 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
                 NPY_UINT8);
         if(image == NULL) goto done;
     }
-    if(return_ranges)
+    if(return_range)
     {
         ranges =
             PyArray_SimpleNew(2, ((npy_intp[]){self->ctx.offscreen.height,
@@ -218,8 +218,8 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         goto done;
     }
 
-    if(      return_image && !return_ranges) result = image;
-    else if(!return_image &&  return_ranges) result = ranges;
+    if(      return_image && !return_range) result = image;
+    else if(!return_image &&  return_range) result = ranges;
     else
     {
         result = PyTuple_Pack(2, image, ranges);
