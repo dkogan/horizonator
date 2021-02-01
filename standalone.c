@@ -12,7 +12,7 @@
 int main(int argc, char* argv[])
 {
     const char* usage =
-        "%s [--width WIDTH_PIXELS] [--width HEIGHT_PIXELS]\n"
+        "%s [--width WIDTH_PIXELS] [--height HEIGHT_PIXELS]\n"
         "   [--image OUT.png] [--ranges RANGES.DAT]\n"
         "   [--radius RENDER_RADIUS_CELLS]\n"
         "   [--texture]\n"
