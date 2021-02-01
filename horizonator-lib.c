@@ -78,20 +78,26 @@ bool horizonator_init( // output
     if(dir_dems  == NULL) dir_dems  = "~/.horizonator/DEMs_SRTM3";
     if(dir_tiles == NULL) dir_tiles = "~/.horizonator/tiles";
 
+    ctx->use_glut = use_glut;
     if(use_glut)
     {
         bool double_buffered = offscreen_width <= 0;
 
-        glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
-        glutInitContextVersion(4,2);
-        glutInitContextProfile(GLUT_CORE_PROFILE);
-        glutInit(&(int){1}, &(char*){"exec"});
+        static bool global_inited = false;
+        if(!global_inited)
+        {
+            glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
+            glutInitContextVersion(4,2);
+            glutInitContextProfile(GLUT_CORE_PROFILE);
+            glutInit(&(int){1}, &(char*){"exec"});
+            global_inited = true;
+        }
+
         glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH |
                              (double_buffered ? GLUT_DOUBLE : 0) );
-
         // when offscreen, I really don't want to glutCreateWindow(), but for some
         // reason not doing this causes glewInit() to segfault...
-        glutCreateWindow("horizonator");
+        ctx->glut_window = glutCreateWindow("horizonator");
         if(offscreen_width > 0)
             glutHideWindow();
 
@@ -609,9 +615,25 @@ bool horizonator_init( // output
     return result;
 }
 
+void horizonator_deinit( horizonator_context_t* ctx )
+{
+    if(ctx->use_glut && ctx->glut_window != 0)
+    {
+        glutDestroyWindow(ctx->glut_window);
+        ctx->glut_window = 0;
+    }
+}
+
 bool horizonator_move(horizonator_context_t* ctx,
                       float viewer_lat, float viewer_lon)
 {
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
     void texture_coeffs(// output
                         float* lon0,
                         float* lon1,
@@ -723,6 +745,13 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
                       // square.
                       float az_deg0, float az_deg1)
 {
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
     glUniform1f( ctx->uniform_az_deg0, az_deg0); assert_opengl();
     glUniform1f( ctx->uniform_az_deg1, az_deg1); assert_opengl();
     return true;
@@ -730,6 +759,13 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
 
 bool horizonator_resized(const horizonator_context_t* ctx, int width, int height)
 {
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
     if( ctx->offscreen.inited )
     {
         MSG("Resising an offscreen window is not yet supported");
@@ -751,6 +787,13 @@ bool horizonator_set_zextents(horizonator_context_t* ctx,
                               float znear, float zfar,
                               float znear_color, float zfar_color)
 {
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
     if(znear > 0.0f)
        glUniform1f( ctx->uniform_znear,       znear);       assert_opengl();
     if(zfar > 0.0f)
@@ -764,6 +807,13 @@ bool horizonator_set_zextents(horizonator_context_t* ctx,
 
 bool horizonator_redraw(const horizonator_context_t* ctx)
 {
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDrawElements(GL_TRIANGLES, ctx->Ntriangles*3, GL_UNSIGNED_INT, NULL);
     return true;
@@ -785,6 +835,13 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
                                   // either may be NULL
                                   char* image, float* ranges)
 {
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
     if(!ctx->offscreen.inited)
     {
         MSG("Prior to calling horizonator_render_offscreen(), the context must have been inited for offscreen rendering with horizonator_init(use_glut=true, offscreen_width,height > 0)");
@@ -1011,6 +1068,13 @@ bool horizonator_pick(const horizonator_context_t* ctx,
                       // pixel coordinates in the render
                       int x, int y )
 {
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
     // az = 0:     North
     // az = 90deg: East
     // xy coords are (e,n)

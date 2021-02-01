@@ -8,7 +8,10 @@
 typedef struct
 {
     int Ntriangles;
-    bool render_texture;
+    bool render_texture, use_glut;
+
+    // meaningful only if use_glut. 0 means "invalid" or "closed"
+    int glut_window;
 
     // These should be GLint, but I don't want to #include <GL.h>.
     // I will static_assert() this in the .c to make sure they are compatible
@@ -81,6 +84,8 @@ bool horizonator_init( // output
                        const char* dir_dems,
                        const char* dir_tiles,
                        bool allow_downloads);
+
+void horizonator_deinit( horizonator_context_t* ctx );
 
 bool horizonator_resized(const horizonator_context_t* ctx, int width, int height);
 

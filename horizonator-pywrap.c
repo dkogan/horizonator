@@ -69,20 +69,11 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         "radius",
         NULL};
 
-
-    static bool inited;
-    if(inited)
-    {
-        BARF("I already inited one horizonator object in this process. I don't have code to deinit or to manage multiple objects yet. Giving up");
-        goto done;
-    }
     if(self->ctx.offscreen.inited)
     {
         BARF("Trying to init an already-inited object");
         goto done;
     }
-    inited = true;
-
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
                                      "ddII|psspI", keywords,
@@ -108,7 +99,7 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
 
 static void py_horizonator_dealloc(py_horizonator_t* self)
 {
-    MSG("release not yet implemented");
+    horizonator_deinit(&self->ctx);
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
