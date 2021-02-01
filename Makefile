@@ -50,6 +50,8 @@ CXXFLAGS_FLORB := \
  $(shell pkg-config --cflags libpng) \
  $(shell pkg-config --cflags tinyxml)
 
+EXTRA_CLEAN += florb/*.o florb/Fl/*.o
+
 horizonator.o slippymap-annotations.o $(FLORB_OBJECTS): CXXFLAGS += $(CXXFLAGS_FLORB)
 horizonator: LDLIBS += $(LDLIBS_FLORB) -lfltk_gl -lX11
 
