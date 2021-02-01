@@ -70,14 +70,13 @@ void main(void)
         import numpy as np
 
         d = 20000.
-        R = 6371000.0
 
-        th = d/R
+        th = d/Rearth
         s  = np.sin(th)
         c  = np.cos(th)
 
-        x_plane  = np.array((d,R))
-        x_sphere = np.array((s,c))*R
+        x_plane  = np.array((d,Rearth))
+        x_sphere = np.array((s,c))*Rearth
 
         print(x_plane - x_sphere)
 
@@ -92,7 +91,7 @@ void main(void)
 
     // Several different paths exist for the data processing, with different
     // amounts of the math done in the CPU or GPU. The corresponding path must
-    // be selected in the CPU code in init.c
+    // be selected in the CPU code in horizonator_init()
     if(false)
     {
         distance_ne = vertex.z;
