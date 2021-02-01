@@ -158,6 +158,20 @@ bool horizonator_dem_init(// output
 
             int res = fstat(ctx->mmap_fd[i][j], &sb);
             assert( res == 0 );
+            if(sb.st_size == 0)
+            {
+                // DEM file exists and has size 0: assume it's in the sea. This
+                // does the same thing as if the DEM file didn't exist at all,
+                // except no warning is generated
+                close(ctx->mmap_fd[i][j]);
+
+                horizonator_dem_deinit(ctx);
+                ctx->dems      [i][j] = NULL;
+                ctx->mmap_sizes[i][j] = 0;
+                ctx->mmap_fd   [i][j] = 0;
+                continue;
+
+            }
 
             ctx->dems      [i][j] = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, ctx->mmap_fd[i][j], 0);
             ctx->mmap_sizes[i][j] = sb.st_size;
