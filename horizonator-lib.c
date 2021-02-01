@@ -92,6 +92,8 @@ bool horizonator_init( // output
         // when offscreen, I really don't want to glutCreateWindow(), but for some
         // reason not doing this causes glewInit() to segfault...
         glutCreateWindow("horizonator");
+        if(offscreen_width > 0)
+            glutHideWindow();
 
         const char* version = (const char*)glGetString(GL_VERSION);
 
