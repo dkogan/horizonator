@@ -156,7 +156,8 @@ bool horizonator_dem_init(// output
                 continue;
             }
 
-            assert( fstat(ctx->mmap_fd[i][j], &sb) == 0 );
+            int res = fstat(ctx->mmap_fd[i][j], &sb);
+            assert( res == 0 );
 
             ctx->dems      [i][j] = mmap(NULL, sb.st_size, PROT_READ, MAP_PRIVATE, ctx->mmap_fd[i][j], 0);
             ctx->mmap_sizes[i][j] = sb.st_size;
