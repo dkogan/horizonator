@@ -10,7 +10,8 @@ LDLIBS += \
   -lm \
   -pthread
 
-CFLAGS += --std=gnu99 -Wno-missing-field-initializers
+CFLAGS    += --std=gnu99
+CCXXFLAGS += -Wno-missing-field-initializers
 
 ################# library ###############
 LIB_SOURCES += horizonator-lib.c dem.c
