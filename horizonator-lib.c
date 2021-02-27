@@ -974,18 +974,18 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
 }
 
 bool horizonator_allinone_glut_loop( bool render_texture,
-                            float viewer_lat, float viewer_lon,
+                                     float viewer_lat, float viewer_lon,
 
-                            // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                            // edges lie at the edges of the image. So for an image that's
-                            // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                            // elevation extents will be chosen to keep the aspect ratio
-                            // square.
-                            float az_deg0, float az_deg1,
-                            int render_radius_cells,
-                            const char* dir_dems,
-                            const char* dir_tiles,
-                            bool allow_downloads)
+                                     // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                                     // edges lie at the edges of the image. So for an image that's
+                                     // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                                     // elevation extents will be chosen to keep the aspect ratio
+                                     // square.
+                                     float az_deg0, float az_deg1,
+                                     int render_radius_cells,
+                                     const char* dir_dems,
+                                     const char* dir_tiles,
+                                     bool allow_downloads)
 {
     horizonator_context_t ctx;
 
