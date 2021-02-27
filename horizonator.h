@@ -111,7 +111,7 @@ bool horizonator_move(horizonator_context_t* ctx,
 //
 // Any value <0 is untouched by this call
 bool horizonator_set_zextents(horizonator_context_t* ctx,
-                              float znear, float zfar,
+                              float znear,       float zfar,
                               float znear_color, float zfar_color);
 
 bool horizonator_redraw(const horizonator_context_t* ctx);

@@ -555,7 +555,9 @@ bool horizonator_init( // output
 
         // And I set the other uniforms
         horizonator_move(ctx, viewer_lat, viewer_lon);
-        horizonator_set_zextents(ctx, ZNEAR_DEFAULT, ZFAR_DEFAULT, ZNEAR_DEFAULT, ZFAR_DEFAULT);
+        horizonator_set_zextents(ctx,
+                                 ZNEAR_DEFAULT, ZFAR_DEFAULT,
+                                 ZNEAR_DEFAULT, ZFAR_DEFAULT);
     }
 
     if(offscreen_width > 0)
@@ -784,7 +786,7 @@ bool horizonator_resized(const horizonator_context_t* ctx, int width, int height
 //
 // Any value <0 is untouched by this call
 bool horizonator_set_zextents(horizonator_context_t* ctx,
-                              float znear, float zfar,
+                              float znear,       float zfar,
                               float znear_color, float zfar_color)
 {
     if(ctx->use_glut)
