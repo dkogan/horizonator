@@ -201,10 +201,15 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if( (width >  0 && !(filename_image != NULL || filename_ranges != NULL)) ||
-        (width <= 0 &&  (filename_image != NULL || filename_ranges != NULL)) )
+    if(width >  0 && !(filename_image != NULL || filename_ranges != NULL))
     {
         fprintf(stderr, "--width makes sense only with (--image or --ranges)\n\n");
+        fprintf(stderr, usage, argv[0]);
+        return 1;
+    }
+    if(width <= 0 &&  (filename_image != NULL || filename_ranges != NULL))
+    {
+        fprintf(stderr, "--width required if (--image or --ranges)\n\n");
         fprintf(stderr, usage, argv[0]);
         return 1;
     }
