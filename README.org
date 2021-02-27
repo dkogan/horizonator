@@ -2,7 +2,7 @@
 
 * Overview
 This tool renders terrain data, and can be used to simulate views captured by
-cameras. This is most useful in areas with significant topographic relief.
+a camera. This is most useful in areas with significant topographic relief.
 
 There are a number of other, more polished tools to do this
 
@@ -12,18 +12,24 @@ There are a number of other, more polished tools to do this
 
 Although less polished, the implementation in the horizonator is freely licensed
 (under any version of the LGPL), and is a good base for experimentation. The
-horizonator isn't completely fit for end-user consumption, and the intent /is/
-to serve as a building block for other tools.
+horizonator is mostly intended as a building block for other tools, so the
+user-facing UI tool is somewhat feature-sparse.
 
-The horizonator consists of a [[https://github.com/dkogan/horizonator/blob/master/horizonator.h][C library]] and two user-facing tools:
+The horizonator consists of a [[https://github.com/dkogan/horizonator/blob/master/horizonator.h][C library]], a [[https://github.com/dkogan/horizonator/blob/master/horizonator.docstring][Python library]] and two user-facing
+tools:
 
 - The =horizonator= tool: an interactive [[https://www.fltk.org/][FLTK]] application that displays an
-  overhead map and a render, allowing the user to move around in both of them
+  overhead map and a render, allowing the user to interactively move around in
+  both those views, and to relate the views to each other
 
 - The =standalone= tool: a one-render application. Can produce either a static
   GLUT window or a =.png= image on disk
 
 * Building the horizonator
+This isn't "released", so I'm not providing packages, and building from source
+is required. This probably can work on any recent UNIXy platform, but I've only
+tested on Debian and CentOS.
+
 On Debian, you need the following packages (I believe that's it; may be missing
 one or two):
 
@@ -38,14 +44,15 @@ one or two):
 - libpng12-dev
 - libfreeimage-dev
 - libtinyxml-dev
+- libpython3-dev
 
 Once you have those, run =make=. You also need =wget= at runtime to download
 the tiles.
 
 * Using the horizonator 
 Before running the tool, you need data to render. The horizonator uses 3sec [[https://en.wikipedia.org/wiki/Shuttle_Radar_Topography_Mission][SRTM]]
-DEMs. Raw SRTM data has holes here and there, so I usually use the hole-filled
-SRTM data from
+DEMs. Raw SRTM data contains gaps, so I usually use the gap-filled SRTM data
+from
 
   http://viewfinderpanoramas.org/dem3.html
 
@@ -54,21 +61,32 @@ from a map]]). Then extract the =.hgt= files to
 
   =~/.horizonator/DEMs_SRTM3=
 
-The tiles are downloaded automatically, so that's it. The tool can be used in
-an interactive mode, or a commandline mode:
+Any missing DEM files are assumed to describe an area at elevation = 0 (such as
+an area of open ocean). After the DEMs are downloaded, the tool can be run
+(OpenStreetMap tiles are required too, but those are downloaded automatically at
+runtime).
+
+There's an interactive tool for humans to mess around with, and a standalone
+tool to just make single renders (useful for scripting)
 
 ** Interactive
 The interactive tool is invoked by running the =./horizonator= executable.
 =./horizonator --help= has basic usage instructions. The only required arguments
-are the latitude and longitude of the viewer.
+are the latitude and longitude of the viewer. Example: standing on top of Iron
+Mt, looking N and E towards Mount Baden-Powell and Baldy:
+
+#+begin_example
+./horizonator --zfar-color 8000 34.2884 -117.7134 45 80
+#+end_example
+
+[[file:example-interactive.png]]
 
 This brings up a window where the top half shows an OpenStreetMap slippy map.
-This can be panned by dragging with the left mouse button, and zoomed with the
-mouse wheel, as usual. OSM tiles are downloaded (and cached locally to
-=~/.horizonator/tiles/=) as required. The extents of the current view are shown
-as lines in the render. The currently-loaded data is also shown, as a rectangle.
-The data is loaded at the beginning, centered on the latitude,longitude given on
-the commandline. The load a different set of data, re-launch the application.
+OSM tiles are downloaded (and cached locally to =~/.horizonator/tiles/=) as
+required. The extents of the current view are shown as lines in the render. The
+currently-loaded data is also shown, as a rectangle. The data is loaded at the
+beginning, centered on the latitude,longitude given on the commandline. To load
+a different set of data, re-launch the application.
 
 The bottom half shows the render. By default, the shade of red encodes the
 distance to the viewer. It is possible instead to texture the render using the
@@ -76,32 +94,56 @@ map; pass =--texture= to select this mode. Currently this uses the same
 OpenStreetMap tiles that are used in the slippy-map, which isn't terribly
 useful. Eventually topography or aerial imagery should be hooked in here.
 
-As with the slippy map, the render can be panned left/right (yawing the camera)
-by clicking/dragging left/right with the left mouse button. Clicking/dragging
-up/down zooms in the view. The viewer always look out parallel to the ground
-plane (pitch, roll are always 0). The same pan/zoom controls are available with
-the horizontal, vertical mouse wheels.
-
 The initial render is made from the latitude,longitude position given on the
-commandline (the altitude is sampled from the DEM). To move the viewpoint,
-right-click on the slippy map. This does /not/ reload the data, so only
-reasonably-small motions will produce reasonable results. It is possible to move
-off the mesh entirely, but that's probably not useful. The pan/zoom and viewer
-motions are displayed in the slippy map.
+commandline (the altitude is sampled from the DEM). The user may change the
+viewpoint at runtime, but new data is loaded /only/ at the start.
 
-Right-clicking on the render finds the corresponding map on the slippy map, and
-draws a circle there. This allows the user to identify specific features visible
-on the render.
-
-To cycle between filled triangles, wireframe and point renders, press =w=. To
-cycle between the two winding directions, press =r=; this is only useful for
-debugging.
+*** UI
+- Mousewheel up/down in the slippy map: zoom in/out
+- Left click/drag in the slippy map: pan
+- Right click in the slippy map: re-render the currently-loaded data from that
+  location
+- Mousewheel up/down in the render: zoom in/out. Changes the azimuth extents.
+  Does /not/ change the pitch or roll or yaw. The viewer always look out
+  parallel to the ground plane: pitch, roll are always 0.
+- Mousewheel left/right in the render: pan left/right. Changes the yaw only.
+- Left click/drag in the render: pan by moving the azimuth extents and/or the
+  yaw. Exactly what the mousewheel does.
+- Right click in the render: display the rendered point on the slippy map.
+  Useful for identifying peaks.
+- Keyboard =w=: cycle between filled triangles, wireframe and point renders
+- Keyboard =r=: cycle between the two winding directions; this is only useful
+  for debugging.
+- Keyboard =q=: quit
 
 ** Commandline
 If all we want is a single render from a known position, with known azimuth
-bounds, run the =./standalone= tool. This can either run a static GLUT
-application, or it can render to a =.png= image on disk and/or a binary range
-image. Run with =--help= for details.
+bounds, run the =./standalone= tool. Example:
+
+#+begin_example
+./standalone --width 800 --image example-standalone.png  --zfar-color 8000 34.2884 -117.7134 -35 125
+#+end_example
+
+[[file:example-standalone.png]]
+
+This can either run a static GLUT application, or it can render to a =.png=
+image on disk and/or a binary range image. Run with =--help= for details. Note
+that the azimuth extents are currently specified differently than they are in
+the interactive tool.
+
+** C API
+The tool can be invoked from C. The [[https://github.com/dkogan/horizonator/blob/master/horizonator.h][header comments]] and its usages in the
+commandline tool should be clear.
+
+** Python API
+A Python interface is provided, and is built as part of the normal invocation of
+=make=. The Python library consists of
+
+- [[https://github.com/dkogan/horizonator/blob/master/horizonator.docstring][a =horizonator= object constructor]]
+- [[https://github.com/dkogan/horizonator/blob/master/render.docstring][a =render= function]]
+
+This works similarly to the other components: the constructor loads the data,
+and we can then render it in different ways by calling =render()= repeatedly.
 
 * Render details
 The tool uses an equirectangular projection. The x coordinate of the rendered
@@ -115,7 +157,8 @@ The view straight ahead (elevation = 0) is at the center of the render.
 
 This tool operates in the tangent plane to the viewer, so it assumes that
 locally, the Earth is flat. This produces small inaccuracies, but unless we care
-about tiny pixel-level errors, this is a good approximation.
+about small pixel-level errors, this is a good approximation. I will eventually
+fix this.
 
 * Nice-to-have improvements
 In no particular order:
@@ -146,3 +189,4 @@ Released under the terms of the GNU LGPL (any version)
 ** =florb/=
 Copyright (c) 2010, Björn Rehm (bjoern@shugaa.de)
 Released under the terms of the MIT license
+
