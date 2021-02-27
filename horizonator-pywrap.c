@@ -105,8 +105,27 @@ static void py_horizonator_dealloc(py_horizonator_t* self)
 
 static PyObject* py_horizonator_str(py_horizonator_t* self)
 {
-    return PyUnicode_FromFormat("Looking out from %f,%f",
-                               self->ctx.viewer_lat, self->ctx.viewer_lon);
+    PyObject* lat = PyFloat_FromDouble((double)self->ctx.viewer_lat);
+    PyObject* lon = PyFloat_FromDouble((double)self->ctx.viewer_lon);
+    PyObject* string;
+
+    if(lat == NULL || lon == NULL)
+    {
+        string = PyUnicode_FromFormat("%s", "Error... couldn't convert lat/lon");
+    }
+    else
+    {
+        // This is a hackl I don't know how to do precision in a better way. I want
+        // to print exactly 4 values after the decimal point, but Python lets me
+        // specify the number of characters to print. I assume the worst case of 3
+        // digits + "-" character + decimal point, so I print 3+1+1+4 = 9
+        // characters. This produces more precision than I want in the worst case,
+        // but it's good-enough
+        string = PyUnicode_FromFormat("Looking out from %.9S,%.9S", lat,lon);
+    }
+    Py_XDECREF(lat);
+    Py_XDECREF(lon);
+    return string;
 }
 
 static PyObject*
