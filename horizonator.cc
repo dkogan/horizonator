@@ -149,13 +149,19 @@ public:
                                   g_view.lat, g_view.lon,
                                   -1, -1,
                                   RENDER_RADIUS_CELLS_DEFAULT,
-                                  znear,zfar,znear_color,zfar_color,
                                   false,
                                   render_texture,
                                   NULL,NULL,
                                   true))
             {
                 MSG("horizonator_init() failed. Giving up");
+                exit(1);
+            }
+
+            if(!horizonator_set_zextents(&m_ctx,
+                                         znear, zfar, znear_color, zfar_color))
+            {
+                MSG("horizonator_set_zextents() failed. Giving up");
                 exit(1);
             }
 

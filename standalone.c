@@ -310,7 +310,6 @@ int main(int argc, char* argv[])
                            lat, lon,
                            width, height,
                            render_radius_cells,
-                           znear,zfar,znear_color,zfar_color,
                            true,
                            render_texture,
                            dir_dems,
@@ -320,6 +319,10 @@ int main(int argc, char* argv[])
         fprintf(stderr, "horizonator_init() failed\n");
         return false;
     }
+
+    if(!horizonator_set_zextents(&ctx,
+                                 znear, zfar, znear_color, zfar_color))
+        return false;
 
     if(!horizonator_pan_zoom( &ctx, az_deg0, az_deg1))
     {

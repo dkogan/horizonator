@@ -80,11 +80,6 @@ bool horizonator_init( // output
                        int offscreen_width, int offscreen_height,
                        int render_radius_cells,
 
-                       // rendering and color-coding boundaries. Set to <=0 for
-                       // defaults
-                       float znear,       float zfar,
-                       float znear_color, float zfar_color,
-
                        bool use_glut,
                        bool render_texture,
                        const char* dir_dems,

@@ -70,7 +70,6 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         "render_texture",
         "dir_dems", "dir_tiles", "allow_downloads",
         "radius",
-        "znear", "zfar", "znear_color", "zfar_color",
         NULL};
 
     if(self->ctx.offscreen.inited)
@@ -80,18 +79,16 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     }
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "ddII|psspIdddd", keywords,
+                                     "ddII|psspI", keywords,
                                      &lat, &lon, &width, &height,
                                      &render_texture, &dir_dems, &dir_tiles,
                                      &allow_downloads,
-                                     &render_radius_cells,
-                                     &znear, &zfar, &znear_color, &zfar_color))
+                                     &render_radius_cells))
         goto done;
 
     if(! horizonator_init( &self->ctx,
                            lat, lon, width, height,
                            render_radius_cells,
-                           (float)znear, (float)zfar, (float)znear_color, (float)zfar_color,
                            true, render_texture, dir_dems, dir_tiles,
                            allow_downloads ) )
         goto done;
