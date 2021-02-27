@@ -45,6 +45,13 @@ The __init__() function takes
   we color-code the resulting image by distance. If render_texture: we use
   openstreetmap tiles to texture the image
 
+- znear, zfar, znear_color, zfar_color: optional floating-point values, with
+  reasonable defaults. The extents of ranges that we render are given by zmin
+  and zmax, in meters. Anything closer than zmin and further out than zmax will
+  not be rendered. The color-coding extents are given by zmin_color and
+  zmax_color. Anything at or closer than zmin_color will be rendered as black,
+  and anything at or further than zmax_color will be rendered as red.
+
 - dir_dems: optional string, defaulting to "~/.horizonator/DEMs_SRTM3". The path
   to the .hgt files containing the SRTM DEMs
 

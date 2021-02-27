@@ -79,6 +79,12 @@ bool horizonator_init( // output
                        float viewer_lat, float viewer_lon,
                        int offscreen_width, int offscreen_height,
                        int render_radius_cells,
+
+                       // rendering and color-coding boundaries. Set to <=0 for
+                       // defaults
+                       float znear,       float zfar,
+                       float znear_color, float zfar_color,
+
                        bool use_glut,
                        bool render_texture,
                        const char* dir_dems,
@@ -156,6 +162,12 @@ bool horizonator_allinone_glut_loop( bool render_texture,
                                      // square.
                                      float az_deg0, float az_deg1,
                                      int render_radius_cells,
+
+                                     // rendering and color-coding boundaries. Set to <=0 for
+                                     // defaults
+                                     float znear,       float zfar,
+                                     float znear_color, float zfar_color,
+
                                      const char* dir_dems,
                                      const char* dir_tiles,
                                      bool allow_downloads);

@@ -17,6 +17,10 @@ int main(int argc, char* argv[])
         "   [--radius RENDER_RADIUS_CELLS]\n"
         "   [--texture]\n"
         "   [--allow-tile-downloads]\n"
+        "   [--znear       ZNEAR]\n"
+        "   [--zfar        ZFAR]\n"
+        "   [--znear-color ZNEARCOLOR]\n"
+        "   [--zfar-color  ZFARCOLOR]\n"
         "   [--dirdems DIRECTORY]\n"
         "   [--dirtiles DIRECTORY]\n"
         "   LAT LON AZ_DEG0 AZ_DEG1\n"
@@ -34,6 +38,13 @@ int main(int argc, char* argv[])
         "VIEWPORT. When rendering to an image, AZ_DEG are the\n"
         "centers of the first and last pixels. This is slightly smaller\n"
         "than the whole viewport: there's one extra pixel on each side\n"
+        "\n"
+        "The extents of ranges that we render are given by --zmin and --zmax,\n"
+        "in meters. Anything closer than --zmin and further out than --zmax will\n"
+        "not be rendered. The color-coding extents are given by --zmin-color and\n"
+        "--zmax-color. Anything at or closer than --zmin-color will be rendered\n"
+        "as black, and anything at or further than --zmax-color will be rendered\n"
+        "as red. All 4 of these have reasonable defaults, and may be omitted\n"
         "\n"
         "By default we colorcode the renders by range. If --texture, we\n"
         "use a set of image tiles to texture the render instead\n"
@@ -54,6 +65,10 @@ int main(int argc, char* argv[])
         { "dirtiles",          required_argument, NULL, 't' },
         { "texture",           no_argument,       NULL, 'T' },
         { "allow-tile-downloads",no_argument,     NULL, 'a' },
+        { "znear",             required_argument, NULL, '1' },
+        { "zfar",              required_argument, NULL, '2' },
+        { "znear-color",       required_argument, NULL, '3' },
+        { "zfar-color",        required_argument, NULL, '4' },
         { "help",              no_argument,       NULL, 'h' },
         {}
     };
@@ -67,6 +82,11 @@ int main(int argc, char* argv[])
     bool        render_texture  = false;
     bool        allow_downloads = false;
     int         render_radius_cells = 1000;
+
+    float znear       = -1.0f;
+    float zfar        = -1.0f;
+    float znear_color = -1.0f;
+    float zfar_color  = -1.0f;
 
     int opt;
     do
@@ -105,6 +125,39 @@ int main(int argc, char* argv[])
             if(height <= 0)
             {
                 fprintf(stderr, "--radius must have an integer argument > 0\n");
+                return 1;
+            }
+            break;
+
+        case '1':
+            znear = (float)atof(optarg);
+            if(znear <= 0.0f)
+            {
+                fprintf(stderr, "--znear must have an float argument > 0\n");
+                return 1;
+            }
+            break;
+        case '2':
+            zfar = (float)atof(optarg);
+            if(zfar <= 0.0f)
+            {
+                fprintf(stderr, "--zfar must have an float argument > 0\n");
+                return 1;
+            }
+            break;
+        case '3':
+            znear_color = (float)atof(optarg);
+            if(znear_color <= 0.0f)
+            {
+                fprintf(stderr, "--znear-color must have an float argument > 0\n");
+                return 1;
+            }
+            break;
+        case '4':
+            zfar_color = (float)atof(optarg);
+            if(zfar_color <= 0.0f)
+            {
+                fprintf(stderr, "--zfar-color must have an float argument > 0\n");
                 return 1;
             }
             break;
@@ -202,6 +255,7 @@ int main(int argc, char* argv[])
         horizonator_allinone_glut_loop(render_texture,
                                        lat, lon, az_deg0, az_deg1,
                                        render_radius_cells,
+                                       znear,zfar,znear_color,zfar_color,
                                        dir_dems, dir_tiles,
                                        allow_downloads);
         return 0;
@@ -251,6 +305,7 @@ int main(int argc, char* argv[])
                            lat, lon,
                            width, height,
                            render_radius_cells,
+                           znear,zfar,znear_color,zfar_color,
                            true,
                            render_texture,
                            dir_dems,

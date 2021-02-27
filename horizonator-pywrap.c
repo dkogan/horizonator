@@ -59,7 +59,10 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     const char* dir_dems  = NULL;
     const char* dir_tiles = NULL;
     unsigned int render_radius_cells = 1000; // default
-
+    double znear       = -1.0;
+    double zfar        = -1.0;
+    double znear_color = -1.0;
+    double zfar_color  = -1.0;
 
     char* keywords[] = {
         "lat", "lon",
@@ -67,6 +70,7 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         "render_texture",
         "dir_dems", "dir_tiles", "allow_downloads",
         "radius",
+        "znear", "zfar", "znear_color", "zfar_color",
         NULL};
 
     if(self->ctx.offscreen.inited)
@@ -76,16 +80,18 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     }
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "ddII|psspI", keywords,
+                                     "ddII|psspIdddd", keywords,
                                      &lat, &lon, &width, &height,
                                      &render_texture, &dir_dems, &dir_tiles,
                                      &allow_downloads,
-                                     &render_radius_cells))
+                                     &render_radius_cells,
+                                     &znear, &zfar, &znear_color, &zfar_color))
         goto done;
 
     if(! horizonator_init( &self->ctx,
                            lat, lon, width, height,
                            render_radius_cells,
+                           (float)znear, (float)zfar, (float)znear_color, (float)zfar_color,
                            true, render_texture, dir_dems, dir_tiles,
                            allow_downloads ) )
         goto done;
