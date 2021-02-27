@@ -115,7 +115,7 @@ static PyObject* py_horizonator_str(py_horizonator_t* self)
     }
     else
     {
-        // This is a hackl I don't know how to do precision in a better way. I want
+        // This is a hack. I don't know how to do precision in a better way. I want
         // to print exactly 4 values after the decimal point, but Python lets me
         // specify the number of characters to print. I assume the worst case of 3
         // digits + "-" character + decimal point, so I print 3+1+1+4 = 9
