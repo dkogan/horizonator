@@ -5,6 +5,7 @@
 #include <FL/Fl.H>
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Gl_Window.H>
+#include <FL/Fl_Output.H>
 #include <GL/gl.h>
 
 #include "orb_osmlayer.hpp"
@@ -23,6 +24,7 @@ extern "C"
 
 #define WINDOW_W 800
 #define WINDOW_H 600
+#define STATUS_H 20
 
 class GLWidget;
 
@@ -34,6 +36,7 @@ static Fl_Double_Window*     g_window;
 static orb_mapctrl*          g_slippymap;
 static SlippymapAnnotations* g_slippymap_annotations;
 static GLWidget*             g_gl_widget;
+static Fl_Output*            g_status_text;
 
 //// The observer state
 // Look North initially, with some arbitrary field of view
@@ -44,8 +47,33 @@ static view_t g_view =
       // default lat, lon. These WILL be set on the commandline
       -1000.f, -1000.f};
 
+// unset by default
+static float g_picked_lat = 1e6f;
+static float g_picked_lon = 1e6f;
 
 
+static void update_status_text()
+{
+    char str[256];
+    if( g_picked_lon < 1e3f && g_picked_lat < 1e3f)
+    {
+        if((int)sizeof(str) <=
+           snprintf(str, sizeof(str),
+                    "Rendering from (%.5f,%.5f); highlighting observed point (%.5f,%.5f)",
+                    g_view.lat,   g_view.lon,
+                    g_picked_lat, g_picked_lon))
+            str[sizeof(str)-1] = '\0';
+    }
+    else
+    {
+        if((int)sizeof(str) <=
+           snprintf(str, sizeof(str),
+                    "Rendering from (%.5f,%.5f)",
+                    g_view.lat,   g_view.lon))
+            str[sizeof(str)-1] = '\0';
+    }
+    g_status_text->value(str);
+}
 
 
 static void redraw_slippymap( void* mapctrl )
@@ -63,6 +91,8 @@ static void newrender(horizonator_context_t* ctx,
     // later, in the already-correct spot
     if(horizonator_context_isvalid(ctx))
         horizonator_move(ctx, lat, lon);
+
+    update_status_text();
 }
 
 class GLWidget : public Fl_Gl_Window
@@ -259,13 +289,18 @@ public:
             {
                 // Right-click. I figure out where the user clicked, and show
                 // that point on the map
-                float lon, lat;
                 if(!horizonator_pick(&m_ctx,
-                                     &lat, &lon,
+                                     &g_picked_lat, &g_picked_lon,
                                      Fl::event_x(), Fl::event_y()))
+                {
                     g_slippymap_annotations->unset_pick();
+                    g_picked_lat = 1e6f;
+                    g_picked_lon = 1e6f;
+                }
                 else
-                    g_slippymap_annotations->set_pick(lat, lon);
+                    g_slippymap_annotations->set_pick(g_picked_lat, g_picked_lon);
+
+                update_status_text();
                 g_slippymap->redraw();
             }
 
@@ -451,6 +486,12 @@ int main(int argc, char** argv)
 
     g_window = new Fl_Double_Window( WINDOW_W, WINDOW_H, "Horizonator" );
 
+    // The slippy-map and the render are in one group, and the status bar is in
+    // the other group. I set the first group to be resizeable, so the status
+    // bar always remains the same size
+    Fl_Group* map_and_render =
+        new Fl_Group(0,0,
+                     WINDOW_W, WINDOW_H-STATUS_H);
     const int map_h = g_window->h()/2;
 
     {
@@ -467,9 +508,17 @@ int main(int argc, char** argv)
         g_slippymap->center_at(g_view.lat, g_view.lon);
     }
     {
-        g_gl_widget = new GLWidget(0, map_h, g_window->w(), g_window->h()-map_h,
+        g_gl_widget = new GLWidget(0, map_h,
+                                   g_window->w(), g_window->h()-map_h-STATUS_H,
                                    render_texture,
                                    znear,zfar,znear_color,zfar_color);
+    }
+    map_and_render->end();
+
+    {
+        g_status_text = new Fl_Output(0, g_window->h()-STATUS_H,
+                                      g_window->w(), STATUS_H);
+        update_status_text();
     }
 
 
@@ -483,7 +532,7 @@ int main(int argc, char** argv)
 
     g_slippymap->callback( &callback_slippymap, (void*)g_gl_widget );
 
-    g_window->resizable(g_window);
+    g_window->resizable(map_and_render);
     g_window->end();
     g_window->show();
 
