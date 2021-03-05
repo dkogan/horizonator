@@ -100,9 +100,6 @@ static bool glut_loop( bool render_texture,
     glutKeyboardFunc(window_keyPressed);
     glutReshapeFunc (_horizonator_resized);
 
-    int res = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    assert( res == GL_FRAMEBUFFER_COMPLETE );
-
     glutMainLoop();
 
     return true;

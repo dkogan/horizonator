@@ -581,6 +581,10 @@ bool horizonator_init( // output
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
                                   GL_RENDERBUFFER, ctx->offscreen.renderBufID);
         assert_opengl();
+        {
+            int res = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+            assert( res == GL_FRAMEBUFFER_COMPLETE );
+        }
 
         glGenRenderbuffers(1, &ctx->offscreen.depthBufID);
         assert_opengl();
@@ -592,6 +596,10 @@ bool horizonator_init( // output
         glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
                                   GL_RENDERBUFFER, ctx->offscreen.depthBufID);
         assert_opengl();
+        {
+            int res = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+            assert( res == GL_FRAMEBUFFER_COMPLETE );
+        }
 
         glViewport(0, 0, offscreen_width, offscreen_height);
         glUniform1f(ctx->uniform_aspect,
