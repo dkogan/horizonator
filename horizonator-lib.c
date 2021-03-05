@@ -73,6 +73,8 @@ bool horizonator_init( // output
                        const char* dir_tiles,
                        bool allow_downloads)
 {
+    *ctx = (horizonator_context_t_context_t){};
+
     bool result             = false;
     bool dem_context_inited = false;
 
