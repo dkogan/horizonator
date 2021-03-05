@@ -5,9 +5,108 @@
 #include <string.h>
 #include <FreeImage.h>
 #include <math.h>
+#include <epoxy/gl.h>
+#include <GL/freeglut.h>
 
 #include "horizonator.h"
 #include "util.h"
+
+static bool glut_loop( bool render_texture,
+                       float viewer_lat, float viewer_lon,
+
+                       // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
+                       // edges lie at the edges of the image. So for an image that's
+                       // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
+                       // elevation extents will be chosen to keep the aspect ratio
+                       // square.
+                       float az_deg0, float az_deg1,
+                       int render_radius_cells,
+
+                       // rendering and color-coding boundaries. Set to <=0 for
+                       // defaults
+                       float znear,       float zfar,
+                       float znear_color, float zfar_color,
+
+                       const char* dir_dems,
+                       const char* dir_tiles,
+                       bool allow_downloads)
+{
+    horizonator_context_t ctx;
+
+    if( !horizonator_init( &ctx,
+                           viewer_lat, viewer_lon,
+                           -1, -1,
+                           render_radius_cells,
+                           true,
+                           render_texture,
+                           dir_dems,
+                           dir_tiles,
+                           allow_downloads) )
+        return false;
+
+    if(!horizonator_set_zextents(&ctx,
+                                 znear, zfar, znear_color, zfar_color))
+       return false;
+
+    if(!horizonator_pan_zoom( &ctx, az_deg0, az_deg1))
+        return false;
+
+    void window_display(void)
+    {
+        horizonator_redraw(&ctx);
+        glutSwapBuffers();
+    }
+
+    GLenum winding = GL_CCW;
+    const GLenum polygon_modes[] = {GL_FILL, GL_LINE, GL_POINT};
+    int polygon_mode_idx = 0;
+    void window_keyPressed(unsigned char key,
+                           int x __attribute__((unused)) ,
+                           int y __attribute__((unused)) )
+    {
+        switch (key)
+        {
+        case 'w':
+            ;
+            if(++polygon_mode_idx == sizeof(polygon_modes)/sizeof(polygon_modes[0]))
+                polygon_mode_idx = 0;
+
+            glPolygonMode(GL_FRONT_AND_BACK, polygon_modes[ polygon_mode_idx ] );
+            break;
+
+        case 'r':
+            if (winding == GL_CCW) winding = GL_CW;
+            else                   winding = GL_CCW;
+            glFrontFace(winding);
+            break;
+
+        case 'q':
+        case 27:
+            // Need both to avoid a segfault. This works differently with
+            // different opengl drivers
+            glutExit();
+            exit(0);
+        }
+
+        glutPostRedisplay();
+    }
+
+    void _horizonator_resized(int width, int height)
+    {
+        horizonator_resized(&ctx, width, height);
+    }
+
+    glutDisplayFunc (window_display);
+    glutKeyboardFunc(window_keyPressed);
+    glutReshapeFunc (_horizonator_resized);
+
+    int res = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    assert( res == GL_FRAMEBUFFER_COMPLETE );
+
+    glutMainLoop();
+
+    return true;
+}
 
 int main(int argc, char* argv[])
 {
@@ -257,12 +356,12 @@ int main(int argc, char* argv[])
 
     if(filename_image == NULL && filename_ranges == NULL)
     {
-        horizonator_allinone_glut_loop(render_texture,
-                                       lat, lon, az_deg0, az_deg1,
-                                       render_radius_cells,
-                                       znear,zfar,znear_color,zfar_color,
-                                       dir_dems, dir_tiles,
-                                       allow_downloads);
+        glut_loop(render_texture,
+                  lat, lon, az_deg0, az_deg1,
+                  render_radius_cells,
+                  znear,zfar,znear_color,zfar_color,
+                  dir_dems, dir_tiles,
+                  allow_downloads);
         return 0;
     }
 

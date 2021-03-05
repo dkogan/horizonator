@@ -143,26 +143,3 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
                                   // output
                                   // either may be NULL
                                   char* image, float* ranges);
-
-/////////////// The horizonator_allinone_...() functions are to be used
-/////////////// standalone. No other init functions should be called
-
-bool horizonator_allinone_glut_loop( bool render_texture,
-                                     float viewer_lat, float viewer_lon,
-
-                                     // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
-                                     // edges lie at the edges of the image. So for an image that's
-                                     // W pixels wide, az0 is at x = -0.5 and az1 is at W-0.5. The
-                                     // elevation extents will be chosen to keep the aspect ratio
-                                     // square.
-                                     float az_deg0, float az_deg1,
-                                     int render_radius_cells,
-
-                                     // rendering and color-coding boundaries. Set to <=0 for
-                                     // defaults
-                                     float znear,       float zfar,
-                                     float znear_color, float zfar_color,
-
-                                     const char* dir_dems,
-                                     const char* dir_tiles,
-                                     bool allow_downloads);
