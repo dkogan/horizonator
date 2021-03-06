@@ -208,7 +208,7 @@ bool horizonator_init( // output
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
                          texture_ctx->NtilesXY[0]*OSM_TILE_WIDTH,
                          texture_ctx->NtilesXY[1]*OSM_TILE_HEIGHT,
-                         0, GL_RGB,
+                         0, GL_BGR,
                          GL_UNSIGNED_BYTE, (const GLvoid *)NULL);
 
             assert_opengl();
