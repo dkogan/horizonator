@@ -98,6 +98,8 @@ bool horizonator_init( // output
 
         glutInitDisplayMode( GLUT_RGB | GLUT_DEPTH |
                              (double_buffered ? GLUT_DOUBLE : 0) );
+        glutInitWindowSize(1024,1024);
+
         // when offscreen, I really don't want to glutCreateWindow(), but for some
         // reason not doing this causes glewInit() to segfault...
         ctx->glut_window = glutCreateWindow("horizonator");
