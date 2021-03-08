@@ -104,7 +104,14 @@ bool horizonator_init( // output
         // reason not doing this causes glewInit() to segfault...
         ctx->glut_window = glutCreateWindow("horizonator");
         if(offscreen_width > 0)
+        {
             glutHideWindow();
+
+            // Needed to get unpadded images from glReadPixels(). Otherwise
+            // images with width not divisible by 4 come out distorted
+            glPixelStorei(GL_PACK_ALIGNMENT,  1);
+            assert_opengl();
+        }
 
         const char* version = (const char*)glGetString(GL_VERSION);
 
