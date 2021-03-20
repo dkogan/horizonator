@@ -60,10 +60,6 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     const char* dir_dems  = NULL;
     const char* dir_tiles = NULL;
     unsigned int render_radius_cells = 1000; // default
-    double znear       = -1.0;
-    double zfar        = -1.0;
-    double znear_color = -1.0;
-    double zfar_color  = -1.0;
 
     char* keywords[] = {
         "lat", "lon",
