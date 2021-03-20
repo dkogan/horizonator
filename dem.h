@@ -3,11 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// Each SRTM file is a grid of 1201x1201 samples; last row/col overlap in neighboring DEMs
-#define WDEM          1201
-#define CELLS_PER_DEG (WDEM - 1) /* -1 because of the overlapping DEM edges */
-
-
 // at most I allow a grid of this many DEMs. I can malloc the exact number, but
 // this is easier
 #define max_Ndems_ij 4
@@ -29,6 +24,8 @@ typedef struct
 
     // Copy of RENDER_RADIUS
     int radius_cells;
+
+    int cells_per_deg;
 } horizonator_dem_context_t;
 
 
@@ -52,7 +49,9 @@ bool horizonator_dem_init(// output
 
               // We will have 2*radius_cells per side
               int radius_cells,
-              const char* datadir);
+              const char* datadir,
+
+              bool SRTM1);
 
 void horizonator_dem_deinit( horizonator_dem_context_t* ctx );
 

@@ -45,6 +45,12 @@ The __init__() function takes
   we color-code the resulting image by distance. If render_texture: we use
   openstreetmap tiles to texture the image
 
+- SRTM1: optional boolean, defaulting to False. By default we use 3" SRTM data.
+  Currently every triangle in the grid is rendered. This is inefficient, but the
+  higher-resolution 1" SRTM tiles would make it use 9 times more memory and
+  computational resources, so sticking with the lower-resolution 3" SRTM data is
+  recommended for now
+
 - dir_dems: optional string, defaulting to "~/.horizonator/DEMs_SRTM3". The path
   to the .hgt files containing the SRTM DEMs
 

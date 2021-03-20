@@ -50,9 +50,9 @@ Once you have those, run =make=. You also need =wget= at runtime to download
 the tiles.
 
 * Using the horizonator 
-Before running the tool, you need data to render. The horizonator uses 3sec [[https://en.wikipedia.org/wiki/Shuttle_Radar_Topography_Mission][SRTM]]
-DEMs. Raw SRTM data contains gaps, so I usually use the gap-filled SRTM data
-from
+Before running the tool, you need data to render. By default the horizonator
+uses 3sec [[https://en.wikipedia.org/wiki/Shuttle_Radar_Topography_Mission][SRTM]] DEMs. Raw SRTM data contains gaps, so I usually use the
+gap-filled SRTM data from
 
   http://viewfinderpanoramas.org/dem3.html
 
@@ -159,6 +159,18 @@ This tool operates in the tangent plane to the viewer, so it assumes that
 locally, the Earth is flat. This produces small inaccuracies, but unless we care
 about small pixel-level errors, this is a good approximation. I will eventually
 fix this.
+
+* DEM resolution
+By default, 3" DEMs are used. These are the low-res SRTM data, which is
+generally plenty hi-res-enough for this application. For more faithful rendering
+of very near objects, the resolution can become a problem, so the
+higher-resolution 1" DEMS may be used. These are better, but they exacerbate an
+implementation detail in the horizonator, so the 3" DEMs are used by default.
+Currently every triangle in the mesh is rendered, even those that are very far
+away, and look tiny. A coarser mesh would be more appropriate for far-off
+objects. Until that is implemented, the 9x increase in triangles present in the
+SRTM1 data could become a problem. Support for 1" data /is/ in place, and can be
+selected with the =SRTM1= option in all the APIs and commandline tools.
 
 * Nice-to-have improvements
 In no particular order:

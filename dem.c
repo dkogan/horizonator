@@ -12,6 +12,13 @@
 #include "dem.h"
 #include "util.h"
 
+
+
+// Each SRTM file is a grid of 1201x1201 samples (SRTM3) or 3601x3601 samples
+// (SRTM1). The last row/col overlap in neighboring DEMs
+#define CELLS_PER_DEM_WIDTH_SRTM1          3601
+#define CELLS_PER_DEM_WIDTH_SRTM3          1201
+
 static
 bool dem_filename(// output
                   char* path, int bufsize,
@@ -77,9 +84,21 @@ bool horizonator_dem_init(// output
 
               // We will have 2*radius_cells per side
               int radius_cells,
-              const char* datadir )
+              const char* datadir,
+
+              bool SRTM1)
 {
     *ctx = (horizonator_dem_context_t){.radius_cells = radius_cells};
+
+    const int DEM_expected_file_size =
+        SRTM1 ?
+        (CELLS_PER_DEM_WIDTH_SRTM1*CELLS_PER_DEM_WIDTH_SRTM1*2) :
+        (CELLS_PER_DEM_WIDTH_SRTM3*CELLS_PER_DEM_WIDTH_SRTM3*2);
+
+    ctx->cells_per_deg =
+        SRTM1 ?
+        (CELLS_PER_DEM_WIDTH_SRTM1 - 1) :
+        (CELLS_PER_DEM_WIDTH_SRTM3 - 1);
 
     const float viewer_lon_lat[] = {viewer_lon, viewer_lat};
 
@@ -88,10 +107,10 @@ bool horizonator_dem_init(// output
         // If radius == 1 -> N = 2 and center = 1.5 -> I have cells 1,2. Same
         // with center = 1.anything
         //
-        //   icell_origin  = floor(latlon_view * CELLS_PER_DEG) - (radius-1)
-        //   latlon_origin = floor(icell_origin / CELLS_PER_DEG)
-        int   icell_origin   = floor(viewer_lon_lat[i] * CELLS_PER_DEG) - (radius_cells-1);
-        float origin_lon_lat = (float)icell_origin / (float)CELLS_PER_DEG;
+        //   icell_origin  = floor(latlon_view * cells_per_deg) - (radius-1)
+        //   latlon_origin = floor(icell_origin / cells_per_deg)
+        int   icell_origin   = floor(viewer_lon_lat[i] * ctx->cells_per_deg) - (radius_cells-1);
+        float origin_lon_lat = (float)icell_origin / (float)ctx->cells_per_deg;
 
         // Which DEM contains the SW corner of the render data
         ctx->origin_dem_lon_lat[i] = (int)floor(origin_lon_lat);
@@ -99,20 +118,20 @@ bool horizonator_dem_init(// output
         // Which cell in the origin DEM contains the SW corner of the render data
         //
         // This round() is here only for floating-point fuzz. It SHOULD be an integer already
-        ctx->origin_dem_cellij [i] = (int)round( (origin_lon_lat - ctx->origin_dem_lon_lat[i]) * CELLS_PER_DEG );
+        ctx->origin_dem_cellij [i] = (int)round( (origin_lon_lat - ctx->origin_dem_lon_lat[i]) * ctx->cells_per_deg );
 
         // Let's confirm I did the right thing....
         // I'm disabling these asserts because floating-point fuzz may make them
         // fail. I left them enabled long-enough to be confident that this stuff
         // works
-        // assert( radius_cells-1 < (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
-        // assert( radius_cells   > (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)CELLS_PER_DEG - (float)ctx->origin_dem_cellij [i]);
+        // assert( radius_cells-1 < (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)cells_per_deg - (float)ctx->origin_dem_cellij [i]);
+        // assert( radius_cells   > (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)cells_per_deg - (float)ctx->origin_dem_cellij [i]);
 
         // I will have 2*radius_cells
         int cellij_last = ctx->origin_dem_cellij[i] + radius_cells*2-1;
-        int idem_last   = cellij_last / CELLS_PER_DEG;
+        int idem_last   = cellij_last / ctx->cells_per_deg;
         ctx->Ndems_ij[i] = idem_last + 1;
-        if( cellij_last == idem_last*CELLS_PER_DEG )
+        if( cellij_last == idem_last*ctx->cells_per_deg )
         {
             // The last cell in my render is the first cell in the DEM. But
             // adjacent DEMs have one row/col of overlap, so I can use the last
@@ -183,7 +202,7 @@ bool horizonator_dem_init(// output
                 return false;
             }
 
-            if( WDEM*WDEM*2 != sb.st_size )
+            if( DEM_expected_file_size != sb.st_size )
             {
                 horizonator_dem_deinit(ctx);
                 MSG("The DEM file '%s' has unexpected size. Is this a 3-arc-sec SRTM DEM?", filename );
@@ -229,17 +248,17 @@ int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
     int dem_ij[2];
     for(int i=0; i<2; i++)
     {
-        dem_ij[i]  = cell_ij[i] / CELLS_PER_DEG;
+        dem_ij[i]  = cell_ij[i] / ctx->cells_per_deg;
 
         // cell coordinates inside the one DEM containing the cell
-        cell_ij[i] -= dem_ij[i] * CELLS_PER_DEG;
+        cell_ij[i] -= dem_ij[i] * ctx->cells_per_deg;
 
         // Adjacent DEMs have one row/col of overlap, so I can use the last row
         // of the previous DEM
         if(cell_ij[i] == 0)
         {
             dem_ij [i]--;
-            cell_ij[i] = CELLS_PER_DEG;
+            cell_ij[i] = ctx->cells_per_deg;
         }
 
         if( dem_ij[i] >= ctx->Ndems_ij[i] ) return -1;
@@ -252,8 +271,8 @@ int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
     uint32_t p =
         cell_ij[0] +
         // DEM starts at NW corner. I flip it around to start my data at the SW
-        // corner
-        (WDEM-1 - cell_ij[1])*WDEM;
+        // corner. The DEMs store an extra row/col on the edges, so I +1
+        (ctx->cells_per_deg - cell_ij[1])*(ctx->cells_per_deg+1);
 
     // Each value is big-endian, so I flip the bytes
     int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
@@ -268,15 +287,15 @@ void horizonator_dem_bounds_latlon_deg(const horizonator_dem_context_t* ctx,
 {
     *lon0 =
         (float)ctx->origin_dem_lon_lat[0] +
-        (float)ctx->origin_dem_cellij[0] / (float)CELLS_PER_DEG;
+        (float)ctx->origin_dem_cellij[0] / (float)ctx->cells_per_deg;
     *lat0 =
         (float)ctx->origin_dem_lon_lat[1] +
-        (float)ctx->origin_dem_cellij[1] / (float)CELLS_PER_DEG;
+        (float)ctx->origin_dem_cellij[1] / (float)ctx->cells_per_deg;
 
     *lon1 =
         (float)ctx->origin_dem_lon_lat[0] +
-        ((float)ctx->origin_dem_cellij[0] + 2*ctx->radius_cells-1) / (float)CELLS_PER_DEG;
+        ((float)ctx->origin_dem_cellij[0] + 2*ctx->radius_cells-1) / (float)ctx->cells_per_deg;
     *lat1 =
         (float)ctx->origin_dem_lon_lat[1] +
-        ((float)ctx->origin_dem_cellij[1] + 2*ctx->radius_cells-1) / (float)CELLS_PER_DEG;
+        ((float)ctx->origin_dem_cellij[1] + 2*ctx->radius_cells-1) / (float)ctx->cells_per_deg;
 }

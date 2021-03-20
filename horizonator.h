@@ -72,6 +72,10 @@ static bool horizonator_context_isvalid(const horizonator_context_t* ctx)
 // If rendering off-screen, horizonator_resized() is not allowed.
 // horizonator_pan_zoom() must be called to update the azimuth extents.
 // Completely arbitrarily, these are set to -45deg - 45deg initially
+//
+// SRTM1 selects between 1" SRTM and 3" SRTM. Currently every triangle is
+// rendered, so 1" SRTM tiles can easily overload the machine. Unless you need
+// the extra resolution, stick with 3" SRTM tiles for now
 bool horizonator_init( // output
                        horizonator_context_t* ctx,
 
@@ -82,6 +86,7 @@ bool horizonator_init( // output
 
                        bool use_glut,
                        bool render_texture,
+                       bool SRTM1,
                        const char* dir_dems,
                        const char* dir_tiles,
                        bool allow_downloads);

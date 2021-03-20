@@ -11,7 +11,7 @@
 #include "horizonator.h"
 #include "util.h"
 
-static bool glut_loop( bool render_texture,
+static bool glut_loop( bool render_texture, bool SRTM1,
                        float viewer_lat, float viewer_lon,
 
                        // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
@@ -38,7 +38,7 @@ static bool glut_loop( bool render_texture,
                            -1, -1,
                            render_radius_cells,
                            true,
-                           render_texture,
+                           render_texture, SRTM1,
                            dir_dems,
                            dir_tiles,
                            allow_downloads) )
@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
         "%s [--width WIDTH_PIXELS] [--height HEIGHT_PIXELS]\n"
         "   [--image OUT.png] [--ranges RANGES.DAT]\n"
         "   [--radius RENDER_RADIUS_CELLS]\n"
-        "   [--texture]\n"
+        "   [--texture] [--SRTM1]\n"
         "   [--allow-tile-downloads]\n"
         "   [--znear       ZNEAR]\n"
         "   [--zfar        ZFAR]\n"
@@ -145,8 +145,13 @@ int main(int argc, char* argv[])
         "By default we colorcode the renders by range. If --texture, we\n"
         "use a set of image tiles to texture the render instead\n"
         "\n"
+        "By default we use 3\" SRTM data. Currently every triangle in the grid is\n"
+        "rendered. This is inefficient, but the higher-resolution 1\" SRTM tiles\n"
+        "would make it use 9 times more memory and computational resources, so\n"
+        "sticking with the lower-resolution 3\" SRTM data is recommended for now.\n"
+        "\n"
         "The DEMs are in the directory given by --dirdems, or in\n"
-        "~/.horizonator/DEMs_SRTM3/ if omitted.\n"
+        "~/.horizonator/DEMs_SRTM3/ (or DEMs_SRTM1) if omitted.\n"
         "\n"
         "The tiles are in the directory given by --dirtiles, or in\n"
         "~/.horizonator/tiles if omitted.\n";
@@ -160,6 +165,7 @@ int main(int argc, char* argv[])
         { "dirdems",           required_argument, NULL, 'd' },
         { "dirtiles",          required_argument, NULL, 't' },
         { "texture",           no_argument,       NULL, 'T' },
+        { "SRTM1",             no_argument,       NULL, 'S' },
         { "allow-tile-downloads",no_argument,     NULL, 'a' },
         { "znear",             required_argument, NULL, '1' },
         { "zfar",              required_argument, NULL, '2' },
@@ -176,6 +182,7 @@ int main(int argc, char* argv[])
     const char* dir_dems        = NULL;
     const char* dir_tiles       = NULL;
     bool        render_texture  = false;
+    bool        SRTM1           = false;
     bool        allow_downloads = false;
     int         render_radius_cells = 1000;
 
@@ -278,6 +285,10 @@ int main(int argc, char* argv[])
             render_texture = true;
             break;
 
+        case 'S':
+            SRTM1 = true;
+            break;
+
         case 'a':
             allow_downloads = true;
             break;
@@ -353,7 +364,7 @@ int main(int argc, char* argv[])
 
     if(filename_image == NULL && filename_ranges == NULL)
     {
-        glut_loop(render_texture,
+        glut_loop(render_texture, SRTM1,
                   lat, lon, az_deg0, az_deg1,
                   render_radius_cells,
                   znear,zfar,znear_color,zfar_color,
@@ -407,7 +418,7 @@ int main(int argc, char* argv[])
                            width, height,
                            render_radius_cells,
                            true,
-                           render_texture,
+                           render_texture, SRTM1,
                            dir_dems,
                            dir_tiles,
                            allow_downloads) )

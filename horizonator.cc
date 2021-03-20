@@ -98,7 +98,7 @@ static void newrender(horizonator_context_t* ctx,
 class GLWidget : public Fl_Gl_Window
 {
     horizonator_context_t m_ctx;
-    bool render_texture;
+    bool render_texture, SRTM1;
     float znear;
     float zfar;
     float znear_color;
@@ -145,12 +145,14 @@ class GLWidget : public Fl_Gl_Window
 public:
     GLWidget(int x, int y, int w, int h,
              bool _render_texture,
+             bool _SRTM1,
              float _znear,
              float _zfar,
              float _znear_color,
              float _zfar_color) :
         Fl_Gl_Window(x, y, w, h),
         render_texture (_render_texture),
+        SRTM1          (_SRTM1),
         znear          (_znear),
         zfar           (_zfar),
         znear_color    (_znear_color),
@@ -180,7 +182,7 @@ public:
                                   -1, -1,
                                   RENDER_RADIUS_CELLS_DEFAULT,
                                   false,
-                                  render_texture,
+                                  render_texture, SRTM1,
                                   NULL,NULL,
                                   true))
             {
@@ -363,8 +365,7 @@ static void callback_slippymap(Fl_Widget* slippymap,
 int main(int argc, char** argv)
 {
     const char* usage =
-        "%s [--texture]\n"
-        "   [--znear       ZNEAR]\n"
+        "%s [--texture] [--SRTM1]\n"
         "   [--zfar        ZFAR]\n"
         "   [--znear-color ZNEARCOLOR]\n"
         "   [--zfar-color  ZFARCOLOR]\n"
@@ -383,10 +384,16 @@ int main(int argc, char** argv)
         "as red. All 4 of these have reasonable defaults, and may be omitted\n"
         "\n"
         "By default we colorcode the renders by range. If --texture, we\n"
-        "use a set of image tiles to texture the render instead\n";
+        "use a set of image tiles to texture the render instead\n"
+        "\n"
+        "By default we use 3\" SRTM data. Currently every triangle in the grid is\n"
+        "rendered. This is inefficient, but the higher-resolution 1\" SRTM tiles\n"
+        "would make it use 9 times more memory and computational resources, so\n"
+        "sticking with the lower-resolution 3\" SRTM data is recommended for now\n";
 
     struct option opts[] = {
         { "texture",           no_argument,       NULL, 'T' },
+        { "SRTM1",             no_argument,       NULL, 'S' },
         { "znear",             required_argument, NULL, '1' },
         { "zfar",              required_argument, NULL, '2' },
         { "znear-color",       required_argument, NULL, '3' },
@@ -397,6 +404,7 @@ int main(int argc, char** argv)
 
 
     bool render_texture = false;
+    bool SRTM1          = false;
 
     float znear       = -1.0f;
     float zfar        = -1.0f;
@@ -419,6 +427,10 @@ int main(int argc, char** argv)
 
         case 'T':
             render_texture = true;
+            break;
+
+        case 'S':
+            SRTM1 = true;
             break;
 
         case '1':
@@ -510,7 +522,7 @@ int main(int argc, char** argv)
     {
         g_gl_widget = new GLWidget(0, map_h,
                                    g_window->w(), g_window->h()-map_h-STATUS_H,
-                                   render_texture,
+                                   render_texture, SRTM1,
                                    znear,zfar,znear_color,zfar_color);
     }
     map_and_render->end();

@@ -59,6 +59,10 @@
 // If rendering off-screen, horizonator_resized() is not allowed.
 // horizonator_pan_zoom() must be called to update the azimuth extents.
 // Completely arbitrarily, these are set to -45deg - 45deg initially
+//
+// SRTM1 selects between 1" SRTM and 3" SRTM. Currently every triangle is
+// rendered, so 1" SRTM tiles can easily overload the machine. Unless you need
+// the extra resolution, stick with 3" SRTM tiles for now
 bool horizonator_init( // output
                        horizonator_context_t* ctx,
 
@@ -69,6 +73,7 @@ bool horizonator_init( // output
 
                        bool use_glut,
                        bool render_texture,
+                       bool SRTM1,
                        const char* dir_dems,
                        const char* dir_tiles,
                        bool allow_downloads)
@@ -78,8 +83,12 @@ bool horizonator_init( // output
     bool result             = false;
     bool dem_context_inited = false;
 
-    if(dir_dems  == NULL) dir_dems  = "~/.horizonator/DEMs_SRTM3";
-    if(dir_tiles == NULL) dir_tiles = "~/.horizonator/tiles";
+    if(dir_dems  == NULL)
+        dir_dems  = SRTM1 ?
+            "~/.horizonator/DEMs_SRTM1" :
+            "~/.horizonator/DEMs_SRTM3";
+    if(dir_tiles == NULL)
+        dir_tiles = "~/.horizonator/tiles";
 
     ctx->use_glut = use_glut;
     if(use_glut)
@@ -149,7 +158,8 @@ bool horizonator_init( // output
     if( !horizonator_dem_init( &ctx->dems,
                    viewer_lat, viewer_lon,
                    render_radius_cells,
-                   dir_dems) )
+                   dir_dems,
+                   SRTM1) )
     {
         MSG("Couldn't init DEMs. Giving up");
         goto done;
@@ -331,10 +341,10 @@ bool horizonator_init( // output
 
         // My render data is in a grid centered on viewer_lat/viewer_lon, branching
         // render_radius_cells*DEG_PER_CELL degrees in all 4 directions
-        float lowest_E  = viewer_lon - (float)render_radius_cells/CELLS_PER_DEG;
-        float lowest_N  = viewer_lat - (float)render_radius_cells/CELLS_PER_DEG;
-        float highest_E = viewer_lon + (float)render_radius_cells/CELLS_PER_DEG;
-        float highest_N = viewer_lat + (float)render_radius_cells/CELLS_PER_DEG;
+        float lowest_E  = viewer_lon - (float)render_radius_cells/ctx->dems.cells_per_deg;
+        float lowest_N  = viewer_lat - (float)render_radius_cells/ctx->dems.cells_per_deg;
+        float highest_E = viewer_lon + (float)render_radius_cells/ctx->dems.cells_per_deg;
+        float highest_N = viewer_lat + (float)render_radius_cells/ctx->dems.cells_per_deg;
 
         // ytile decreases with lat, so I treat it backwards
         getOSMTileID( &texture_ctx.osmtile_lowestXY[0],
@@ -405,8 +415,8 @@ bool horizonator_init( // output
 #endif
                 const float Rearth = 6371000.0;
                 const float cos_viewer_lat = cosf( M_PI / 180.0f * viewer_lat );
-                float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
-                float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
+                float e = ((float)i - viewer_cell[0]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f * cos_viewer_lat;
+                float n = ((float)j - viewer_cell[1]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f;
                 float h = (float)z - viewer_z;
 
                 float d_ne = hypotf(e,n);
@@ -421,8 +431,8 @@ bool horizonator_init( // output
 #endif
                 const float Rearth = 6371000.0;
                 const float cos_viewer_lat = cosf( M_PI / 180.0f * viewer_lat );
-                float e = ((float)i - viewer_cell[0]) / CELLS_PER_DEG * Rearth * M_PI/180.f * cos_viewer_lat;
-                float n = ((float)j - viewer_cell[1]) / CELLS_PER_DEG * Rearth * M_PI/180.f;
+                float e = ((float)i - viewer_cell[0]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f * cos_viewer_lat;
+                float n = ((float)j - viewer_cell[1]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f;
                 float h = (float)z - viewer_z;
 
                 vertices[vertex_buf_idx++] = e;
@@ -532,14 +542,14 @@ bool horizonator_init( // output
             assert_opengl();                                            \
         } while(0)
 
-        make_and_set_uniform(f, DEG_PER_CELL,   1.0f/ (float)CELLS_PER_DEG );
+        make_and_set_uniform(f, DEG_PER_CELL,   1.0f/ (float)ctx->dems.cells_per_deg );
 
         make_and_set_uniform(f, origin_cell_lon_deg,
                      (float)ctx->dems.origin_dem_lon_lat[0] +
-                     (float)ctx->dems.origin_dem_cellij[0] / (float)CELLS_PER_DEG);
+                     (float)ctx->dems.origin_dem_cellij[0] / (float)ctx->dems.cells_per_deg);
         make_and_set_uniform(f, origin_cell_lat_deg,
                      (float)ctx->dems.origin_dem_lon_lat[1] +
-                     (float)ctx->dems.origin_dem_cellij[1] / (float)CELLS_PER_DEG);
+                     (float)ctx->dems.origin_dem_cellij[1] / (float)ctx->dems.cells_per_deg);
         make_and_set_uniform(i, NtilesX,         texture_ctx.NtilesXY[0]);
         make_and_set_uniform(i, NtilesY,         texture_ctx.NtilesXY[1]);
         make_and_set_uniform(i, osmtile_lowestX, texture_ctx.osmtile_lowestXY[0]);
@@ -715,10 +725,10 @@ bool horizonator_move(horizonator_context_t* ctx,
                    viewer_lat);
 
     float viewer_cell_i =
-        (viewer_lon - ctx->dems.origin_dem_lon_lat[0]) * CELLS_PER_DEG -
+        (viewer_lon - ctx->dems.origin_dem_lon_lat[0]) * ctx->dems.cells_per_deg -
         ctx->dems.origin_dem_cellij[0];
     float viewer_cell_j =
-        (viewer_lat - ctx->dems.origin_dem_lon_lat[1]) * CELLS_PER_DEG -
+        (viewer_lat - ctx->dems.origin_dem_lon_lat[1]) * ctx->dems.cells_per_deg -
         ctx->dems.origin_dem_cellij[1];
 
 
