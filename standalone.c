@@ -127,8 +127,8 @@ int main(int argc, char* argv[])
         "field-of-view will be assumed if --height is omitted."
         "The image filename MUST be a .png file\n"
         "\n"
-        "I load RENDER_RADIUS_CELLS of the DEM in each direction off the center\n"
-        "point. If --radius is omitted, a reasonable default is chosen\n"
+        "By default I load 1000 of the DEM in each direction from the center\n"
+        "point. If --radius is given, I use that value instead\n"
         "\n"
         "When plotting to a window, AZ_DEG are the azimuth bounds of the\n"
         "VIEWPORT. When rendering to an image, AZ_DEG are the\n"
@@ -225,7 +225,7 @@ int main(int argc, char* argv[])
 
         case 'R':
             render_radius_cells = atoi(optarg);
-            if(height <= 0)
+            if(render_radius_cells <= 0)
             {
                 fprintf(stderr, "--radius must have an integer argument > 0\n");
                 return 1;
