@@ -20,8 +20,6 @@ extern "C"
 }
 
 
-#define RENDER_RADIUS_CELLS_DEFAULT 1000
-
 #define WINDOW_W 800
 #define WINDOW_H 600
 #define STATUS_H 20
@@ -98,6 +96,7 @@ static void newrender(horizonator_context_t* ctx,
 class GLWidget : public Fl_Gl_Window
 {
     horizonator_context_t m_ctx;
+    int radius;
     bool render_texture, SRTM1;
     float znear;
     float zfar;
@@ -144,6 +143,7 @@ class GLWidget : public Fl_Gl_Window
 
 public:
     GLWidget(int x, int y, int w, int h,
+             int _radius,
              bool _render_texture,
              bool _SRTM1,
              float _znear,
@@ -151,6 +151,7 @@ public:
              float _znear_color,
              float _zfar_color) :
         Fl_Gl_Window(x, y, w, h),
+        radius         (_radius),
         render_texture (_render_texture),
         SRTM1          (_SRTM1),
         znear          (_znear),
@@ -180,7 +181,7 @@ public:
             if(!horizonator_init( &m_ctx,
                                   g_view.lat, g_view.lon,
                                   -1, -1,
-                                  RENDER_RADIUS_CELLS_DEFAULT,
+                                  radius,
                                   false,
                                   render_texture, SRTM1,
                                   NULL,NULL,
@@ -366,6 +367,7 @@ int main(int argc, char** argv)
 {
     const char* usage =
         "%s [--texture] [--SRTM1]\n"
+        "   [--radius RENDER_RADIUS_CELLS]\n"
         "   [--zfar        ZFAR]\n"
         "   [--znear-color ZNEARCOLOR]\n"
         "   [--zfar-color  ZFARCOLOR]\n"
@@ -375,6 +377,9 @@ int main(int argc, char** argv)
         "given on the commandline are just starting points. The viewer position\n"
         "is required, but the azimuth bounds may be omitted; some reasonable\n"
         "defaults will be used."
+        "\n"
+        "By default I load 1000 of the DEM in each direction from the center\n"
+        "point. If --radius is given, I use that value instead\n"
         "\n"
         "The extents of ranges that we render are given by --zmin and --zmax,\n"
         "in meters. Anything closer than --zmin and further out than --zmax will\n"
@@ -394,6 +399,7 @@ int main(int argc, char** argv)
     struct option opts[] = {
         { "texture",           no_argument,       NULL, 'T' },
         { "SRTM1",             no_argument,       NULL, 'S' },
+        { "radius",            required_argument, NULL, 'R' },
         { "znear",             required_argument, NULL, '1' },
         { "zfar",              required_argument, NULL, '2' },
         { "znear-color",       required_argument, NULL, '3' },
@@ -406,6 +412,7 @@ int main(int argc, char** argv)
     bool render_texture = false;
     bool SRTM1          = false;
 
+    int   render_radius_cells = 1000;
     float znear       = -1.0f;
     float zfar        = -1.0f;
     float znear_color = -1.0f;
@@ -431,6 +438,15 @@ int main(int argc, char** argv)
 
         case 'S':
             SRTM1 = true;
+            break;
+
+        case 'R':
+            render_radius_cells = atoi(optarg);
+            if(render_radius_cells <= 0)
+            {
+                fprintf(stderr, "--radius must have an integer argument > 0\n");
+                return 1;
+            }
             break;
 
         case '1':
@@ -522,6 +538,7 @@ int main(int argc, char** argv)
     {
         g_gl_widget = new GLWidget(0, map_h,
                                    g_window->w(), g_window->h()-map_h-STATUS_H,
+                                   render_radius_cells,
                                    render_texture, SRTM1,
                                    znear,zfar,znear_color,zfar_color);
     }
