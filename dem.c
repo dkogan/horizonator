@@ -167,7 +167,6 @@ bool horizonator_dem_init(// output
             ctx->mmap_fd[i][j] = open( filename, O_RDONLY );
             if( ctx->mmap_fd[i][j] <= 0 )
             {
-                horizonator_dem_deinit(ctx);
                 MSG("Warning: couldn't open DEM file '%s'. Assuming elevation=0 (sea surface?)", filename );
                 ctx->dems      [i][j] = NULL;
                 ctx->mmap_sizes[i][j] = 0;
@@ -184,7 +183,6 @@ bool horizonator_dem_init(// output
                 // except no warning is generated
                 close(ctx->mmap_fd[i][j]);
 
-                horizonator_dem_deinit(ctx);
                 ctx->dems      [i][j] = NULL;
                 ctx->mmap_sizes[i][j] = 0;
                 ctx->mmap_fd   [i][j] = 0;
