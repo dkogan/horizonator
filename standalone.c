@@ -446,11 +446,13 @@ int main(int argc, char* argv[])
     if(filename_image != NULL)
     {
         FreeImage_Initialise(true);
-        FIBITMAP* fib = FreeImage_ConvertFromRawBits((BYTE*)image, width, height,
-                                                     3*width, 24,
-                                                     0,0,0,
-                                                     // Top row is stored first
-                                                     true);
+        FIBITMAP* fib = FreeImage_ConvertFromRawBitsEx(false,
+                                                       (BYTE*)image,
+                                                       FIT_BITMAP,
+                                                       width, height, 3*width, 24,
+                                                       0,0,0,
+                                                       // Top row is stored first
+                                                       true);
 
         if(!FreeImage_Save(FIF_PNG, fib, filename_image, 0))
         {
