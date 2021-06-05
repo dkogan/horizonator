@@ -272,7 +272,8 @@ bool horizonator_init( // output
 
                 // tile doesn't exist. Make a directory for it and try to download
                 len = snprintf(directory, sizeof(directory),
-                               "/home/dima/.horizonator/tiles/%d/%d",
+                               "%s/%d/%d",
+                               dir_tiles,
                                OSM_RENDER_ZOOM, osmTileX);
                 assert(len < (int)sizeof(directory));
 
