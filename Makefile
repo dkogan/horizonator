@@ -1,4 +1,5 @@
-include mrbuild/Makefile.common.header
+include choose_mrbuild.mk
+include $(MRBUILD_MK)/Makefile.common.header
 
 PROJECT_NAME := horizonator
 ABI_VERSION  := 0
@@ -76,4 +77,5 @@ DIST_PY3_MODULES := horizonator$(PY_EXT_SUFFIX)
 
 all: horizonator$(PY_EXT_SUFFIX)
 
-include mrbuild/Makefile.common.footer
+include $(MRBUILD_MK)/Makefile.common.footer
+
