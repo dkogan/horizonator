@@ -828,13 +828,25 @@ bool horizonator_set_zextents(horizonator_context_t* ctx,
     }
 
     if(znear > 0.0f)
-       glUniform1f( ctx->uniform_znear,       znear);       assert_opengl();
+    {
+       glUniform1f( ctx->uniform_znear,       znear);
+       assert_opengl();
+    }
     if(zfar > 0.0f)
-       glUniform1f( ctx->uniform_zfar,        zfar);        assert_opengl();
+    {
+       glUniform1f( ctx->uniform_zfar,        zfar);
+       assert_opengl();
+    }
     if(znear_color > 0.0f)
-       glUniform1f( ctx->uniform_znear_color, znear_color); assert_opengl();
+    {
+       glUniform1f( ctx->uniform_znear_color, znear_color);
+       assert_opengl();
+    }
     if(zfar_color > 0.0f)
-       glUniform1f( ctx->uniform_zfar_color,  zfar_color);  assert_opengl();
+    {
+       glUniform1f( ctx->uniform_zfar_color,  zfar_color);
+       assert_opengl();
+    }
     return true;
 }
 
