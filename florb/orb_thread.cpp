@@ -18,7 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include <boost/bind.hpp>
 #include "orb_thread.hpp"
 
 orb_thread::orb_thread(threadfct_t fct) :
