@@ -1072,6 +1072,7 @@ bool horizonator_pick(const horizonator_context_t* ctx,
     glReadPixels(x, u.height-1 - y,
                  1,1,
                  GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
+    assert_opengl();
     if(depth >= 1.0f)
         return false;
 
