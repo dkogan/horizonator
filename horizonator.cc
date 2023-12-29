@@ -159,7 +159,9 @@ public:
         znear_color    (_znear_color),
         zfar_color     (_zfar_color)
     {
-        mode(FL_RGB8 | FL_DOUBLE | FL_OPENGL3 | FL_DEPTH);
+        mode(FL_RGB | FL_OPENGL3 | FL_DEPTH
+             // | FL_DOUBLE
+             );
         memset(&m_ctx, 0, sizeof(m_ctx));
 
 
