@@ -11,11 +11,14 @@ LDLIBS += \
   -lm \
   -pthread
 
+# for the annotator
+LDLIBS += -lcairo -lswscale
+
 CFLAGS    += --std=gnu99
 CCXXFLAGS += -Wno-missing-field-initializers
 
 ################# library ###############
-LIB_SOURCES += horizonator-lib.c dem.c
+LIB_SOURCES += horizonator-lib.c dem.c annotator.c
 horizonator-lib.o: vertex.glsl.h geometry.glsl.h fragment.glsl.h
 %.glsl.h: %.glsl
 	sed 's/.*/"&\\n"/g' $^ > $@.tmp && mv $@.tmp $@
@@ -59,6 +62,8 @@ horizonator: LDLIBS += $(LDLIBS_FLORB) -lfltk_gl -lfltk -lX11
 
 florb/orb_mapctrl.o:   CXXFLAGS += -Wno-empty-body
 florb/orb_tilecache.o: CXXFLAGS += -Wno-unused-parameter
+
+annotator.o: CFLAGS += -I/usr/include/cairo
 
 
 ############### python #####################

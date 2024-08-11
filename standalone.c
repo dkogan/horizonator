@@ -9,6 +9,7 @@
 #include <GL/freeglut.h>
 
 #include "horizonator.h"
+#include "annotator.h"
 #include "util.h"
 
 static bool glut_loop( bool render_texture, bool SRTM1,
@@ -110,7 +111,7 @@ int main(int argc, char* argv[])
 {
     const char* usage =
         "%s [--width WIDTH_PIXELS] [--height HEIGHT_PIXELS]\n"
-        "   [--image OUT.png] [--ranges RANGES.DAT]\n"
+        "   [--image OUT.png|OUT.pdf]\n"
         "   [--radius RENDER_RADIUS_CELLS]\n"
         "   [--texture] [--SRTM1]\n"
         "   [--allow-tile-downloads]\n"
@@ -123,10 +124,11 @@ int main(int argc, char* argv[])
         "   LAT LON AZ_DEG0 AZ_DEG1\n"
         "\n"
         "By default, we render to a window. If --width is given, we render\n"
-        "to an image (--image) and/or a binary range table (--ranges) instead.\n"
+        "to an image (--image) instead.\n"
         "--height applies only if --width is given, and is optional; a reasonable\n"
         "field-of-view will be assumed if --height is omitted."
-        "The image filename MUST be a .png file\n"
+        "The image filename MUST be a .png file (the render will be written)\n"
+        "OR a .pdf file (the annotated render will be written)\n"
         "\n"
         "By default I load 1000 of the DEM in each direction from the center\n"
         "point. If --radius is given, I use that value instead\n"
@@ -162,7 +164,6 @@ int main(int argc, char* argv[])
         { "height",            required_argument, NULL, 'H' },
         { "image",             required_argument, NULL, 'i' },
         { "radius",            required_argument, NULL, 'R' },
-        { "ranges",            required_argument, NULL, 'r' },
         { "dirdems",           required_argument, NULL, 'd' },
         { "dirtiles",          required_argument, NULL, 't' },
         { "texture",           no_argument,       NULL, 'T' },
@@ -179,7 +180,6 @@ int main(int argc, char* argv[])
     int         width           = 0;
     int         height          = 0;
     const char* filename_image  = NULL;
-    const char* filename_ranges = NULL;
     const char* dir_dems        = NULL;
     const char* dir_tiles       = NULL;
     bool        render_texture  = false;
@@ -270,10 +270,6 @@ int main(int argc, char* argv[])
             filename_image = optarg;
             break;
 
-        case 'r':
-            filename_ranges = optarg;
-            break;
-
         case 'd':
             dir_dems = optarg;
             break;
@@ -309,15 +305,15 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if(width >  0 && !(filename_image != NULL || filename_ranges != NULL))
+    if(width >  0 && filename_image == NULL)
     {
-        fprintf(stderr, "--width makes sense only with (--image or --ranges)\n\n");
+        fprintf(stderr, "--width makes sense only with --image\n\n");
         fprintf(stderr, usage, argv[0]);
         return 1;
     }
-    if(width <= 0 &&  (filename_image != NULL || filename_ranges != NULL))
+    if(width <= 0 &&  filename_image != NULL)
     {
-        fprintf(stderr, "--width required if (--image or --ranges)\n\n");
+        fprintf(stderr, "--width required if --image\n\n");
         fprintf(stderr, usage, argv[0]);
         return 1;
     }
@@ -328,12 +324,14 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    const int strlen_filename_image = strlen(filename_image);
     if(filename_image != NULL)
     {
-        int l = strlen(filename_image);
-        if(l < 5 || 0 != strcasecmp(".png", &filename_image[l-4]))
+        if(!(strlen_filename_image >= 5 &&
+             (0 == strcasecmp(".png", &filename_image[strlen_filename_image-4]) ||
+              0 == strcasecmp(".pdf", &filename_image[strlen_filename_image-4]))))
         {
-            fprintf(stderr, "--image MUST be given a '.png' filename\n\n");
+            fprintf(stderr, "--image MUST be given a '.png' or '.pdf' filename\n\n");
             fprintf(stderr, usage, argv[0]);
             return 1;
         }
@@ -363,7 +361,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    if(filename_image == NULL && filename_ranges == NULL)
+    if(filename_image == NULL)
     {
         glut_loop(render_texture, SRTM1,
                   lat, lon, az_deg0, az_deg1,
@@ -389,27 +387,21 @@ int main(int argc, char* argv[])
         height = (int)roundf( (float)width * fovy_deg / (az_deg1-az_deg0));
     }
 
-    char*  image  = NULL;
-    float* ranges = NULL;
-
+    uint8_t* pool = NULL;
+    char*    image;
+    float* ranges;
     if(filename_image != NULL)
     {
-        image = malloc( width*height * 3 );
-        if(image == NULL)
+        // rgb for the image and float for the depth
+        pool = malloc( width*height * (3 + sizeof(float)) );
+        if(pool == NULL)
         {
-            MSG("image buffer malloc() failed");
+            MSG("image,ranges buffer malloc() failed");
             return 1;
         }
-    }
 
-    if(filename_ranges != NULL)
-    {
-        ranges = malloc( width*height * sizeof(float) );
-        if(ranges == NULL)
-        {
-            MSG("ranges buffer malloc() failed");
-            return 1;
-        }
+        ranges = (float*)pool;
+        image  = (char*)&pool[width*height*sizeof(float)];
     }
 
 
@@ -448,41 +440,43 @@ int main(int argc, char* argv[])
 
     if(filename_image != NULL)
     {
-        FreeImage_Initialise(true);
-        FIBITMAP* fib = FreeImage_ConvertFromRawBitsEx(false,
-                                                       (BYTE*)image,
-                                                       FIT_BITMAP,
-                                                       width, height, 3*width, 24,
-                                                       0,0,0,
-                                                       // Top row is stored first
-                                                       true);
-
-        if(!FreeImage_Save(FIF_PNG, fib, filename_image, 0))
+        if(0 == strcasecmp(".png", &filename_image[strlen_filename_image-4]))
         {
-            fprintf(stderr, "Couldn't save to '%s'\n", filename_image);
-            return 1;
-        }
-        FreeImage_Unload(fib);
-        FreeImage_DeInitialise();
-        free(image);
-    }
+            // png file requested. I write out the render only
+            FreeImage_Initialise(true);
+            FIBITMAP* fib = FreeImage_ConvertFromRawBitsEx(false,
+                                                           (BYTE*)image,
+                                                           FIT_BITMAP,
+                                                           width, height, 3*width, 24,
+                                                           0,0,0,
+                                                           // Top row is stored first
+                                                           true);
 
-    if(filename_ranges != NULL)
-    {
-        FILE* fp = fopen(filename_ranges, "w");
-        if(fp == NULL)
+            if(!FreeImage_Save(FIF_PNG, fib, filename_image, 0))
+            {
+                fprintf(stderr, "Couldn't save to '%s'\n", filename_image);
+                return 1;
+            }
+            FreeImage_Unload(fib);
+            FreeImage_DeInitialise();
+        }
+        else
         {
-            MSG("Cannot open ranges image at '%s'. Giving up", filename_ranges);
-            return 1;
+            // pdf file is requested. I write an annotated pdf
+            poi_t pois[] = {
+#include "features_generated.h"
+            };
+            const int N_pois = (int)(sizeof(pois) / sizeof(pois[0]));
+
+            annotate(filename_image,
+                     (uint8_t*)image, ranges, width, height,
+                     pois, N_pois,
+                     lat, lon,
+                     az_deg0, az_deg1,
+                     viewer_z);
         }
 
-        if((unsigned int)(width*height) != fwrite(ranges,
-                                                  sizeof(float), width*height, fp))
-        {
-            MSG("Failed to write complete 'ranges' data");
-            return 1;
-        }
-        fclose(fp);
+        free(pool);
     }
 
     return 0;

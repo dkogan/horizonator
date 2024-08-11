@@ -2,21 +2,12 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
-#include <limits.h>
+#include <cairo-pdf.h>
+#include <libswscale/swscale.h>
+#include <libavutil/pixfmt.h>
 
-typedef struct
-{
-  const char* name;
-  float lat_rad, lon_rad, ele_m;
-
-  int draw_x, draw_y, draw_label_y;
-
-} poi_t;
-
-static poi_t g_pois[] = {
-#include "features_generated.h"
-};
-static const int N_g_pois = (int)(sizeof(g_pois) / sizeof(g_pois[0]));
+#include "util.h"
+#include "annotator.h"
 
 
 #define MAX_MARKER_DIST 35000.0
@@ -24,12 +15,7 @@ static const int N_g_pois = (int)(sizeof(g_pois) / sizeof(g_pois[0]));
 
 const float Rearth = 6371000.0;
 
-#define LABEL_COLOR          FL_YELLOW
-#define LABEL_CROSSHAIR_R    3
-#define LABEL_FONT           FL_HELVETICA
-#define LABEL_FONT_SIZE      10
-#define DIRECTIONS_FONT_SIZE 16
-
+#define LABEL_CROSSHAIR_R 3
 #define TEXT_MARGIN       2
 
 static int font_height = -1;
@@ -40,6 +26,7 @@ static int font_height = -1;
 
 
 
+#if 0
 // compares two POIs by their draw_x. Sorts disabled POIs to the end
 static int compar_poi_x( const void* _idx0, const void* _idx1, void* cookie )
 {
@@ -60,7 +47,7 @@ static int compar_poi_x( const void* _idx0, const void* _idx1, void* cookie )
 }
 
 static
-void drawLabel( const poi_t* poi )
+void draw_label( const poi_t* poi )
 {
   fl_xyline( x() + poi->draw_x - LABEL_CROSSHAIR_R, y() + poi->draw_y,
              x() + poi->draw_x + LABEL_CROSSHAIR_R );
@@ -70,64 +57,6 @@ void drawLabel( const poi_t* poi )
              y() + poi->draw_y - LABEL_CROSSHAIR_R );
   fl_draw( poi->name, x() + poi->draw_x, y() + poi->draw_label_y );
 }
-
-void draw()
-{
-  // now draw the labels
-  if( font_height <= 0 )
-    return;
-
-  int*   poi_indices;
-  int    poi_N;
-  poi_t* poi;
-  getPOIs( &poi_indices, &poi_N, &poi);
-
-  fl_push_clip(x(), y(), w(), h());
-  fl_font( LABEL_FONT, LABEL_FONT_SIZE );
-  fl_color( LABEL_COLOR );
-  for( int i=0; i<poi_N; i++ )
-  {
-    // disabled POIs have been sorted to the back, so as soon as I see one, I'm
-    // done
-    if( poi[ poi_indices[i]].draw_x < 0 )
-        break;
-    drawLabel( &poi[ poi_indices[i]] );
-  }
-
-  // mark the cardinal directions
-  fl_font( LABEL_FONT, DIRECTIONS_FONT_SIZE );
-  fl_draw( "S", x() + 1,                                y() + h() - 2 );
-  fl_draw( "W", x() + 1*w()/4 - DIRECTIONS_FONT_SIZE/2, y() + h() - 2 );
-  fl_draw( "N", x() + 2*w()/4 - DIRECTIONS_FONT_SIZE/2, y() + h() - 2 );
-  fl_draw( "E", x() + 3*w()/4 - DIRECTIONS_FONT_SIZE/2, y() + h() - 2 );
-  fl_draw( "S", x() + w() - DIRECTIONS_FONT_SIZE,       y() + h() - 2 );
-
-
-#if 0
-  // testing code to save an annotated image to a file
-
-  if( w() > 0 && h() > 0 )
-  {
-    // for some reason I can't ask for the full width (fl_read_image() returns
-    // NULL), so I ask for less...
-    int w = 1800;
-    int h = 300;
-
-    uchar* img = fl_read_image(NULL, 0,0, w, h );
-    if( img )
-    {
-      FILE* fp = fopen( "img.ppm", "w+");
-      fprintf(fp, "P6\n%d %d\n%d\n", w,h,255);
-      fwrite(img, 1, w*h*3, fp);
-      fclose(fp);
-      exit(1);
-    }
-  }
-#endif
-
-  fl_pop_clip();
-}
-
 
 static
 double arclen_sq( double lat0_rad, double lon0_rad,
@@ -153,25 +82,106 @@ double arclen_sq( double lat0_rad, double lon0_rad,
       dlat*dlat );
 }
 
-// arguments are position and orientation of the viewer
-// az is from north towards east
-// el is from horizontal
-// yaw is clockwise-positive
-void annotate(// input, output
-              mrcal_image_uint8_t* image,
+#endif
 
-              // input, output
-              poi_t* pois, // I adjust the metadata
 
-              // input
+#define TRY(x) do {                             \
+    if(!(x))                                    \
+    {                                           \
+      MSG( "ERROR: " #x " failed");             \
+      goto done;                                \
+    }                                           \
+  } while(0)
+
+// My image stores a pixel in 24 bits, while cairo expects 32 bits (despite the
+// name of the format being CAIRO_FORMAT_RGB24). I convert with this function
+//
+// Dense storage assumed in both input and output.
+static
+bool RGB32_from_BGR24(// output
+                      uint8_t* image_rgb32,
+                      // input
+                      const uint8_t* image_bgr24,
+                      const int width,
+                      const int height)
+{
+  bool result = false;
+  int stride_rgb32 = width*4;
+  int stride_bgr24 = width*3;
+
+  struct SwsContext* sws_ctx = NULL;
+  TRY(NULL != (sws_ctx =
+               sws_getContext(width, height, AV_PIX_FMT_BGR24,
+                              width, height, AV_PIX_FMT_RGB32,
+                              SWS_POINT, NULL, NULL, NULL)));
+
+  sws_scale(sws_ctx,
+            &image_bgr24, &stride_bgr24, 0, height,
+            &image_rgb32, &stride_rgb32);
+  result = true;
+
+done:
+  if(sws_ctx != NULL)
+    sws_freeContext(sws_ctx);
+  return result;
+}
+
+bool annotate(// input
+              const char* pdf_filename,
+              // assumed to be stored densely.
+              const uint8_t* image_bgr,
+              const float*   range_image,
+              const int width,
+              const int height,
+
+              const poi_t* pois,
               const int Npois,
-              const double lat_rad,
-              const double lon_rad,
+              const double lat,
+              const double lon,
+              const double az_deg0,
+              const double az_deg1,
               const double ele_m)
 {
-  // Set all draw_x to INT_MAX to indicate that we MAY want to render them. THEN
-  // I filter out everything that's too far, setting draw_x to <0 to indicate
-  // that we do NOT want to render them
+  bool result = false;
+
+  uint8_t*         image_rgb32 = NULL;
+  cairo_surface_t* pdf         = NULL;
+  cairo_t*         cr          = NULL;
+  cairo_surface_t* frame       = NULL;
+
+  TRY(NULL != (image_rgb32 = malloc(width*height*4)));
+
+  TRY(RGB32_from_BGR24(// output
+                       image_rgb32,
+                       // input
+                       image_bgr,
+                       width,
+                       height));
+
+
+  const int    POINTS_PER_INCH = 72;
+  const int    PIXELS_PER_INCH = 300;
+  const double SCALE           = (double)POINTS_PER_INCH / (double)PIXELS_PER_INCH;
+
+  TRY(NULL !=
+      (pdf = cairo_pdf_surface_create(pdf_filename,
+                                      (width  * POINTS_PER_INCH) / PIXELS_PER_INCH,
+                                      (height * POINTS_PER_INCH) / PIXELS_PER_INCH)));
+  TRY(NULL != (cr = cairo_create(pdf)));
+  TRY(NULL != (frame =
+               cairo_image_surface_create_for_data(image_rgb32,
+                                                   CAIRO_FORMAT_RGB24,
+                                                   width, height,
+                                                   width*4) ));
+  cairo_scale(cr, SCALE, SCALE);
+  cairo_set_source_surface(cr, frame, 0,0);
+  cairo_paint(cr);
+
+  cairo_surface_show_page(pdf);
+
+
+
+#if 0
   for(int i=0; i<Npois; i++)
   {
     pois[i].draw_x = INT_MAX;
@@ -343,4 +353,15 @@ void annotate(// input, output
 
     thispoi->draw_label_y = current_y;
   }
+#endif
+  result = true;
+
+ done:
+  free(image_rgb32);
+
+  if(cr    != NULL) cairo_destroy(cr);
+  if(pdf   != NULL) cairo_surface_destroy(pdf);
+  if(frame != NULL) cairo_surface_destroy(frame);
+
+  return result;
 }
