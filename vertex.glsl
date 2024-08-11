@@ -128,6 +128,7 @@ void main(void)
         vec2 en =
             vec2( (i - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,
                   (j - viewer_cell_j) * DEG_PER_CELL * Rearth * pi/180. );
+        vec3 enh = vec3( en.x, en.y, vertex.z - viewer_z );
 
         distance_ne = length(en);
         float az_rad = atan(en.x, en.y);
@@ -149,9 +150,9 @@ void main(void)
         float az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
 
         float az_ndc = (az_rad - az_rad_center) * az_ndc_per_rad;
-        float el_ndc = atan((vertex.z - viewer_z), distance_ne) * aspect * az_ndc_per_rad;
+        float el_ndc = atan(enh.z, distance_ne) * aspect * az_ndc_per_rad;
         gl_Position = vec4( az_ndc, el_ndc,
-                            ((distance_ne - znear) / (zfar - znear) * 2. - 1.),
+                            ((length(enh) - znear) / (zfar - znear) * 2. - 1.),
                             1.0 );
     }
 
