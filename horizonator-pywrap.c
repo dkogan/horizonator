@@ -86,7 +86,9 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         goto done;
 
     if(! horizonator_init( &self->ctx,
-                           lat, lon, width, height,
+                           lat, lon,
+                           NULL,
+                           width, height,
                            render_radius_cells,
                            true,
                            render_texture, SRTM1,
@@ -191,7 +193,7 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     }
 
     if(lat > -1000.)
-        if( !horizonator_move( &self->ctx, lat, lon ) )
+        if( !horizonator_move( &self->ctx, NULL, lat, lon ) )
         {
             BARF("horizonator_move() failed");
             goto done;

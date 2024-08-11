@@ -68,6 +68,11 @@ bool horizonator_init( // output
 
                        // input
                        float viewer_lat, float viewer_lon,
+                       // output/input
+                       // if viewer_z==NULL, auto-select a value; if *viewer_z >=
+                       // 0, use that; if *viewer_z < 0, auto-select a value, and
+                       // report it here
+                       float* viewer_z,
                        int offscreen_width, int offscreen_height,
                        int render_radius_cells,
 
@@ -577,7 +582,7 @@ bool horizonator_init( // output
 #undef make_and_set_uniform
 
         // And I set the other uniforms
-        horizonator_move(ctx, viewer_lat, viewer_lon);
+        horizonator_move(ctx, viewer_z, viewer_lat, viewer_lon);
         horizonator_set_zextents(ctx,
                                  ZNEAR_DEFAULT, ZFAR_DEFAULT,
                                  ZNEAR_DEFAULT, ZFAR_DEFAULT);
@@ -658,6 +663,12 @@ void horizonator_deinit( horizonator_context_t* ctx )
 }
 
 bool horizonator_move(horizonator_context_t* ctx,
+                      // output/input
+                      // if viewer_z==NULL, auto-select a value; if *viewer_z >=
+                      // 0, use that; if *viewer_z < 0, auto-select a value, and
+                      // report it here
+                      float* viewer_z,
+                      // input
                       float viewer_lat, float viewer_lon)
 {
     if(ctx->use_glut)
@@ -737,17 +748,25 @@ bool horizonator_move(horizonator_context_t* ctx,
     // immediately around me
     int i0 = (int)floorf(viewer_cell_i);
     int j0 = (int)floorf(viewer_cell_j);
-    float viewer_z =
-        fmaxf( fmaxf(horizonator_dem_sample( &ctx->dems, i0,   j0),
-                     horizonator_dem_sample( &ctx->dems, i0+1, j0)),
-               fmaxf(horizonator_dem_sample( &ctx->dems, i0,   j0+1 ),
-                     horizonator_dem_sample( &ctx->dems, i0+1, j0+1 )) ) + 1.0;
+    float _viewer_z;
+    if(viewer_z == NULL || *viewer_z < 0)
+    {
+        _viewer_z =
+            fmaxf( fmaxf(horizonator_dem_sample( &ctx->dems, i0,   j0),
+                         horizonator_dem_sample( &ctx->dems, i0+1, j0)),
+                   fmaxf(horizonator_dem_sample( &ctx->dems, i0,   j0+1 ),
+                         horizonator_dem_sample( &ctx->dems, i0+1, j0+1 )) ) + 1.0;
+        if(viewer_z != NULL)
+            *viewer_z = _viewer_z;
+    }
+    else
+        _viewer_z = *viewer_z;
 
     glUniform1f(ctx->uniform_viewer_cell_i,    viewer_cell_i);
     assert_opengl();
     glUniform1f(ctx->uniform_viewer_cell_j,    viewer_cell_j);
     assert_opengl();
-    glUniform1f(ctx->uniform_viewer_z,         viewer_z);
+    glUniform1f(ctx->uniform_viewer_z,         _viewer_z);
     assert_opengl();
     glUniform1f(ctx->uniform_viewer_lat,             viewer_lat * M_PI / 180.0f );
     assert_opengl();

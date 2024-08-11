@@ -35,6 +35,7 @@ static bool glut_loop( bool render_texture, bool SRTM1,
 
     if( !horizonator_init( &ctx,
                            viewer_lat, viewer_lon,
+                           NULL,
                            -1, -1,
                            render_radius_cells,
                            true,
@@ -413,8 +414,10 @@ int main(int argc, char* argv[])
 
 
     horizonator_context_t ctx;
+    float viewer_z = -1.0f; // this will be filed-in by horizonator_init()
     if( !horizonator_init( &ctx,
                            lat, lon,
+                           &viewer_z,
                            width, height,
                            render_radius_cells,
                            true,

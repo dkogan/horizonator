@@ -88,7 +88,7 @@ static void newrender(horizonator_context_t* ctx,
     // If the context hasn't been inited yet, I don't move the map. It will load
     // later, in the already-correct spot
     if(horizonator_context_isvalid(ctx))
-        horizonator_move(ctx, lat, lon);
+        horizonator_move(ctx, NULL, lat, lon);
 
     update_status_text();
 }
@@ -182,6 +182,7 @@ public:
             // https://www.fltk.org/doc-1.3/opengl.html
             if(!horizonator_init( &m_ctx,
                                   g_view.lat, g_view.lon,
+                                  NULL,
                                   -1, -1,
                                   radius,
                                   false,

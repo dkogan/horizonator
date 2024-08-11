@@ -81,6 +81,11 @@ bool horizonator_init( // output
 
                        // input
                        float viewer_lat, float viewer_lon,
+                       // output/input
+                       // if viewer_z==NULL, auto-select a value; if *viewer_z >=
+                       // 0, use that; if *viewer_z < 0, auto-select a value, and
+                       // report it here
+                       float* viewer_z,
                        int offscreen_width, int offscreen_height,
                        int render_radius_cells,
 
@@ -108,6 +113,12 @@ bool horizonator_pan_zoom(const horizonator_context_t* ctx,
 // loaded DEMs. If the viewer moves a LOT, new DEMs should be loaded, and this
 // function is no longer appropriate
 bool horizonator_move(horizonator_context_t* ctx,
+                      // output/input
+                      // if viewer_z==NULL, auto-select a value; if *viewer_z >=
+                      // 0, use that; if *viewer_z < 0, auto-select a value, and
+                      // report it here
+                      float* viewer_z,
+                      // input
                       float viewer_lat, float viewer_lon);
 
 // set the position of the clipping planes. The horizontal distance from the
