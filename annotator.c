@@ -1,7 +1,10 @@
+#define _GNU_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include <assert.h>
 #include <cairo-pdf.h>
 #include <libswscale/swscale.h>
 #include <libavutil/pixfmt.h>
@@ -10,79 +13,79 @@
 #include "annotator.h"
 
 
-#define MAX_MARKER_DIST 35000.0
-#define MIN_MARKER_DIST 50.0
+#define MAX_MARKER_DIST 100000.0
+#define MIN_MARKER_DIST 500.0
 
 const float Rearth = 6371000.0;
 
 #define LABEL_CROSSHAIR_R 3
 #define TEXT_MARGIN       2
 
-static int font_height = -1;
+static const int    POINTS_PER_INCH = 72;
+static const int    PIXELS_PER_INCH = 300;
+static const double CAIRO_SCALE     = (double)POINTS_PER_INCH / (double)PIXELS_PER_INCH;
+
+static int font_height = 50;
+
+static
+double string_width(cairo_t *cr,
+                    const char* s)
+{
+  cairo_text_extents_t extents;
+  cairo_text_extents(cr, s,
+                     &extents);
+  return extents.x_bearing+extents.width;
+}
 
 
 
 
+typedef struct
+{
+  float x,y;
+} xy_t;
 
-
-
-#if 0
 // compares two POIs by their draw_x. Sorts disabled POIs to the end
 static int compar_poi_x( const void* _idx0, const void* _idx1, void* cookie )
 {
-  const poi_t* poi  = (const struct poi_t*)cookie;
-  const int*          idx0 = (const int*)_idx0;
-  const int*          idx1 = (const int*)_idx1;
+  const xy_t* xy   = (const xy_t*)cookie;
+  const int*  idx0 = (const int*)_idx0;
+  const int*  idx1 = (const int*)_idx1;
 
-  // I sort disabled POIs to the end
-  if( poi[ *idx1 ].draw_x < 0 )
-      return -1;
-  if( poi[ *idx0 ].draw_x < 0 )
-      return 1;
-
-  if( poi[ *idx0 ].draw_x < poi[ *idx1 ].draw_x )
+  if( xy[ *idx0 ].x < xy[ *idx1 ].x )
     return -1;
   else
     return 1;
 }
 
 static
-void draw_label( const poi_t* poi )
+void draw_label( cairo_t* cr,
+                 double x, double y,
+                 // top of the label
+                 double y_label, const char* name )
 {
-  fl_xyline( x() + poi->draw_x - LABEL_CROSSHAIR_R, y() + poi->draw_y,
-             x() + poi->draw_x + LABEL_CROSSHAIR_R );
-  fl_yxline( x() + poi->draw_x, y() + poi->draw_y + LABEL_CROSSHAIR_R,
-             y() + poi->draw_label_y - font_height );
-  fl_yxline( x() + poi->draw_x, y() + poi->draw_y + LABEL_CROSSHAIR_R,
-             y() + poi->draw_y - LABEL_CROSSHAIR_R );
-  fl_draw( poi->name, x() + poi->draw_x, y() + poi->draw_label_y );
+  cairo_move_to(cr, x-LABEL_CROSSHAIR_R, y);
+  cairo_rel_line_to(cr, 2*LABEL_CROSSHAIR_R, 0);
+
+  cairo_move_to(cr, x, y+LABEL_CROSSHAIR_R);
+  cairo_line_to(cr, x, y_label);
+
+  cairo_stroke(cr);
+
+
+  // cairo wants the bottom of the label
+  cairo_move_to(cr, x, y_label + font_height);
+  cairo_show_text(cr, name);
 }
 
+// Unwraps an angle x to lie within pi of an angle near. All angles in radians
+// Copy from vertex.glsl
 static
-double arclen_sq( double lat0_rad, double lon0_rad,
-                  double lat1_rad, double lon1_rad)
+double unwrap_near_rad(double x, double near)
 {
-  // On the surface of the earth the arclen is dtheta*Rearth
-  //
-  // Given v0,v1, |dth| ~ |sin(dth)| = | v0 x v1 |
-  //
-  // v = [ cos(lat) cos(lon)
-  //       cos(lat) sin(lon)
-  //       sin(lat) ]
-  //
-  // |v0 x v1| ~ sqrt( cos(lat0)^2 cos(lat1)^2 dlon^2 + dlat^2 )
-
-  const double dlat = lat1_rad - lat0_rad;
-  const double dlon = lon1_rad - lon0_rad;
-
-  const double cos_lat0_sq = cos(lon0_rad)*cos(lon0_rad);
-  const double cos_lat1_sq = cos(lat1_rad)*cos(lat1_rad);
-  return Rearth*Rearth *
-    ( dlon*dlon * cos_lat0_sq * cos_lat1_sq +
-      dlat*dlat );
+    double d = (x - near) / (2.*M_PI);
+    return (d - round(d)) * 2.*M_PI + near;
 }
-
-#endif
 
 
 #define TRY(x) do {                             \
@@ -92,6 +95,8 @@ double arclen_sq( double lat0_rad, double lon0_rad,
       goto done;                                \
     }                                           \
   } while(0)
+
+
 
 // My image stores a pixel in 24 bits, while cairo expects 32 bits (despite the
 // name of the format being CAIRO_FORMAT_RGB24). I convert with this function
@@ -144,11 +149,18 @@ bool annotate(// input
 {
   bool result = false;
 
+  // For sorting, further down
+  int poi_indices[Npois];
+  int Npoi_indices = 0;
+
+  xy_t labels_xy[Npois];
+
   uint8_t*         image_rgb32 = NULL;
   cairo_surface_t* pdf         = NULL;
   cairo_t*         cr          = NULL;
   cairo_surface_t* frame       = NULL;
 
+  ////// Paint the render into the pdf
   TRY(NULL != (image_rgb32 = malloc(width*height*4)));
 
   TRY(RGB32_from_BGR24(// output
@@ -158,186 +170,159 @@ bool annotate(// input
                        width,
                        height));
 
-
-  const int    POINTS_PER_INCH = 72;
-  const int    PIXELS_PER_INCH = 300;
-  const double SCALE           = (double)POINTS_PER_INCH / (double)PIXELS_PER_INCH;
-
   TRY(NULL !=
       (pdf = cairo_pdf_surface_create(pdf_filename,
                                       (width  * POINTS_PER_INCH) / PIXELS_PER_INCH,
                                       (height * POINTS_PER_INCH) / PIXELS_PER_INCH)));
   TRY(NULL != (cr = cairo_create(pdf)));
+  cairo_scale(cr, CAIRO_SCALE, CAIRO_SCALE);
+
   TRY(NULL != (frame =
                cairo_image_surface_create_for_data(image_rgb32,
                                                    CAIRO_FORMAT_RGB24,
                                                    width, height,
                                                    width*4) ));
-  cairo_scale(cr, SCALE, SCALE);
   cairo_set_source_surface(cr, frame, 0,0);
   cairo_paint(cr);
 
-  cairo_surface_show_page(pdf);
+  cairo_set_font_size(cr, font_height - TEXT_MARGIN);
+  cairo_set_source_rgb(cr, 1.0, 1.0, 0.0);
 
 
 
-#if 0
+
+  ////// Pick and render the annotations
+  const double lat_rad = lat * M_PI/180.;
+  const double lon_rad = lon * M_PI/180.;
+  const double cos_lat = cos(lat_rad);
+
   for(int i=0; i<Npois; i++)
   {
-    pois[i].draw_x = INT_MAX;
+      const double dlat = pois[i].lat_rad - lat_rad;
+      const double dlon = pois[i].lon_rad - lon_rad;
 
-    const double len_sq = arclen_sq( lat_rad, lon_rad,
-                                     pois[ipoi].lat_rad, pois[ipoi].lon_rad );
-    if(MIN_MARKER_DIST*MIN_MARKER_DIST > len_sq ||
-       MAX_MARKER_DIST*MAX_MARKER_DIST < len_sq )
-      pois[i].draw_x = -1;
-  }
+      const double east        = dlon * Rearth * cos_lat;
+      const double north       = dlat * Rearth;
+      const double distance_sq_ne = east*east + north*north;
+      if(distance_sq_ne < MIN_MARKER_DIST*MIN_MARKER_DIST ||
+         distance_sq_ne > MAX_MARKER_DIST*MAX_MARKER_DIST )
+          // too close or too far to label
+          continue;
 
-  // Now I compute all the crosshair positions (poi->draw_x, poi->draw_y)
-  {
-    // I project this lat/lon point, then unproject it back using the picking
-    // code. If a significant difference is observed, I don't draw this label.
-    // This happens if the POI is occluded
+      // Project this lat/lon point, then unproject it back using the picking
+      // code. If a significant difference is observed, I don't draw this label.
+      // This happens if the POI is occluded
 
-    // this is mostly lifted from vertex.glsl
-    double cos_lat = cos( lat_rad );
-    double sin_lat = sin( lat_rad );
+      // The projection code is mostly lifted from vertex.glsl. Would be nice to
+      // consolidate
+      const double h           = pois[i].ele_m - ele_m;
+      const double distance_ne = sqrt(distance_sq_ne);
+      const double range_have  = sqrt(distance_sq_ne + h*h);
 
-    for( int i=0; i<poi_N; i++ )
-    {
-      double sin_dlat = sin( pois[i].lat_rad - lat_rad );
-      double cos_dlat = cos( pois[i].lat_rad - lat_rad );
-      double sin_dlon = sin( pois[i].lon_rad - lon_rad );
-      double cos_dlon = cos( pois[i].lon_rad - lon_rad );
+      double az_rad = atan2(east, north);
+      // az = 0:     North
+      // az = 90deg: East
+      const double az_rad0 = az_deg0 * M_PI/180.;
+      double       az_rad1 = az_deg1 * M_PI/180.;
 
-      double sin_poi_lat  = sin( pois[i].lat_rad );
-      double cos_poi_lat  = cos( pois[i].lat_rad );
+      // az_rad1 should be within 2pi of az_rad0 and az_rad1 > az_rad0
+      az_rad1 = unwrap_near_rad(az_rad1-az_rad0, M_PI) + az_rad0;
 
-      double east  = cos_poi_lat * sin_dlon;
-      double north = ( sin_dlat*cos_dlon + sin_poi_lat*cos_lat*(1.0 - cos_dlon)) ;
+      // in [0,2pi]
+      const double az_rad_center = (az_rad0 + az_rad1)/2.;
 
-      // I had this:
-      //   double height =
-      //     (Rearth + pois[i].ele_m) *
-      //     ( cos_dlat*cos_dlon + sin_poi_lat*sin_lat*(1.0 - cos_dlon) )
-      //     /* this is bad for roundoff error */
-      //     - Rearth - ele_m;
-      // I refactor it to remove the big-big expression to improve precision
-      double height =
-        pois[i].ele_m * ( cos_dlat*cos_dlon +
-                          sin_poi_lat*sin_lat*(1.0 - cos_dlon) ) +
-        Rearth *
-        ( cos_dlat*cos_dlon - 1 + // better, still big-big here; refactor this
-          sin_poi_lat*sin_lat*(1.0 - cos_dlon) )
-        - ele_m;
+      az_rad = unwrap_near_rad(az_rad, az_rad_center);
 
-      double zeff  = (Rearth + pois[i].ele_m)*sqrt( east*east + north*north );
+      const double az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
 
-      double aspect = (double)w() / (double)h();
-      double x_normalized = atan2(east, north) / M_PI;
-      double y_normalized = height / M_PI * aspect / zeff;
+      const double az_ndc = (az_rad - az_rad_center) * az_ndc_per_rad;
+      if(! (-1. <= az_ndc && az_ndc <= 1.) )
+        continue;
 
-      // I now have the normalized coordinates. These are linear in (-1,1)
-      // across the image. Convert these to be from (0,1)
-      double x_normalized_01 = ( x_normalized + 1.0) / 2.0;
-      double y_normalized_01 = (-y_normalized + 1.0) / 2.0;
+      const double aspect = (double)width / (double)height;
+      const double el_ndc = atan2(h, distance_ne) * aspect * az_ndc_per_rad;
+      if(! (-1. <= el_ndc && el_ndc <= 1.) )
+        continue;
 
-      int draw_x = (int)( 0.5 + ((double)w() - 1.0) * x_normalized_01 );
-      int draw_y = (int)( 0.5 + ((double)h() - 1.0) * y_normalized_01 );
+      // [-1,1] -> (-0.5,W-0.5)
+      const float crosshair_x = (float)(( az_ndc + 1.)/2.*width  - 0.5);
+      const float crosshair_y = (float)((-el_ndc + 1.)/2.*height - 0.5);
 
-      assert( draw_x >= 0 && draw_x < w() );
-      // draw_y will be checked below in the fuzz loop
+      // crosshair_y will be checked below in the fuzz loop
 
 
       // I'm finished with the projection. I now unproject to look for
       // occlusions
 
       // The rendered peaks usually don't end up exactly where the POI list
-      // says they should be. I scan the depth map vertically to find the true
+      // says they should be. I scan the range map vertically to find the true
       // peak (or to decide that it's occluded)
-      uint8_t db_last   = 255; // 255 == sky, so we'll automatically skip it
-                               // in the loop
       int   fuzz_nearest;
       double err_nearest = 1.0e10f;
-      double depth_have  =
-          hypotf( pois[i].lat_rad - lat_rad, pois[i].lon_rad - lon_rad ) *
-          180.0f / (double)M_PI;
-      const CvMat* depth = render_terrain_getdepth();
 
-#define PEAK_LABEL_FUZZ_PX 4
-      for( int fuzz = -PEAK_LABEL_FUZZ_PX; fuzz < PEAK_LABEL_FUZZ_PX; fuzz++ )
+#define PEAK_LABEL_FUZZ_PY 4
+      for( int fuzz = -PEAK_LABEL_FUZZ_PY; fuzz < PEAK_LABEL_FUZZ_PY; fuzz++ )
       {
-          if( draw_y + fuzz < 0 )
-          {
-              // The next iteration will be in-bounds. If there's too much (or
-              // little) fuzz, we'll exit empty-handed
-              fuzz = -draw_y-1;
-              continue;
-          }
-          else if( draw_y + fuzz >= h() )
-              break;
+        if(crosshair_y + (float)fuzz < 0)
+        {
+          // The next iteration will be in-bounds. If there's too much (or
+          // little) fuzz, we'll exit empty-handed
+          fuzz = -crosshair_y-1;
+          continue;
+        }
+        if( crosshair_y + (float)fuzz >= height )
+          break;
 
-          // As I move down the image the depth will get closer and closer. I
-          // pick the highest value that's closest
-          uint8_t db = depth->data.ptr[draw_x + (draw_y+fuzz)*depth->cols];
+        // As I move down the image the range will get closer and closer. I
+        // pick the highest value that's closest
+        const float range =
+          range_image[width*( (int)round(crosshair_y) + fuzz) +
+                      (int)round(crosshair_x)];
 
-          // we already looked at this depth
-          if(db == db_last) continue;
+        if(range <= 0.0f)
+          // no render data here
+          continue;
 
-          double err = fabsf( depth_have - (double)db/255.0f );
-          if( err < err_nearest )
-          {
-              err_nearest  = err;
-              fuzz_nearest = fuzz;
-          }
-          else
-              // it can only get worse from here, so give up
-              break;
-
-          db_last = db;
+        double err = fabs(range_have - range);
+        if( err < err_nearest )
+        {
+          err_nearest  = err;
+          fuzz_nearest = fuzz;
+        }
+        else
+          // it can only get worse from here, so give up
+          break;
       }
 
-      if( err_nearest > 0.04f )
+      if( err_nearest < 100. )
       {
-          // indicate that this POI shouldn't be drawn
-          poi[ poi_indices[i] ].draw_x = -1;
+          poi_indices[Npoi_indices++] = i;
+          labels_xy[i].x = crosshair_x;
+          labels_xy[i].y = crosshair_y + (float)fuzz_nearest;
       }
-      else
-      {
-          poi[ poi_indices[i] ].draw_x = draw_x;
-          poi[ poi_indices[i] ].draw_y = draw_y + fuzz_nearest;
-      }
-    }
   }
 
-  fl_font( LABEL_FONT, LABEL_FONT_SIZE );
-  font_height = fl_height();
-
   // Now that I have all the crosshair positions, compute the label positions.
-  //
-  // start out by sorting the POIs by their draw_x
-  qsort_r( poi_indices, poi_N, sizeof(poi_indices[0]),
-           &compar_poi_x, poi );
+
+  // start out by sorting the POIs by their crosshair_x
+  qsort_r( poi_indices, Npoi_indices, sizeof(poi_indices[0]),
+           &compar_poi_x, labels_xy );
 
   // I now traverse the sorted list of POIs, keeping track of groups of POIs
   // that overlap in the horizontal. After each overlapping group is complete,
   // set up the labels of each group member to stagger the labels and avoid
   // overlap
-  int overlapgroup_right = -1;                        // not in an overlapping group at first
-  int current_y          = font_height + TEXT_MARGIN; // start on top
-  for( int i=0; i<poi_N; i++ )
+  float overlapgroup_right = -1; // not in an overlapping group at first
+  float current_y          = 0;  // start on top
+  for( int i=0; i<Npoi_indices; i++ )
   {
-    poi_t* thispoi = &poi[ poi_indices[i] ];
+    const poi_t* poi      = &pois     [ poi_indices[i] ];
+    xy_t*        label_xy = &labels_xy[ poi_indices[i] ];
 
-    // disabled POIs have been sorted to the back, so as soon as I see one, I'm
-    // done
-    if( thispoi->draw_x < 0 )
-        break;
+    float left  = label_xy->x;
+    float right = label_xy->x + string_width(cr,poi->name);
 
-    int left  = thispoi->draw_x;
-    int right = thispoi->draw_x + fl_width( thispoi->name );
-
-    if( left > overlapgroup_right || current_y + font_height + TEXT_MARGIN >= h() )
+    if( left > overlapgroup_right || current_y + font_height >= height )
     {
       // not overlapping, or the label is too low. Draw label on top.
       current_y = 0;
@@ -349,11 +334,16 @@ bool annotate(// input
       if( overlapgroup_right < right )
         overlapgroup_right = right;
     }
-    current_y += font_height + TEXT_MARGIN;
 
-    thispoi->draw_label_y = current_y;
+    draw_label(cr,
+               label_xy->x, label_xy->y, current_y,
+               poi->name);
+
+    current_y += font_height;
   }
-#endif
+
+  cairo_surface_show_page(pdf);
+
   result = true;
 
  done:
