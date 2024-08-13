@@ -16,8 +16,8 @@
 #define MAX_MARKER_DIST 100000.0
 #define MIN_MARKER_DIST 500.0
 
-#define FUZZ_RANGE   100.
-#define FUZZ_PIXEL_Y 4
+#define FUZZ_RANGE   500.
+#define FUZZ_PIXEL_Y 6
 
 
 const float Rearth = 6371000.0;
