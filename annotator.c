@@ -16,6 +16,8 @@
 #define MAX_MARKER_DIST 100000.0
 #define MIN_MARKER_DIST 500.0
 
+#define MAX_ALLOWED_RANGE_ERROR 100.
+
 const float Rearth = 6371000.0;
 
 #define LABEL_CROSSHAIR_R 3
@@ -294,7 +296,7 @@ bool annotate(// input
           break;
       }
 
-      if( err_nearest < 100. )
+      if( err_nearest < MAX_ALLOWED_RANGE_ERROR )
       {
           poi_indices[Npoi_indices++] = i;
           labels_xy[i].x = crosshair_x;
