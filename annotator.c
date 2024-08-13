@@ -17,6 +17,8 @@
 #define MIN_MARKER_DIST 500.0
 
 #define FUZZ_RANGE   100.
+#define FUZZ_PIXEL_Y 4
+
 
 const float Rearth = 6371000.0;
 
@@ -262,7 +264,6 @@ bool annotate(// input
       int   fuzz_nearest;
       double err_nearest = 1.0e10f;
 
-#define FUZZ_PIXEL_Y 4
       for( int fuzz = -FUZZ_PIXEL_Y; fuzz < FUZZ_PIXEL_Y; fuzz++ )
       {
         if(crosshair_y + (float)fuzz < 0)
