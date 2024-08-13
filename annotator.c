@@ -16,7 +16,7 @@
 #define MAX_MARKER_DIST 100000.0
 #define MIN_MARKER_DIST 500.0
 
-#define MAX_ALLOWED_RANGE_ERROR 100.
+#define FUZZ_RANGE   100.
 
 const float Rearth = 6371000.0;
 
@@ -262,8 +262,8 @@ bool annotate(// input
       int   fuzz_nearest;
       double err_nearest = 1.0e10f;
 
-#define PEAK_LABEL_FUZZ_PY 4
-      for( int fuzz = -PEAK_LABEL_FUZZ_PY; fuzz < PEAK_LABEL_FUZZ_PY; fuzz++ )
+#define FUZZ_PIXEL_Y 4
+      for( int fuzz = -FUZZ_PIXEL_Y; fuzz < FUZZ_PIXEL_Y; fuzz++ )
       {
         if(crosshair_y + (float)fuzz < 0)
         {
@@ -296,7 +296,7 @@ bool annotate(// input
           break;
       }
 
-      if( err_nearest < MAX_ALLOWED_RANGE_ERROR )
+      if( err_nearest < FUZZ_RANGE )
       {
           poi_indices[Npoi_indices++] = i;
           labels_xy[i].x = crosshair_x;
