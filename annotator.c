@@ -349,11 +349,12 @@ bool annotate(// input
   result = true;
 
  done:
-  free(image_rgb32);
 
+  if(frame != NULL) cairo_surface_destroy(frame);
   if(cr    != NULL) cairo_destroy(cr);
   if(pdf   != NULL) cairo_surface_destroy(pdf);
-  if(frame != NULL) cairo_surface_destroy(frame);
+
+  free(image_rgb32);
 
   return result;
 }
