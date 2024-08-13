@@ -25,9 +25,9 @@ const float Rearth = 6371000.0;
 #define LABEL_CROSSHAIR_R 3
 #define TEXT_MARGIN       2
 
-static const int    POINTS_PER_INCH = 72;
-static const int    PIXELS_PER_INCH = 300;
-static const double CAIRO_SCALE     = (double)POINTS_PER_INCH / (double)PIXELS_PER_INCH;
+static const double POINTS_PER_INCH = 72.;
+static const double PIXELS_PER_INCH = 300.;
+static const double CAIRO_SCALE     = POINTS_PER_INCH / PIXELS_PER_INCH;
 
 static int font_height = 20;
 
@@ -176,8 +176,8 @@ bool annotate(// input
 
   TRY(NULL !=
       (pdf = cairo_pdf_surface_create(pdf_filename,
-                                      (width  * POINTS_PER_INCH) / PIXELS_PER_INCH,
-                                      (height * POINTS_PER_INCH) / PIXELS_PER_INCH)));
+                                      width  * CAIRO_SCALE,
+                                      height * CAIRO_SCALE)));
   TRY(NULL != (cr = cairo_create(pdf)));
   cairo_scale(cr, CAIRO_SCALE, CAIRO_SCALE);
 
