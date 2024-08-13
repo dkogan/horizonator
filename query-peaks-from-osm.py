@@ -41,7 +41,6 @@ args = parse_args()
 
 import requests
 import json
-import math
 
 api = 'http://overpass-api.de/api/interpreter'
 
@@ -102,8 +101,5 @@ for e in E:
     name = name_from_element(t, ele = ele)
     if name is None: continue
 
-    lat_rad  = e['lat'] * math.pi/180.
-    lon_rad  = e['lon'] * math.pi/180.
-
-    print(f'{{ "{name}", {lat_rad}, {lon_rad}, {ele} }},')
+    print(f'{{ "{name}", {e["lat"]}, {e["lon"]}, {ele} }},')
 

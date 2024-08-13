@@ -200,8 +200,8 @@ bool annotate(// input
 
   for(int i=0; i<Npois; i++)
   {
-      const double dlat = pois[i].lat_rad - lat_rad;
-      const double dlon = pois[i].lon_rad - lon_rad;
+      const double dlat = pois[i].lat*M_PI/180. - lat_rad;
+      const double dlon = pois[i].lon*M_PI/180. - lon_rad;
 
       const double east        = dlon * Rearth * cos_lat;
       const double north       = dlat * Rearth;

@@ -4,7 +4,7 @@
 typedef struct
 {
   const char* name;
-  float lat_rad, lon_rad, ele_m;
+  float lat, lon, ele_m;
 } poi_t;
 
 bool annotate(// input
