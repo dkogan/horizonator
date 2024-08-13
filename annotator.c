@@ -27,7 +27,7 @@ static const int    POINTS_PER_INCH = 72;
 static const int    PIXELS_PER_INCH = 300;
 static const double CAIRO_SCALE     = (double)POINTS_PER_INCH / (double)PIXELS_PER_INCH;
 
-static int font_height = 50;
+static int font_height = 20;
 
 static
 double string_width(cairo_t *cr,
