@@ -135,6 +135,103 @@ done:
   return result;
 }
 
+static bool x_from_az( // output
+                       double* x,
+                       double* az_ndc_per_rad,
+                       // input
+                       double az_rad,
+                       double az_rad0,
+                       double az_rad1,
+                       int width)
+{
+    // az convention:
+    //   0:     North
+    //   90deg: East
+
+    // az_rad1 should be within 2pi of az_rad0 and az_rad1 > az_rad0
+    az_rad1 = unwrap_near_rad(az_rad1-az_rad0, M_PI) + az_rad0;
+
+    // in [0,2pi]
+    const double az_rad_center = (az_rad0 + az_rad1)/2.;
+
+    az_rad = unwrap_near_rad(az_rad, az_rad_center);
+
+    const double _az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
+
+    const double az_ndc = (az_rad - az_rad_center) * _az_ndc_per_rad;
+    if(! (-1. <= az_ndc && az_ndc <= 1.) )
+        return false;
+
+    if(az_ndc_per_rad != NULL)
+        *az_ndc_per_rad = _az_ndc_per_rad;
+
+    // [-1,1] -> (-0.5,W-0.5)
+    *x = ( az_ndc + 1.)/2.*width  - 0.5;
+    return true;
+}
+
+static bool project( // output
+                     double* x,
+                     double* y,
+                     double* range,
+
+                     // input
+                     double lat_viewer, double cos_lat_viewer,
+                     double lon_viewer,
+                     double ele_viewer,
+                     double lat,
+                     double lon,
+                     double ele,
+
+                     double az_rad0,
+                     double az_rad1,
+                     int width,
+                     int height)
+{
+    const double dlat = (lat - lat_viewer)*M_PI/180;
+    const double dlon = (lon - lon_viewer)*M_PI/180;
+
+    const double east  = dlon * Rearth * cos_lat_viewer;
+    const double north = dlat * Rearth;
+
+    const double distance_sq_ne = east*east + north*north;
+    if(distance_sq_ne < MIN_MARKER_DIST*MIN_MARKER_DIST ||
+       distance_sq_ne > MAX_MARKER_DIST*MAX_MARKER_DIST )
+        // too close or too far to label
+        return false;
+
+    double az_ndc_per_rad;
+    if(!x_from_az(// output
+                  x,
+                  &az_ndc_per_rad,
+                  // input
+                  atan2(east, north),
+                  az_rad0,
+                  az_rad1,
+                  width))
+        return false;
+
+    // Project this lat/lon point, then unproject it back using the picking
+    // code. If a significant difference is observed, I don't draw this label.
+    // This happens if the POI is occluded
+
+    // The projection code is mostly lifted from vertex.glsl. Would be nice to
+    // consolidate
+    const double h           = ele - ele_viewer;
+    const double distance_ne = sqrt(distance_sq_ne);
+    *range                   = sqrt(distance_sq_ne + h*h);
+
+    const double aspect = (double)width / (double)height;
+    const double el_ndc = atan2(h, distance_ne) * aspect * az_ndc_per_rad;
+    if(! (-1. <= el_ndc && el_ndc <= 1.) )
+        return false;
+
+    // [-1,1] -> (-0.5,W-0.5)
+    *y = (-el_ndc + 1.)/2.*height - 0.5;
+
+    return true;
+}
+
 bool annotate(// input
               const char* pdf_filename,
               // assumed to be stored densely.
@@ -196,61 +293,24 @@ bool annotate(// input
 
 
   ////// Pick and render the annotations
-  const double lat_rad = lat * M_PI/180.;
-  const double lon_rad = lon * M_PI/180.;
-  const double cos_lat = cos(lat_rad);
+  const double cos_lat = cos(lat * M_PI/180.);
 
   for(int i=0; i<Npois; i++)
   {
-      const double dlat = pois[i].lat*M_PI/180. - lat_rad;
-      const double dlon = pois[i].lon*M_PI/180. - lon_rad;
-
-      const double east        = dlon * Rearth * cos_lat;
-      const double north       = dlat * Rearth;
-      const double distance_sq_ne = east*east + north*north;
-      if(distance_sq_ne < MIN_MARKER_DIST*MIN_MARKER_DIST ||
-         distance_sq_ne > MAX_MARKER_DIST*MAX_MARKER_DIST )
-          // too close or too far to label
+      double crosshair_x, crosshair_y;
+      double range_have;
+      if(!project(&crosshair_x, &crosshair_y, &range_have,
+                  lat, cos_lat,
+                  lon,
+                  ele_m,
+                  pois[i].lat,
+                  pois[i].lon,
+                  pois[i].ele_m,
+                  az_deg0 * M_PI/180.,
+                  az_deg1 * M_PI/180.,
+                  width,
+                  height))
           continue;
-
-      // Project this lat/lon point, then unproject it back using the picking
-      // code. If a significant difference is observed, I don't draw this label.
-      // This happens if the POI is occluded
-
-      // The projection code is mostly lifted from vertex.glsl. Would be nice to
-      // consolidate
-      const double h           = pois[i].ele_m - ele_m;
-      const double distance_ne = sqrt(distance_sq_ne);
-      const double range_have  = sqrt(distance_sq_ne + h*h);
-
-      double az_rad = atan2(east, north);
-      // az = 0:     North
-      // az = 90deg: East
-      const double az_rad0 = az_deg0 * M_PI/180.;
-      double       az_rad1 = az_deg1 * M_PI/180.;
-
-      // az_rad1 should be within 2pi of az_rad0 and az_rad1 > az_rad0
-      az_rad1 = unwrap_near_rad(az_rad1-az_rad0, M_PI) + az_rad0;
-
-      // in [0,2pi]
-      const double az_rad_center = (az_rad0 + az_rad1)/2.;
-
-      az_rad = unwrap_near_rad(az_rad, az_rad_center);
-
-      const double az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
-
-      const double az_ndc = (az_rad - az_rad_center) * az_ndc_per_rad;
-      if(! (-1. <= az_ndc && az_ndc <= 1.) )
-        continue;
-
-      const double aspect = (double)width / (double)height;
-      const double el_ndc = atan2(h, distance_ne) * aspect * az_ndc_per_rad;
-      if(! (-1. <= el_ndc && el_ndc <= 1.) )
-        continue;
-
-      // [-1,1] -> (-0.5,W-0.5)
-      const float crosshair_x = (float)(( az_ndc + 1.)/2.*width  - 0.5);
-      const float crosshair_y = (float)((-el_ndc + 1.)/2.*height - 0.5);
 
       // crosshair_y will be checked below in the fuzz loop
 
@@ -266,14 +326,9 @@ bool annotate(// input
 
       for( int fuzz = -FUZZ_PIXEL_Y; fuzz < FUZZ_PIXEL_Y; fuzz++ )
       {
-        if(crosshair_y + (float)fuzz < 0)
-        {
-          // The next iteration will be in-bounds. If there's too much (or
-          // little) fuzz, we'll exit empty-handed
-          fuzz = -crosshair_y-1;
+        if(crosshair_y + (double)fuzz < 0)
           continue;
-        }
-        if( crosshair_y + (float)fuzz >= height )
+        if( crosshair_y + (double)fuzz >= height )
           break;
 
         // As I move down the image the range will get closer and closer. I
