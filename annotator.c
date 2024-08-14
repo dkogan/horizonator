@@ -400,6 +400,27 @@ bool annotate(// input
     current_y += font_height;
   }
 
+  for(int az=180; az>-180; az -= 45)
+  {
+      double x;
+      if(!x_from_az(// output
+                    &x, NULL,
+                    // input
+                    (double)az * M_PI/180.,
+                    az_deg0 * M_PI/180.,
+                    az_deg1 * M_PI/180.,
+                    width))
+          continue;
+
+      char text[16];
+      sprintf(text, "%ddeg", az);
+
+      double w = string_width(cr, text);
+      // cairo wants the bottom of the label
+      cairo_move_to(cr, x-w/2., height - font_height);
+      cairo_show_text(cr, text);
+  }
+
   cairo_surface_show_page(pdf);
 
   result = true;
