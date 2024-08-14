@@ -35,6 +35,8 @@ static
 double string_width(cairo_t *cr,
                     const char* s)
 {
+  // WARNING: users of tihs are assuming that x_bearing == 0 (i.e. that
+  // there's no margin on the left of the text). But there could be
   cairo_text_extents_t extents;
   cairo_text_extents(cr, s,
                      &extents);
