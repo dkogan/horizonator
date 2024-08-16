@@ -28,7 +28,7 @@
 #include <sys/fcntl.h>
 #include <unistd.h>
 
-static const char* basepath_homerelative = ".horizonator/tiles";
+static const char* basepath_homerelative = ".horizonator/tiles/mapnik";
 static char basepath[1024] = {'\0'};
 
 static void make_basepath(void)
