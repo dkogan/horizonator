@@ -22,7 +22,7 @@
 
 
 // for texture rendering
-#define OSM_RENDER_ZOOM     12
+#define OSM_RENDER_ZOOM     10
 #define OSM_TILE_WIDTH      256
 #define OSM_TILE_HEIGHT     256
 
