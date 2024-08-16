@@ -81,6 +81,8 @@ bool horizonator_init( // output
                        bool SRTM1,
                        const char* dir_dems,
                        const char* dir_tiles,
+                       const char* tiles_name,
+                       const char* tiles_url_fmt,
                        bool allow_downloads)
 {
     *ctx = (horizonator_context_t){};
@@ -88,12 +90,38 @@ bool horizonator_init( // output
     bool result             = false;
     bool dem_context_inited = false;
 
+
+    if(tiles_name == NULL)
+        tiles_name = "mapnik";
+    if(tiles_url_fmt == NULL)
+        tiles_url_fmt = "https://a.tile.openstreetmap.org/%d/%d/%d.png";
     if(dir_dems  == NULL)
         dir_dems  = SRTM1 ?
             "~/.horizonator/DEMs_SRTM1" :
             "~/.horizonator/DEMs_SRTM3";
+
+    char _dir_tiles[256];
     if(dir_tiles == NULL)
         dir_tiles = "~/.horizonator/tiles";
+    if(dir_tiles[0] == '~' && dir_tiles[1] == '/' )
+    {
+        const char* home = getenv("HOME");
+        if(home == NULL)
+        {
+            MSG("User asked for ~, but the 'HOME' env var isn't defined");
+            return false;
+        }
+
+        int len = snprintf(_dir_tiles, sizeof(_dir_tiles),
+                           "%s/%s",
+                           home, &dir_tiles[2]);
+        if(len >= (int)sizeof(_dir_tiles))
+        {
+            MSG("static buffer overflow: _dir_tiles");
+            return false;
+        }
+        dir_tiles = _dir_tiles;
+    }
 
     ctx->use_glut = use_glut;
     if(use_glut)
@@ -238,33 +266,19 @@ bool horizonator_init( // output
             assert_opengl();
         }
 
-        void setOSMtextureTile( int osmTileX, int osmTileY,
+        bool setOSMtextureTile( int osmTileX, int osmTileY,
                                 const texture_ctx_t* texture_ctx)
         {
             char filename[256];
             char directory[256];
-            int len;
-
-            if(dir_tiles[0] == '~' && dir_tiles[1] == '/' )
-            {
-                const char* home = getenv("HOME");
-                if(home == NULL)
-                {
-                    MSG("User asked for ~, but the 'HOME' env var isn't defined");
-                    assert(0);
-                }
-
-                len = snprintf(filename, sizeof(filename),
+            int len = snprintf(filename, sizeof(filename),
                                "%s/%s/%d/%d/%d.png",
-                               home,
-                               &dir_tiles[2], OSM_RENDER_ZOOM, osmTileX, osmTileY);
+                               dir_tiles, tiles_name, OSM_RENDER_ZOOM, osmTileX, osmTileY);
+            if(len >= (int)sizeof(filename))
+            {
+                MSG("static buffer overflow: filename");
+                return false;
             }
-            else
-                len = snprintf(filename, sizeof(filename),
-                               "%s/%d/%d/%d.png",
-                               dir_tiles, OSM_RENDER_ZOOM, osmTileX, osmTileY);
-
-            assert(len < (int)sizeof(filename));
 
 
             if( access( filename, R_OK ) != 0 )
@@ -272,28 +286,39 @@ bool horizonator_init( // output
                 if(!allow_downloads)
                 {
                     MSG("Tile '%s' doesn't exist on disk, and downloads aren't allowed. Giving up", filename);
-                    assert(0);
+                    return false;
                 }
 
                 // tile doesn't exist. Make a directory for it and try to download
                 len = snprintf(directory, sizeof(directory),
-                               "%s/%d/%d",
-                               dir_tiles,
+                               "%s/%s/%d/%d",
+                               dir_tiles, tiles_name,
                                OSM_RENDER_ZOOM, osmTileX);
-                assert(len < (int)sizeof(directory));
+                if(len >= (int)sizeof(filename))
+                {
+                    MSG("static buffer overflow: directory");
+                    return false;
+                }
 
                 char url[256];
                 len = snprintf(url, sizeof(url),
-                               "https://a.tile.openstreetmap.org/%d/%d/%d.png",
+                               tiles_url_fmt,
                                OSM_RENDER_ZOOM, osmTileX, osmTileY);
-                assert(len < (int)sizeof(url));
+                if(len >= (int)sizeof(filename))
+                {
+                    MSG("static buffer overflow: url");
+                    return false;
+                }
 
                 char cmd[1024];
                 len = snprintf( cmd, sizeof(cmd),
                                 "mkdir -p %s && wget --user-agent=horizonator -O %s %s", directory, filename, url  );
                 assert(len < (int)sizeof(cmd));
-                int res = system(cmd);
-                assert( res == 0 );
+                if(0 != system(cmd))
+                {
+                    MSG("mkdir && wget failed");
+                    return false;
+                }
             }
 
             FREE_IMAGE_FORMAT format = FreeImage_GetFileType(filename,0);
@@ -343,6 +368,7 @@ bool horizonator_init( // output
             assert_opengl();
 
             FreeImage_Unload(fib);
+            return true;
         }
 
         // My render data is in a grid centered on viewer_lat/viewer_lon, branching
@@ -371,7 +397,8 @@ bool horizonator_init( // output
             for( int osmTileX = texture_ctx.osmtile_lowestXY[0];
                  osmTileX <= texture_ctx.osmtile_highestXY[0];
                  osmTileX++ )
-                setOSMtextureTile( osmTileX, osmTileY, &texture_ctx );
+                if(!setOSMtextureTile( osmTileX, osmTileY, &texture_ctx ))
+                    return false;
     }
 
     // vertices

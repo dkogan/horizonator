@@ -30,6 +30,8 @@ static bool glut_loop( bool render_texture, bool SRTM1,
 
                        const char* dir_dems,
                        const char* dir_tiles,
+                       const char* tiles_name,
+                       const char* tiles_url_fmt,
                        bool allow_downloads)
 {
     horizonator_context_t ctx;
@@ -43,6 +45,8 @@ static bool glut_loop( bool render_texture, bool SRTM1,
                            render_texture, SRTM1,
                            dir_dems,
                            dir_tiles,
+                           tiles_name,
+                           tiles_url_fmt,
                            allow_downloads) )
         return false;
 
@@ -121,6 +125,7 @@ int main(int argc, char* argv[])
         "   [--zfar-color  ZFARCOLOR]\n"
         "   [--dirdems DIRECTORY]\n"
         "   [--dirtiles DIRECTORY]\n"
+        "   [--tiles NAME=FMT]\n"
         "   LAT LON AZ_DEG0 AZ_DEG1\n"
         "\n"
         "By default, we render to a window. If --width is given, we render\n"
@@ -157,7 +162,10 @@ int main(int argc, char* argv[])
         "~/.horizonator/DEMs_SRTM3/ (or DEMs_SRTM1) if omitted.\n"
         "\n"
         "The tiles are in the directory given by --dirtiles, or in\n"
-        "~/.horizonator/tiles if omitted.\n";
+        "~/.horizonator/tiles if omitted. This is the BASE directory for ALL the\n"
+        "available tile sets. By default we use the OSM mapnik tiles. To specify\n"
+        "different tiles, pass '--tiles NAME=FMT'. Where NAME is the identifier of\n"
+        "this set and FMT is the URL format string to use for this set\n";
 
     struct option opts[] = {
         { "width",             required_argument, NULL, 'w' },
@@ -166,6 +174,7 @@ int main(int argc, char* argv[])
         { "radius",            required_argument, NULL, 'R' },
         { "dirdems",           required_argument, NULL, 'd' },
         { "dirtiles",          required_argument, NULL, 't' },
+        { "tiles",             required_argument, NULL, 'I' },
         { "texture",           no_argument,       NULL, 'T' },
         { "SRTM1",             no_argument,       NULL, 'S' },
         { "allow-tile-downloads",no_argument,     NULL, 'a' },
@@ -182,6 +191,8 @@ int main(int argc, char* argv[])
     const char* filename_image  = NULL;
     const char* dir_dems        = NULL;
     const char* dir_tiles       = NULL;
+    const char* tiles_name      = NULL;
+    const char* tiles_url_fmt   = NULL;
     bool        render_texture  = false;
     bool        SRTM1           = false;
     bool        allow_downloads = false;
@@ -278,6 +289,19 @@ int main(int argc, char* argv[])
             dir_tiles = optarg;
             break;
 
+        case 'I':
+            // --tiles NAME=FMT into tiles_name, tiles_url_fmt
+            char* eq = strchr(optarg,'=');
+            if(eq == NULL)
+            {
+                MSG("Couldn't find '=' in --tiles");
+                return 1;
+            }
+            *eq = '\0';
+            tiles_name = optarg;
+            tiles_url_fmt = &eq[1];
+            break;
+
         case 'T':
             render_texture = true;
             break;
@@ -368,6 +392,7 @@ int main(int argc, char* argv[])
                   render_radius_cells,
                   znear,zfar,znear_color,zfar_color,
                   dir_dems, dir_tiles,
+                  tiles_name, tiles_url_fmt,
                   allow_downloads);
         return 0;
     }
@@ -414,8 +439,8 @@ int main(int argc, char* argv[])
                            render_radius_cells,
                            true,
                            render_texture, SRTM1,
-                           dir_dems,
-                           dir_tiles,
+                           dir_dems, dir_tiles,
+                           tiles_name, tiles_url_fmt,
                            allow_downloads) )
     {
         fprintf(stderr, "horizonator_init() failed\n");

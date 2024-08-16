@@ -94,6 +94,8 @@ bool horizonator_init( // output
                        bool SRTM1,
                        const char* dir_dems,
                        const char* dir_tiles,
+                       const char* tiles_name,
+                       const char* tiles_url_fmt,
                        bool allow_downloads);
 
 void horizonator_deinit( horizonator_context_t* ctx );

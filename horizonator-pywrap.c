@@ -59,6 +59,8 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     int allow_downloads   = true;
     const char* dir_dems  = NULL;
     const char* dir_tiles = NULL;
+    const char* tiles_name = NULL;
+    const char* tiles_url_fmt = NULL;
     unsigned int render_radius_cells = 1000; // default
 
     char* keywords[] = {
@@ -66,7 +68,9 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         "width", "height",
         "render_texture",
         "SRTM1",
-        "dir_dems", "dir_tiles", "allow_downloads",
+        "dir_dems", "dir_tiles",
+        "tiles_name", "tiles_url_fmt",
+        "allow_downloads",
         "radius",
         NULL};
 
@@ -77,10 +81,11 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     }
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "ddII|ppsspI", keywords,
+                                     "ddII|ppsssspI", keywords,
                                      &lat, &lon, &width, &height,
                                      &render_texture, &SRTM1,
                                      &dir_dems, &dir_tiles,
+                                     &tiles_name, &tiles_url_fmt,
                                      &allow_downloads,
                                      &render_radius_cells))
         goto done;
@@ -93,6 +98,8 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
                            true,
                            render_texture, SRTM1,
                            dir_dems, dir_tiles,
+                           tiles_name,
+                           tiles_url_fmt,
                            allow_downloads ) )
         goto done;
 

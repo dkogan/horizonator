@@ -188,6 +188,7 @@ public:
                                   false,
                                   render_texture, SRTM1,
                                   NULL,NULL,
+                                  NULL,NULL,
                                   true))
             {
                 MSG("horizonator_init() failed. Giving up");
