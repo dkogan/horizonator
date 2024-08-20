@@ -6,6 +6,7 @@
 #include <math.h>
 #include <assert.h>
 #include <cairo-pdf.h>
+#include <cairo-svg.h>
 #include <libswscale/swscale.h>
 #include <libavutil/pixfmt.h>
 
@@ -354,7 +355,7 @@ bool annotate(// input
           break;
       }
 
-      if( err_nearest < FUZZ_RANGE )
+      if( err_nearest < FUZZ_RANGE || 0== strcmp("Tower",pois[i].name))
       {
           poi_indices[Npoi_indices++] = i;
           labels_xy[i].x = crosshair_x;

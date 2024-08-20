@@ -14,6 +14,8 @@ LDLIBS += \
 # for the annotator
 LDLIBS += -lcairo -lswscale
 
+standalone.o: CFLAGS += -O0 # workaround for gcc bug. Need to creduce
+
 CFLAGS    += --std=gnu99
 CCXXFLAGS += -Wno-missing-field-initializers
 

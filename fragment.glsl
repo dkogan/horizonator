@@ -18,6 +18,7 @@ void main(void)
     {
         vec4 texcolor     = texture( tex, tex_fragment.xy);
         vec4 shadingcolor = vec4(rgb_fragment, 0.0);
-        frag_color = 0.7*texcolor + 0.3*shadingcolor;
+        //frag_color = 0.7*texcolor + 0.3*shadingcolor;
+        frag_color = texcolor;
     }
 }

@@ -489,7 +489,8 @@ int main(int argc, char* argv[])
         {
             // pdf file is requested. I write an annotated pdf
             poi_t pois[] = {
-#include "features_generated.h"
+                //#include "features_generated.h"
+#include "chiang-mai-peaks.h"
             };
             const int N_pois = (int)(sizeof(pois) / sizeof(pois[0]));
 
