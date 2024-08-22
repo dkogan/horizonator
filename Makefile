@@ -65,16 +65,6 @@ florb/orb_tilecache.o: CXXFLAGS += -Wno-unused-parameter
 
 annotator.o: CFLAGS += -I/usr/include/cairo
 
-
-############### python #####################
-# In the python api I have to cast a PyCFunctionWithKeywords to a PyCFunction,
-# and the compiler complains. But that's how Python does it! So I tell the
-# compiler to chill
-horizonator-pywrap.o: CFLAGS += -Wno-cast-function-type
-# similarly, with gcc-14 I get this without turning off this warning:
-#   /usr/include/python3.12/object.h:142:9: error: initialization of 'long int' from 'void *' makes integer from pointer without a cast [-Wint-conversion]
-horizonator-pywrap.o: CFLAGS += -Wno-int-conversion
-
 horizonator-pywrap.o: CFLAGS += $(PY_MRBUILD_CFLAGS)
 horizonator-pywrap.o: $(addsuffix .h,$(wildcard *.docstring))
 
