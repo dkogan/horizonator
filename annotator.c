@@ -201,6 +201,8 @@ bool annotate(// input
   TRY(NULL != (cr = cairo_create(surface)));
   cairo_scale(cr, CAIRO_SCALE, CAIRO_SCALE);
 
+  const double cos_lat = cos(lat * M_PI/180.);
+
   ////// Make links to the map
 
   ////// I do this FIRST because I cannot figure out how to tell cairo to make
@@ -209,7 +211,6 @@ bool annotate(// input
   ////// (occluded by the panorama), and I still get my links
   cairo_set_source_rgb(cr, 0.0, 0.0, 0.0); // Doesn't matter; anything will do
 
-  const double cos_lat = cos(lat * M_PI/180.);
   const int cell_width  = 10;
   const int cell_height = 10;
   for(int y=0; y<height-cell_height; y += cell_height)
