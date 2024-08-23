@@ -132,6 +132,10 @@ int main(int argc, char* argv[])
         "to an image (--image) instead.\n"
         "--height applies only if --width is given, and is optional; a reasonable\n"
         "field-of-view will be assumed if --height is omitted."
+        "If we're annotating a --image, you can pass --cut-off-bottom-px to cut off\n"
+        "the given number of pixels from the bottom. This is a workaround for the\n"
+        "uneven edges of the render at the bottom\n"
+        "\n"
         "The image filename MUST be a .png file (the render will be written)\n"
         "OR a .pdf or .svg file (the annotated render will be written)\n"
         "\n"
@@ -170,6 +174,7 @@ int main(int argc, char* argv[])
     struct option opts[] = {
         { "width",             required_argument, NULL, 'w' },
         { "height",            required_argument, NULL, 'H' },
+        { "cut-off-bottom-px", required_argument, NULL, 'c' },
         { "image",             required_argument, NULL, 'i' },
         { "radius",            required_argument, NULL, 'R' },
         { "dirdems",           required_argument, NULL, 'd' },
@@ -186,16 +191,17 @@ int main(int argc, char* argv[])
         {}
     };
 
-    int         width           = 0;
-    int         height          = 0;
-    const char* filename_image  = NULL;
-    const char* dir_dems        = NULL;
-    const char* dir_tiles       = NULL;
-    const char* tiles_name      = NULL;
-    const char* tiles_url_fmt   = NULL;
-    bool        render_texture  = false;
-    bool        SRTM1           = false;
-    bool        allow_downloads = false;
+    int         width               = 0;
+    int         height              = 0;
+    int         cut_off_bottom_px   = 0;
+    const char* filename_image      = NULL;
+    const char* dir_dems            = NULL;
+    const char* dir_tiles           = NULL;
+    const char* tiles_name          = NULL;
+    const char* tiles_url_fmt       = NULL;
+    bool        render_texture      = false;
+    bool        SRTM1               = false;
+    bool        allow_downloads     = false;
     int         render_radius_cells = 1000;
 
     float znear       = -1.0f;
@@ -231,6 +237,15 @@ int main(int argc, char* argv[])
             if(height <= 0)
             {
                 fprintf(stderr, "--height must have an integer argument > 0\n");
+                return 1;
+            }
+            break;
+
+        case 'c':
+            cut_off_bottom_px = atoi(optarg);
+            if(cut_off_bottom_px < 0)
+            {
+                fprintf(stderr, "--cut-off-bottom-px must have an integer argument >= 0\n");
                 return 1;
             }
             break;
@@ -473,7 +488,9 @@ int main(int argc, char* argv[])
             FIBITMAP* fib = FreeImage_ConvertFromRawBitsEx(false,
                                                            (BYTE*)image,
                                                            FIT_BITMAP,
-                                                           width, height, 3*width, 24,
+                                                           width,
+                                                           height-cut_off_bottom_px,
+                                                           3*width, 24,
                                                            0,0,0,
                                                            // Top row is stored first
                                                            true);
@@ -495,7 +512,7 @@ int main(int argc, char* argv[])
             const int N_pois = (int)(sizeof(pois) / sizeof(pois[0]));
 
             annotate(filename_image,
-                     (uint8_t*)image, ranges, width, height,
+                     (uint8_t*)image, ranges, width, height, cut_off_bottom_px,
                      pois, N_pois,
                      lat, lon,
                      az_deg0, az_deg1,

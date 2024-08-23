@@ -146,6 +146,7 @@ bool annotate(// input
               const float*   range_image,
               const int width,
               const int height,
+              const int cut_off_bottom_px,
 
               const poi_t* pois,
               const int Npois,
@@ -156,6 +157,8 @@ bool annotate(// input
               const double ele_m)
 {
   bool result = false;
+
+  const int height_out = height - cut_off_bottom_px;
 
   // For sorting, further down
   int poi_indices[Npois];
@@ -182,15 +185,15 @@ bool annotate(// input
   if(0 == strcasecmp(".pdf", &out_filename[strlen_out_filename-4]))
       TRY(NULL !=
           (surface = cairo_pdf_surface_create(out_filename,
-                                              width  * CAIRO_SCALE,
-                                              height * CAIRO_SCALE)));
+                                              width      * CAIRO_SCALE,
+                                              height_out * CAIRO_SCALE)));
   else if(0 == strcasecmp(".svg", &out_filename[strlen_out_filename-4]))
   {
       MSG("WARNING: writing out an .svg file; the links don't work with those yet; fix it, or use .pdf");
       TRY(NULL !=
           (surface = cairo_svg_surface_create(out_filename,
-                                              width  * CAIRO_SCALE,
-                                              height * CAIRO_SCALE)));
+                                              width      * CAIRO_SCALE,
+                                              height_out * CAIRO_SCALE)));
   }
   else
   {
@@ -224,7 +227,7 @@ bool annotate(// input
   // mupdf still works, but evince does not
   const int cell_width  = 14;
   const int cell_height = 14;
-  for(int y=0; y<height-cell_height; y += cell_height)
+  for(int y=0; y<height_out-cell_height; y += cell_height)
   {
     for(int x=0; x<width-cell_width; x += cell_width)
     {
@@ -264,7 +267,7 @@ bool annotate(// input
   TRY(NULL != (frame =
                cairo_image_surface_create_for_data(image_rgb32,
                                                    CAIRO_FORMAT_RGB24,
-                                                   width, height,
+                                                   width, height_out,
                                                    width*4) ));
   cairo_set_source_surface(cr, frame, 0,0);
   cairo_paint(cr);
@@ -312,7 +315,7 @@ bool annotate(// input
       {
         if(crosshair_y + (double)fuzz < 0)
           continue;
-        if( crosshair_y + (double)fuzz >= height )
+        if( crosshair_y + (double)fuzz >= height_out )
           break;
 
         // As I move down the image the range will get closer and closer. I
@@ -364,7 +367,7 @@ bool annotate(// input
     float left  = label_xy->x;
     float right = label_xy->x + string_width(cr,poi->name);
 
-    if( left > overlapgroup_right || current_y + font_height >= height )
+    if( left > overlapgroup_right || current_y + font_height >= height_out )
     {
       // not overlapping, or the label is too low. Draw label on top.
       current_y = 0;
@@ -403,7 +406,7 @@ bool annotate(// input
 
       double w = string_width(cr, text);
       // cairo wants the bottom of the label
-      cairo_move_to(cr, x-w/2., height - font_height);
+      cairo_move_to(cr, x-w/2., height_out - font_height);
       cairo_show_text(cr, text);
   }
 

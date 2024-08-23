@@ -14,6 +14,7 @@ bool annotate(// input
               const float*   range_image,
               const int width,
               const int height,
+              const int cut_off_bottom_px,
 
               const poi_t* pois,
               const int Npois,
