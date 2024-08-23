@@ -385,7 +385,8 @@ bool annotate(// input
     current_y += font_height;
   }
 
-  for(int az=180; az>-180; az -= 30)
+  const int bearing_annotation_spacing = 15;
+  for(int az=180; az>-180; az -= bearing_annotation_spacing)
   {
       double x;
       if(!horizonator_x_from_az(// output
