@@ -184,6 +184,54 @@ bool annotate(// input
   TRY(NULL != (cr = cairo_create(pdf)));
   cairo_scale(cr, CAIRO_SCALE, CAIRO_SCALE);
 
+  ////// Make links to the map
+
+  ////// I do this FIRST because I cannot figure out how to tell cairo to make
+  ////// transparent link boxes. I have to draw SOMETHING to get links. So I
+  ////// draw rectangles below the panorama. These will end up invisible
+  ////// (occluded by the panorama), and I still get my links
+  cairo_set_source_rgb(cr, 0.0, 0.0, 0.0); // Doesn't matter; anything will do
+
+  const double cos_lat = cos(lat * M_PI/180.);
+  const int cell_width  = 10;
+  const int cell_height = 10;
+  for(int y=0; y<height-cell_height; y += cell_height)
+  {
+    for(int x=0; x<width-cell_width; x += cell_width)
+    {
+      const float range = range_image[width*y + x];
+
+      if(range <= 0.0f)
+        // no render data here
+        continue;
+
+      float lat_cell,lon_cell;
+      if(!horizonator_unproject(&lat_cell, &lon_cell,
+                                x+cell_width/2, y+cell_height/2,
+                                // have range_enh, not range_en
+                                range, -1.,
+                                lat, cos_lat,
+                                lon,
+                                az_deg0, az_deg1,
+                                width, height))
+        continue;
+
+      char url[256];
+      bool url_valid =
+        (snprintf(url, sizeof(url),
+                  "uri='https://caltopo.com/map.html#ll=%f,%f&z=15&b=mbt'",
+                  lat_cell, lon_cell)
+         < (int)sizeof(url));
+      if(!url_valid) break;
+
+      cairo_tag_begin (cr, CAIRO_TAG_LINK, url);
+      cairo_rectangle(cr, x,y,cell_width,cell_height);
+      cairo_fill(cr);
+      cairo_tag_end (cr, CAIRO_TAG_LINK);
+    }
+  }
+
+  /////// Draw the pano
   TRY(NULL != (frame =
                cairo_image_surface_create_for_data(image_rgb32,
                                                    CAIRO_FORMAT_RGB24,
