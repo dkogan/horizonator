@@ -356,7 +356,7 @@ bool annotate(// input
     current_y += font_height;
   }
 
-  for(int az=180; az>-180; az -= 45)
+  for(int az=180; az>-180; az -= 30)
   {
       double x;
       if(!horizonator_x_from_az(// output
