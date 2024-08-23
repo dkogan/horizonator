@@ -211,8 +211,19 @@ bool annotate(// input
   ////// (occluded by the panorama), and I still get my links
   cairo_set_source_rgb(cr, 0.0, 0.0, 0.0); // Doesn't matter; anything will do
 
-  const int cell_width  = 10;
-  const int cell_height = 10;
+  // 10x10 doesn't work with big images:
+  //   $ pdfimages -list /tmp/tst.pdf
+  //   Syntax Error: Couldn't find trailer dictionary
+  //   Syntax Error: Catalog object is wrong type (null)
+  //   Syntax Error: Couldn't find trailer dictionary
+  //   Internal Error: xref num -1 not found but needed, try to reconstruct<0a>
+  //   Syntax Error: Couldn't find trailer dictionary
+  //   Syntax Error: Couldn't find trailer dictionary
+  //   Syntax Error: Catalog object is wrong type (null)
+  //   Syntax Error: Couldn't read page catalog
+  // mupdf still works, but evince does not
+  const int cell_width  = 14;
+  const int cell_height = 14;
   for(int y=0; y<height-cell_height; y += cell_height)
   {
     for(int x=0; x<width-cell_width; x += cell_width)
