@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <float.h>
 #include <cairo-pdf.h>
+#include <cairo-svg.h>
 #include <libswscale/swscale.h>
 #include <libavutil/pixfmt.h>
 
@@ -139,7 +140,7 @@ done:
 }
 
 bool annotate(// input
-              const char* pdf_filename,
+              const char* out_filename,
               // assumed to be stored densely.
               const uint8_t* image_bgr,
               const float*   range_image,
@@ -163,11 +164,11 @@ bool annotate(// input
   xy_t labels_xy[Npois];
 
   uint8_t*         image_rgb32 = NULL;
-  cairo_surface_t* pdf         = NULL;
+  cairo_surface_t* surface     = NULL;
   cairo_t*         cr          = NULL;
   cairo_surface_t* frame       = NULL;
 
-  ////// Paint the render into the pdf
+  ////// Paint the render into the surface
   TRY(NULL != (image_rgb32 = malloc(width*height*4)));
 
   TRY(RGB32_from_BGR24(// output
@@ -177,11 +178,27 @@ bool annotate(// input
                        width,
                        height));
 
-  TRY(NULL !=
-      (pdf = cairo_pdf_surface_create(pdf_filename,
-                                      width  * CAIRO_SCALE,
-                                      height * CAIRO_SCALE)));
-  TRY(NULL != (cr = cairo_create(pdf)));
+  const int strlen_out_filename = strlen(out_filename);
+  if(0 == strcasecmp(".pdf", &out_filename[strlen_out_filename-4]))
+      TRY(NULL !=
+          (surface = cairo_pdf_surface_create(out_filename,
+                                              width  * CAIRO_SCALE,
+                                              height * CAIRO_SCALE)));
+  else if(0 == strcasecmp(".svg", &out_filename[strlen_out_filename-4]))
+  {
+      MSG("WARNING: writing out an .svg file; the links don't work with those yet; fix it, or use .pdf");
+      TRY(NULL !=
+          (surface = cairo_svg_surface_create(out_filename,
+                                              width  * CAIRO_SCALE,
+                                              height * CAIRO_SCALE)));
+  }
+  else
+  {
+      MSG("ERROR: output filename must be either xxx.pdf or xxx.svg; got '%s'", out_filename);
+      goto done;
+  }
+
+  TRY(NULL != (cr = cairo_create(surface)));
   cairo_scale(cr, CAIRO_SCALE, CAIRO_SCALE);
 
   ////// Make links to the map
@@ -377,15 +394,15 @@ bool annotate(// input
       cairo_show_text(cr, text);
   }
 
-  cairo_surface_show_page(pdf);
+  cairo_surface_show_page(surface);
 
   result = true;
 
  done:
 
-  if(frame != NULL) cairo_surface_destroy(frame);
-  if(cr    != NULL) cairo_destroy(cr);
-  if(pdf   != NULL) cairo_surface_destroy(pdf);
+  if(frame   != NULL) cairo_surface_destroy(frame);
+  if(cr      != NULL) cairo_destroy(cr);
+  if(surface != NULL) cairo_surface_destroy(surface);
 
   free(image_rgb32);
 

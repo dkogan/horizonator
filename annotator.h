@@ -8,7 +8,7 @@ typedef struct
 } poi_t;
 
 bool annotate(// input
-              const char* pdf_filename,
+              const char* out_filename, // must be .pdf or .svg
               // assumed to be stored densely.
               const uint8_t* image_bgr,
               const float*   range_image,

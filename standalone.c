@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
 {
     const char* usage =
         "%s [--width WIDTH_PIXELS] [--height HEIGHT_PIXELS]\n"
-        "   [--image OUT.png|OUT.pdf]\n"
+        "   [--image OUT.png|OUT.pdf|OUT.svg]\n"
         "   [--radius RENDER_RADIUS_CELLS]\n"
         "   [--texture] [--SRTM1]\n"
         "   [--allow-tile-downloads]\n"
@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
         "--height applies only if --width is given, and is optional; a reasonable\n"
         "field-of-view will be assumed if --height is omitted."
         "The image filename MUST be a .png file (the render will be written)\n"
-        "OR a .pdf file (the annotated render will be written)\n"
+        "OR a .pdf or .svg file (the annotated render will be written)\n"
         "\n"
         "By default I load 1000 of the DEM in each direction from the center\n"
         "point. If --radius is given, I use that value instead\n"
@@ -353,9 +353,10 @@ int main(int argc, char* argv[])
     {
         if(!(strlen_filename_image >= 5 &&
              (0 == strcasecmp(".png", &filename_image[strlen_filename_image-4]) ||
-              0 == strcasecmp(".pdf", &filename_image[strlen_filename_image-4]))))
+              0 == strcasecmp(".pdf", &filename_image[strlen_filename_image-4]) ||
+              0 == strcasecmp(".svg", &filename_image[strlen_filename_image-4]))))
         {
-            fprintf(stderr, "--image MUST be given a '.png' or '.pdf' filename\n\n");
+            fprintf(stderr, "--image MUST be given a '.png' or '.pdf' or '.svg' filename\n\n");
             fprintf(stderr, usage, argv[0]);
             return 1;
         }
