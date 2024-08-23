@@ -69,7 +69,9 @@ static
 void draw_label( cairo_t* cr,
                  double x, double y,
                  // top of the label
-                 double y_label, const char* name )
+                 double y_label,
+                 double lat, double lon,
+                 const char* name )
 {
   cairo_move_to(cr, x-LABEL_CROSSHAIR_R, y);
   cairo_rel_line_to(cr, 2*LABEL_CROSSHAIR_R, 0);
@@ -82,7 +84,15 @@ void draw_label( cairo_t* cr,
 
   // cairo wants the bottom of the label
   cairo_move_to(cr, x, y_label + font_height);
+  char url[256];
+  bool url_valid =
+    (snprintf(url, sizeof(url),
+              "uri='https://caltopo.com/map.html#ll=%f,%f&z=15&b=mbt'",
+              lat, lon)
+     < (int)sizeof(url));
+  if(url_valid) cairo_tag_begin (cr, CAIRO_TAG_LINK, url);
   cairo_show_text(cr, name);
+  if(url_valid) cairo_tag_end (cr, CAIRO_TAG_LINK);
 }
 
 // Unwraps an angle x to lie within pi of an angle near. All angles in radians
@@ -398,6 +408,7 @@ bool annotate(// input
 
     draw_label(cr,
                label_xy->x, label_xy->y, current_y,
+               poi->lat, poi->lon,
                poi->name);
 
     current_y += font_height;
