@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include <assert.h>
+#include <float.h>
 #include <cairo-pdf.h>
 #include <libswscale/swscale.h>
 #include <libavutil/pixfmt.h>
@@ -323,8 +324,8 @@ bool annotate(// input
       // The rendered peaks usually don't end up exactly where the POI list
       // says they should be. I scan the range map vertically to find the true
       // peak (or to decide that it's occluded)
-      int   fuzz_nearest;
-      double err_nearest = 1.0e10f;
+      int   fuzz_nearest = 0; // initializing to pacify compiler
+      double err_nearest = DBL_MAX;
 
       for( int fuzz = -FUZZ_PIXEL_Y; fuzz < FUZZ_PIXEL_Y; fuzz++ )
       {
