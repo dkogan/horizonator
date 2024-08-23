@@ -161,3 +161,48 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
                                   // output
                                   // either may be NULL
                                   char* image, float* ranges);
+
+bool horizonator_x_from_az( // output
+                            double* x,
+                            double* az_ndc_per_rad,
+                            // input
+                            double az_rad,
+                            double az_rad0,
+                            double az_rad1,
+                            int width);
+
+bool horizonator_project( // output
+                          double* x,
+                          double* y,
+                          double* range,
+
+                          // input
+                          double lat_viewer, double cos_lat_viewer,
+                          double lon_viewer,
+                          double ele_viewer,
+                          double lat,
+                          double lon,
+                          double ele,
+
+                          double az_rad0,
+                          double az_rad1,
+                          int width,
+                          int height);
+
+bool horizonator_unproject(// output
+                           float* lat, float* lon,
+
+                           // input
+                           // pixel coordinates in the render
+                           int x, int y,
+                           // exactly one of these should be >0; we'll use the
+                           // appropriate computation
+                           double range_enh,
+                           double range_en,
+
+                           double lat_viewer, double cos_lat_viewer,
+                           double lon_viewer,
+                           double az_deg0,
+                           double az_deg1,
+                           int width,
+                           int height);

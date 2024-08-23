@@ -12,6 +12,7 @@
 
 #include "util.h"
 #include "annotator.h"
+#include "horizonator.h"
 
 
 #define MAX_MARKER_DIST 100000.0
@@ -20,8 +21,6 @@
 #define FUZZ_RANGE   500.
 #define FUZZ_PIXEL_Y 6
 
-
-const float Rearth = 6371000.0;
 
 #define LABEL_CROSSHAIR_R 3
 #define TEXT_MARGIN       2
@@ -95,15 +94,6 @@ void draw_label( cairo_t* cr,
   if(url_valid) cairo_tag_end (cr, CAIRO_TAG_LINK);
 }
 
-// Unwraps an angle x to lie within pi of an angle near. All angles in radians
-// Copy from vertex.glsl
-static
-double unwrap_near_rad(double x, double near)
-{
-    double d = (x - near) / (2.*M_PI);
-    return (d - round(d)) * 2.*M_PI + near;
-}
-
 
 #define TRY(x) do {                             \
     if(!(x))                                    \
@@ -146,103 +136,6 @@ done:
   if(sws_ctx != NULL)
     sws_freeContext(sws_ctx);
   return result;
-}
-
-static bool x_from_az( // output
-                       double* x,
-                       double* az_ndc_per_rad,
-                       // input
-                       double az_rad,
-                       double az_rad0,
-                       double az_rad1,
-                       int width)
-{
-    // az convention:
-    //   0:     North
-    //   90deg: East
-
-    // az_rad1 should be within 2pi of az_rad0 and az_rad1 > az_rad0
-    az_rad1 = unwrap_near_rad(az_rad1-az_rad0, M_PI) + az_rad0;
-
-    // in [0,2pi]
-    const double az_rad_center = (az_rad0 + az_rad1)/2.;
-
-    az_rad = unwrap_near_rad(az_rad, az_rad_center);
-
-    const double _az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
-
-    const double az_ndc = (az_rad - az_rad_center) * _az_ndc_per_rad;
-    if(! (-1. <= az_ndc && az_ndc <= 1.) )
-        return false;
-
-    if(az_ndc_per_rad != NULL)
-        *az_ndc_per_rad = _az_ndc_per_rad;
-
-    // [-1,1] -> (-0.5,W-0.5)
-    *x = ( az_ndc + 1.)/2.*width  - 0.5;
-    return true;
-}
-
-static bool project( // output
-                     double* x,
-                     double* y,
-                     double* range,
-
-                     // input
-                     double lat_viewer, double cos_lat_viewer,
-                     double lon_viewer,
-                     double ele_viewer,
-                     double lat,
-                     double lon,
-                     double ele,
-
-                     double az_rad0,
-                     double az_rad1,
-                     int width,
-                     int height)
-{
-    const double dlat = (lat - lat_viewer)*M_PI/180;
-    const double dlon = (lon - lon_viewer)*M_PI/180;
-
-    const double east  = dlon * Rearth * cos_lat_viewer;
-    const double north = dlat * Rearth;
-
-    const double distance_sq_ne = east*east + north*north;
-    if(distance_sq_ne < MIN_MARKER_DIST*MIN_MARKER_DIST ||
-       distance_sq_ne > MAX_MARKER_DIST*MAX_MARKER_DIST )
-        // too close or too far to label
-        return false;
-
-    double az_ndc_per_rad;
-    if(!x_from_az(// output
-                  x,
-                  &az_ndc_per_rad,
-                  // input
-                  atan2(east, north),
-                  az_rad0,
-                  az_rad1,
-                  width))
-        return false;
-
-    // Project this lat/lon point, then unproject it back using the picking
-    // code. If a significant difference is observed, I don't draw this label.
-    // This happens if the POI is occluded
-
-    // The projection code is mostly lifted from vertex.glsl. Would be nice to
-    // consolidate
-    const double h           = ele - ele_viewer;
-    const double distance_ne = sqrt(distance_sq_ne);
-    *range                   = sqrt(distance_sq_ne + h*h);
-
-    const double aspect = (double)width / (double)height;
-    const double el_ndc = atan2(h, distance_ne) * aspect * az_ndc_per_rad;
-    if(! (-1. <= el_ndc && el_ndc <= 1.) )
-        return false;
-
-    // [-1,1] -> (-0.5,W-0.5)
-    *y = (-el_ndc + 1.)/2.*height - 0.5;
-
-    return true;
 }
 
 bool annotate(// input
@@ -303,26 +196,27 @@ bool annotate(// input
   cairo_set_source_rgb(cr, 1.0, 1.0, 0.0);
 
 
-
-
   ////// Pick and render the annotations
-  const double cos_lat = cos(lat * M_PI/180.);
-
   for(int i=0; i<Npois; i++)
   {
       double crosshair_x, crosshair_y;
       double range_have;
-      if(!project(&crosshair_x, &crosshair_y, &range_have,
-                  lat, cos_lat,
-                  lon,
-                  ele_m,
-                  pois[i].lat,
-                  pois[i].lon,
-                  pois[i].ele_m,
-                  az_deg0 * M_PI/180.,
-                  az_deg1 * M_PI/180.,
-                  width,
-                  height))
+      if(!horizonator_project(&crosshair_x, &crosshair_y, &range_have,
+                              lat, cos_lat,
+                              lon,
+                              ele_m,
+                              pois[i].lat,
+                              pois[i].lon,
+                              pois[i].ele_m,
+                              az_deg0 * M_PI/180.,
+                              az_deg1 * M_PI/180.,
+                              width,
+                              height))
+          continue;
+
+      if(range_have < MIN_MARKER_DIST ||
+         range_have > MAX_MARKER_DIST )
+          // too close or too far to label
           continue;
 
       // crosshair_y will be checked below in the fuzz loop
@@ -417,13 +311,13 @@ bool annotate(// input
   for(int az=180; az>-180; az -= 45)
   {
       double x;
-      if(!x_from_az(// output
-                    &x, NULL,
-                    // input
-                    (double)az * M_PI/180.,
-                    az_deg0 * M_PI/180.,
-                    az_deg1 * M_PI/180.,
-                    width))
+      if(!horizonator_x_from_az(// output
+                                &x, NULL,
+                                // input
+                                (double)az * M_PI/180.,
+                                az_deg0 * M_PI/180.,
+                                az_deg1 * M_PI/180.,
+                                width))
           continue;
 
       char text[16];

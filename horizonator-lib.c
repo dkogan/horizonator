@@ -1062,6 +1062,168 @@ bool horizonator_render_offscreen(const horizonator_context_t* ctx,
     return true;
 }
 
+// Unwraps an angle x to lie within pi of an angle near. All angles in radians
+// Copy from vertex.glsl
+static
+double unwrap_near_rad(double x, double near)
+{
+    double d = (x - near) / (2.*M_PI);
+    return (d - round(d)) * 2.*M_PI + near;
+}
+
+bool horizonator_x_from_az( // output
+                            double* x,
+                            double* az_ndc_per_rad,
+                            // input
+                            double az_rad,
+                            double az_rad0,
+                            double az_rad1,
+                            int width)
+{
+    // az convention:
+    //   0:     North
+    //   90deg: East
+
+    // az_rad1 should be within 2pi of az_rad0 and az_rad1 > az_rad0
+    az_rad1 = unwrap_near_rad(az_rad1-az_rad0, M_PI) + az_rad0;
+
+    // in [0,2pi]
+    const double az_rad_center = (az_rad0 + az_rad1)/2.;
+
+    az_rad = unwrap_near_rad(az_rad, az_rad_center);
+
+    const double _az_ndc_per_rad = 2.0 / (az_rad1 - az_rad0);
+
+    const double az_ndc = (az_rad - az_rad_center) * _az_ndc_per_rad;
+    if(! (-1. <= az_ndc && az_ndc <= 1.) )
+        return false;
+
+    if(az_ndc_per_rad != NULL)
+        *az_ndc_per_rad = _az_ndc_per_rad;
+
+    // [-1,1] -> (-0.5,W-0.5)
+    *x = ( az_ndc + 1.)/2.*width  - 0.5;
+    return true;
+}
+
+bool horizonator_project( // output
+                          double* x,
+                          double* y,
+                          double* range,
+
+                          // input
+                          double lat_viewer, double cos_lat_viewer,
+                          double lon_viewer,
+                          double ele_viewer,
+                          double lat,
+                          double lon,
+                          double ele,
+
+                          double az_rad0,
+                          double az_rad1,
+                          int width,
+                          int height)
+{
+    const float Rearth = 6371000.0;
+
+    const double dlat = (lat - lat_viewer)*M_PI/180;
+    const double dlon = (lon - lon_viewer)*M_PI/180;
+
+    const double east  = dlon * Rearth * cos_lat_viewer;
+    const double north = dlat * Rearth;
+
+    const double distance_sq_ne = east*east + north*north;
+
+    double az_ndc_per_rad;
+    if(!horizonator_x_from_az(// output
+                              x,
+                              &az_ndc_per_rad,
+                              // input
+                              atan2(east, north),
+                              az_rad0,
+                              az_rad1,
+                              width))
+        return false;
+
+    // Project this lat/lon point, then unproject it back using the picking
+    // code. If a significant difference is observed, I don't draw this label.
+    // This happens if the POI is occluded
+
+    // The projection code is mostly lifted from vertex.glsl. Would be nice to
+    // consolidate
+    const double h           = ele - ele_viewer;
+    const double distance_ne = sqrt(distance_sq_ne);
+    *range                   = sqrt(distance_sq_ne + h*h);
+
+    const double aspect = (double)width / (double)height;
+    const double el_ndc = atan2(h, distance_ne) * aspect * az_ndc_per_rad;
+    if(! (-1. <= el_ndc && el_ndc <= 1.) )
+        return false;
+
+    // [-1,1] -> (-0.5,W-0.5)
+    *y = (-el_ndc + 1.)/2.*height - 0.5;
+
+    return true;
+}
+
+bool horizonator_unproject(// output
+                           float* lat, float* lon,
+
+                           // input
+                           // pixel coordinates in the render
+                           int x, int y,
+                           // exactly one of these should be >0; we'll use the
+                           // appropriate computation
+                           double range_enh,
+                           double range_en,
+
+                           double lat_viewer, double cos_lat_viewer,
+                           double lon_viewer,
+                           double az_deg0,
+                           double az_deg1,
+                           int width,
+                           int height)
+{
+    if( 1 !=
+        (range_enh > 0.) + (range_en > 0.) )
+        return false;
+
+    const float Rearth = 6371000.0;
+
+    // The viewport is "width" pixels wide. The center of the first pixel is at
+    // x=0.5. The center of the last pixel is at x=width-0.5
+    float az_ndc = ((float)x + 0.5f) / (float)width * 2.f - 1.f;
+    float az     = (az_ndc * (az_deg1-az_deg0) / 2.f + (az_deg1+az_deg0)/2.f) * M_PI/180.0f;
+
+    // Could be useful, but I don't need these
+    // float el_ndc = ((float)y + 0.5f) / (float)height * 2.f - 1.f;
+    // float aspect = (float)width / (float)height;
+    // float el     = el_ndc * (az_deg1-az_deg0) / 2.f / aspect * M_PI/180.0f;
+
+    // I have some p = (e,n,z)
+    //   e = length_en sin(az)
+    //   n = length_en cos(az)
+    //   z = length_en tan(el)
+    float e,n;
+    if(range_en <= 0)
+    {
+        // Have range_enh. Need to convert to range_en
+        double aspect = (double)width / (double)height;
+        double el_ndc = ((double)y + 0.5) / (double)height * 2. - 1.;
+        double el     = el_ndc * (az_deg1-az_deg0) / 2. / aspect * M_PI/180.0;
+
+        range_en = cos(el) * range_enh;
+    }
+
+    e = range_en * sinf(az);
+    n = range_en * cosf(az);
+
+    *lon = lon_viewer + e / Rearth / M_PI * 180. / cos_lat_viewer;
+    *lat = lat_viewer + n / Rearth / M_PI * 180.;
+
+    return true;
+}
+
 // returns true if an intersection is found
 bool horizonator_pick(const horizonator_context_t* ctx,
 
@@ -1122,10 +1284,6 @@ bool horizonator_pick(const horizonator_context_t* ctx,
     if(depth >= 1.0f)
         return false;
 
-    // depth is in [0,1] and it describes gl_Position.z/gl_Position.w in the
-    // vertex shader, except THAT quantity is in [-1,1]
-    float length_en = depth * (zfar-znear) + znear;
-
     float az_deg0, az_deg1, cos_viewer_lat;
     glGetUniformfv(ctx->program, ctx->uniform_az_deg0,        &az_deg0);
     assert_opengl();
@@ -1134,26 +1292,17 @@ bool horizonator_pick(const horizonator_context_t* ctx,
     glGetUniformfv(ctx->program, ctx->uniform_cos_viewer_lat, &cos_viewer_lat);
     assert_opengl();
 
-    const float Rearth = 6371000.0;
+    // depth is in [0,1] and it describes gl_Position.z/gl_Position.w in the
+    // vertex shader, except THAT quantity is in [-1,1]
+    double range_en = depth * (zfar-znear) + znear;
 
-    // The viewport is "width" pixels wide. The center of the first pixel is at
-    // x=0.5. The center of the last pixel is at x=width-0.5
-    float az_ndc = ((float)x + 0.5f) / (float)u.width * 2.f - 1.f;
-    float az     = (az_ndc * (az_deg1-az_deg0) / 2.f + (az_deg1+az_deg0)/2.f) * M_PI/180.0f;
-
-    // Could be useful, but I don't need these
-    // float el_ndc = ((float)y + 0.5f) / (float)u.height * 2.f - 1.f;
-    // float aspect = (float)u.width / (float)u.height;
-    // float el     = el_ndc * (az_deg1-az_deg0) / 2.f / aspect * M_PI/180.0f;
-
-    // I have some p = (e,n,z)
-    //   e = length_en sin(az)
-    //   n = length_en cos(az)
-    //   z = length_en tan(el)
-    float e = length_en * sinf(az);
-    float n = length_en * cosf(az);
-
-    *lon = ctx->viewer_lon + e / Rearth / M_PI * 180. / cos_viewer_lat;
-    *lat = ctx->viewer_lat + n / Rearth / M_PI * 180.;
-    return true;
+    return
+        horizonator_unproject(lat, lon,
+                              x,y,
+                              // have range_en, not range_enh
+                              -1., range_en,
+                              ctx->viewer_lat, cos_viewer_lat,
+                              ctx->viewer_lon,
+                              az_deg0, az_deg1,
+                              u.width, u.height);
 }
