@@ -507,7 +507,8 @@ int main(int argc, char* argv[])
         {
             // pdf file is requested. I write an annotated pdf
             poi_t pois[] = {
-#include "features_generated.h"
+// ./query-peaks-from-osm.py 34. -118 100000 > socal-peaks.h
+#include "socal-peaks.h"
             };
             const int N_pois = (int)(sizeof(pois) / sizeof(pois[0]));
 
