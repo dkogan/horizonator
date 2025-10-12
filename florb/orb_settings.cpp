@@ -38,7 +38,7 @@ orb_settings::orb_settings()
     boost::filesystem::create_directory(m_cfgdir);
 
     // Set some important base options
-    setopt("osm::tileserver", "http://tile.openstreetmap.org/");
+    setopt("osm::tileserver", "https://tile.openstreetmap.org/");
     setopt("osm::zoommin", 0);
     setopt("osm::zoommax", 18);
 
