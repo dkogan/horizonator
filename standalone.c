@@ -126,7 +126,7 @@ int main(int argc, char* argv[])
         "   [--dirdems DIRECTORY]\n"
         "   [--dirtiles DIRECTORY]\n"
         "   [--tiles NAME=FMT]\n"
-        "   LAT LON AZ_DEG0 AZ_DEG1\n"
+        "   LAT LON AZ_CENTER_DEG AZ_RADIUS_DEG\n"
         "\n"
         "By default, we render to a window. If --width is given, we render\n"
         "to an image (--image) instead.\n"
@@ -142,8 +142,8 @@ int main(int argc, char* argv[])
         "By default I load 1000 of the DEM in each direction from the center\n"
         "point. If --radius is given, I use that value instead\n"
         "\n"
-        "When plotting to a window, AZ_DEG are the azimuth bounds of the\n"
-        "VIEWPORT. When rendering to an image, AZ_DEG are the\n"
+        "When plotting to a window, AZ_..._DEG refers to the azimuth bounds of the\n"
+        "VIEWPORT. When rendering to an image, to the\n"
         "centers of the first and last pixels. This is slightly smaller\n"
         "than the whole viewport: there's one extra pixel on each side\n"
         "\n"
@@ -363,11 +363,10 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-
-    float lat     = (float)atof(argv[optind+0]);
-    float lon     = (float)atof(argv[optind+1]);
-    float az_deg0 = (float)atof(argv[optind+2]);
-    float az_deg1 = (float)atof(argv[optind+3]);
+    float lat           = (float)atof(argv[optind+0]);
+    float lon           = (float)atof(argv[optind+1]);
+    float az_center_deg = (float)atof(argv[optind+2]);
+    float az_radius_deg = (float)atof(argv[optind+3]);
 
     if( lat < -80.f  || lat > 80.f )
     {
@@ -382,16 +381,12 @@ int main(int argc, char* argv[])
 
     }
 
-    if(az_deg0 > az_deg1)
-    {
-        fprintf(stderr, "MUST have az_deg0 < az_deg1\n");
-        return 1;
-    }
-
     if(filename_image == NULL)
     {
         glut_loop(render_texture, SRTM1,
-                  lat, lon, az_deg0, az_deg1,
+                  lat, lon,
+                  az_center_deg-az_radius_deg,
+                  az_center_deg+az_radius_deg,
                   render_radius_cells,
                   znear,zfar,znear_color,zfar_color,
                   dir_dems, dir_tiles,
@@ -414,18 +409,17 @@ int main(int argc, char* argv[])
         }
     }
 
-    // The user gave me az_deg referring to the center of the pixels at the
+    // The user gave me az referring to the center of the pixels at the
     // edge. I need to convert them to represent the edges of the viewport.
     // That's 0.5 pixels extra on either side
-    float az_per_pixel = (az_deg1 - az_deg0) / (float)(width-1);
-    az_deg0 -= az_per_pixel/2.f;
-    az_deg1 += az_per_pixel/2.f;
+    float az_per_pixel = 2.*az_radius_deg / (float)(width-1);
+    az_radius_deg += az_per_pixel/2.f;
 
     if(height <= 0)
     {
         // Assume a 20deg fov if no height requested
         const float fovy_deg = 20.0f;
-        height = (int)roundf( (float)width * fovy_deg / (az_deg1-az_deg0));
+        height = (int)roundf( (float)width * fovy_deg / az_radius_deg);
     }
 
     uint8_t* pool = NULL;
@@ -467,7 +461,9 @@ int main(int argc, char* argv[])
                                  znear, zfar, znear_color, zfar_color))
         return false;
 
-    if(!horizonator_pan_zoom( &ctx, az_deg0, az_deg1))
+    if(!horizonator_pan_zoom( &ctx,
+                              az_center_deg-az_radius_deg,
+                              az_center_deg+az_radius_deg))
     {
         fprintf(stderr, "horizonator_pan_zoom() failed");
         return false;
@@ -516,7 +512,8 @@ int main(int argc, char* argv[])
                      (uint8_t*)image, ranges, width, height, cut_off_bottom_px,
                      pois, N_pois,
                      lat, lon,
-                     az_deg0, az_deg1,
+                     az_center_deg-az_radius_deg,
+                     az_center_deg+az_radius_deg,
                      viewer_z);
         }
 
