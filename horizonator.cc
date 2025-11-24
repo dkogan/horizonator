@@ -53,22 +53,32 @@ static float g_picked_lon = 1e6f;
 static void update_status_text()
 {
     char str[256];
-    if( g_picked_lon < 1e3f && g_picked_lat < 1e3f)
+
+    int Nwritten =
+        snprintf(str, sizeof(str),
+                 "horizonator %.5f %.5f %.1f %.1f",
+                 g_view.lat,
+                 g_view.lon,
+                 g_view.az_center_deg,
+                 g_view.az_radius_deg);
+    if(Nwritten >= (int)sizeof(str))
     {
-        if((int)sizeof(str) <=
-           snprintf(str, sizeof(str),
-                    "Rendering from (%.5f,%.5f); highlighting observed point (%.5f,%.5f)",
-                    g_view.lat,   g_view.lon,
-                    g_picked_lat, g_picked_lon))
-            str[sizeof(str)-1] = '\0';
+        // truncated
+        str[sizeof(str)-1] = '\0';
     }
     else
     {
-        if((int)sizeof(str) <=
-           snprintf(str, sizeof(str),
-                    "Rendering from (%.5f,%.5f)",
-                    g_view.lat,   g_view.lon))
-            str[sizeof(str)-1] = '\0';
+        if( g_picked_lon < 1e3f && g_picked_lat < 1e3f)
+        {
+            int Nwritten2 = snprintf(&str[Nwritten], sizeof(str)-Nwritten,
+                                     "; highlighting observed point (%.5f,%.5f)",
+                                     g_picked_lat, g_picked_lon);
+            if(Nwritten2 >= (int)(sizeof(str)-Nwritten))
+            {
+                // truncated
+                str[sizeof(str)-1] = '\0';
+            }
+        }
     }
     g_status_text->value(str);
 }
