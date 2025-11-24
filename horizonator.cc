@@ -6,6 +6,7 @@
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Gl_Window.H>
 #include <FL/Fl_Output.H>
+#include <FL/Fl_Button.H>
 #include <GL/gl.h>
 
 #include "orb_osmlayer.hpp"
@@ -20,9 +21,10 @@ extern "C"
 }
 
 
-#define WINDOW_W 800
-#define WINDOW_H 600
-#define STATUS_H 20
+#define WINDOW_W      800
+#define WINDOW_H      600
+#define STATUS_H      20
+#define COPY_BUTTON_W 150
 
 class GLWidget;
 
@@ -35,6 +37,7 @@ static orb_mapctrl*          g_slippymap;
 static SlippymapAnnotations* g_slippymap_annotations;
 static GLWidget*             g_gl_widget;
 static Fl_Output*            g_status_text;
+static int                   g_status_text_cmd_len = 0;
 
 //// The observer state
 // Look North initially, with some arbitrary field of view
@@ -65,9 +68,12 @@ static void update_status_text()
     {
         // truncated
         str[sizeof(str)-1] = '\0';
+        g_status_text_cmd_len = sizeof(str)-1;
     }
     else
     {
+        g_status_text_cmd_len = Nwritten;
+
         if( g_picked_lon < 1e3f && g_picked_lat < 1e3f)
         {
             int Nwritten2 = snprintf(&str[Nwritten], sizeof(str)-Nwritten,
@@ -81,6 +87,15 @@ static void update_status_text()
         }
     }
     g_status_text->value(str);
+}
+
+static void cb_copy_command(Fl_Widget* widget __attribute__((unused)),
+                            void*      cookie __attribute__((unused)))
+{
+    if(g_status_text_cmd_len > 0)
+        Fl::copy(g_status_text->value(), g_status_text_cmd_len,
+                 // both clipboards
+                 2);
 }
 
 
@@ -145,6 +160,8 @@ class GLWidget : public Fl_Gl_Window
             MSG("horizonator_zoom() failed. Giving up");
             return false;
         }
+
+        update_status_text();
 
         redraw();
         g_slippymap->redraw();
@@ -582,8 +599,20 @@ int main(int argc, char** argv)
     map_and_render->end();
 
     {
+        Fl_Group* group_status = new Fl_Group(0, g_window->h()-STATUS_H,
+                                              g_window->w(), STATUS_H);
+
         g_status_text = new Fl_Output(0, g_window->h()-STATUS_H,
-                                      g_window->w(), STATUS_H);
+                                      g_window->w() - COPY_BUTTON_W, STATUS_H);
+
+        Fl_Button* button_copy_cmd = new Fl_Button(g_window->w() - COPY_BUTTON_W, g_window->h()-STATUS_H,
+                                                   COPY_BUTTON_W, STATUS_H,
+                                                   "Copy command");
+        button_copy_cmd->callback(cb_copy_command);
+
+        group_status->resizable(g_status_text);
+        group_status->end();
+
         update_status_text();
     }
 
