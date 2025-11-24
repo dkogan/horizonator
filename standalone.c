@@ -363,19 +363,6 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    const int strlen_filename_image = strlen(filename_image);
-    if(filename_image != NULL)
-    {
-        if(!(strlen_filename_image >= 5 &&
-             (0 == strcasecmp(".png", &filename_image[strlen_filename_image-4]) ||
-              0 == strcasecmp(".pdf", &filename_image[strlen_filename_image-4]) ||
-              0 == strcasecmp(".svg", &filename_image[strlen_filename_image-4]))))
-        {
-            fprintf(stderr, "--image MUST be given a '.png' or '.pdf' or '.svg' filename\n\n");
-            fprintf(stderr, usage, argv[0]);
-            return 1;
-        }
-    }
 
     float lat     = (float)atof(argv[optind+0]);
     float lon     = (float)atof(argv[optind+1]);
@@ -413,6 +400,19 @@ int main(int argc, char* argv[])
         return 0;
     }
 
+    const int strlen_filename_image = strlen(filename_image);
+    if(filename_image != NULL)
+    {
+        if(!(strlen_filename_image >= 5 &&
+             (0 == strcasecmp(".png", &filename_image[strlen_filename_image-4]) ||
+              0 == strcasecmp(".pdf", &filename_image[strlen_filename_image-4]) ||
+              0 == strcasecmp(".svg", &filename_image[strlen_filename_image-4]))))
+        {
+            fprintf(stderr, "--image MUST be given a '.png' or '.pdf' or '.svg' filename\n\n");
+            fprintf(stderr, usage, argv[0]);
+            return 1;
+        }
+    }
 
     // The user gave me az_deg referring to the center of the pixels at the
     // edge. I need to convert them to represent the edges of the viewport.
