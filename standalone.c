@@ -152,7 +152,9 @@ int main(int argc, char* argv[])
         "not be rendered. The color-coding extents are given by --znear-color and\n"
         "--zfar-color. Anything at or closer than --znear-color will be rendered\n"
         "as black, and anything at or further than --zfar-color will be rendered\n"
-        "as red. All 4 of these have reasonable defaults, and may be omitted\n"
+        "as red. Of --zfar-color/--znear-color are omitted, they take the same value\n"
+        "as --zfar/--znear. --znear and --zfar have  reasonable defaults, and may also\n"
+        "be omitted\n"
         "\n"
         "By default we colorcode the renders by range. If --texture, we\n"
         "use a set of image tiles to texture the render instead\n"
@@ -204,10 +206,10 @@ int main(int argc, char* argv[])
     bool        allow_downloads     = false;
     int         render_radius_cells = 1000;
 
-    float znear       = -1.0f;
-    float zfar        = -1.0f;
-    float znear_color = -1.0f;
-    float zfar_color  = -1.0f;
+    float znear       = HORIZONATOR_ZNEAR_DEFAULT;
+    float zfar        = HORIZONATOR_ZFAR_DEFAULT;
+    float znear_color = -1.f;
+    float zfar_color  = -1.f;
 
     int opt;
     do
@@ -343,6 +345,9 @@ int main(int argc, char* argv[])
         fprintf(stderr, usage, argv[0]);
         return 1;
     }
+
+    if(znear_color < 0.f) znear_color = znear;
+    if(zfar_color  < 0.f) zfar_color  = zfar;
 
     if(width >  0 && filename_image == NULL)
     {

@@ -5,6 +5,11 @@
 
 #include "dem.h"
 
+// these define the default front and back clipping planes, in meters
+#define HORIZONATOR_ZNEAR_DEFAULT 100.0f
+#define HORIZONATOR_ZFAR_DEFAULT  40000.0f
+
+
 typedef struct
 {
     int Ntriangles;
@@ -126,7 +131,7 @@ bool horizonator_move(horizonator_context_t* ctx,
 // set the position of the clipping planes. The horizontal distance from the
 // viewer is compared against these positions. Only points in [znear,zfar] are
 // rendered. The render is color-coded by this distance, using znear_color and
-// zfar_color as the bounds for the color-coding
+// zfar_color as the bounds for the color-coding. All 4 values must be set >0
 //
 // Any value <0 is untouched by this call
 bool horizonator_set_zextents(horizonator_context_t* ctx,

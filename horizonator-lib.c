@@ -26,11 +26,6 @@
 #define OSM_TILE_WIDTH      256
 #define OSM_TILE_HEIGHT     256
 
-// these define the front and back clipping planes, in meters
-#define ZNEAR_DEFAULT 100.0f
-#define ZFAR_DEFAULT  40000.0f
-
-
 #define assert_opengl()                                 \
     do {                                                \
         int error = glGetError();                       \
@@ -611,8 +606,8 @@ bool horizonator_init( // output
         // And I set the other uniforms
         horizonator_move(ctx, viewer_z, viewer_lat, viewer_lon);
         horizonator_set_zextents(ctx,
-                                 ZNEAR_DEFAULT, ZFAR_DEFAULT,
-                                 ZNEAR_DEFAULT, ZFAR_DEFAULT);
+                                 HORIZONATOR_ZNEAR_DEFAULT, HORIZONATOR_ZFAR_DEFAULT,
+                                 HORIZONATOR_ZNEAR_DEFAULT, HORIZONATOR_ZFAR_DEFAULT);
     }
 
     if(offscreen_width > 0)
@@ -873,26 +868,15 @@ bool horizonator_set_zextents(horizonator_context_t* ctx,
         glutSetWindow(ctx->glut_window);
     }
 
-    if(znear > 0.0f)
-    {
-       glUniform1f( ctx->uniform_znear,       znear);
-       assert_opengl();
-    }
-    if(zfar > 0.0f)
-    {
-       glUniform1f( ctx->uniform_zfar,        zfar);
-       assert_opengl();
-    }
-    if(znear_color > 0.0f)
-    {
-       glUniform1f( ctx->uniform_znear_color, znear_color);
-       assert_opengl();
-    }
-    if(zfar_color > 0.0f)
-    {
-       glUniform1f( ctx->uniform_zfar_color,  zfar_color);
-       assert_opengl();
-    }
+    if( !(znear > 0.0f && znear_color > 0.0f &&
+          zfar  > 0.0f && zfar_color  > 0.0f ))
+        return false;
+
+    glUniform1f( ctx->uniform_znear,       znear);       assert_opengl();
+    glUniform1f( ctx->uniform_zfar,        zfar);        assert_opengl();
+    glUniform1f( ctx->uniform_znear_color, znear_color); assert_opengl();
+    glUniform1f( ctx->uniform_zfar_color,  zfar_color);  assert_opengl();
+
     return true;
 }
 

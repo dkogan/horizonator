@@ -153,8 +153,8 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     double az_deg0, az_deg1;
     int return_image = true, return_range = true;
     int az_extents_use_pixel_centers = false;
-    double znear       = -1.;
-    double zfar        = -1.;
+    double znear       = HORIZONATOR_ZNEAR_DEFAULT;
+    double zfar        = HORIZONATOR_ZFAR_DEFAULT;
     double znear_color = -1.;
     double zfar_color  = -1.;
 
@@ -176,6 +176,10 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
                                      &znear, &zfar,
                                      &znear_color, &zfar_color) )
         goto done;
+
+    if(znear_color < 0.) znear_color = znear;
+    if(zfar_color  < 0.) zfar_color  = zfar;
+
 
     if(!return_image && !return_range)
     {
