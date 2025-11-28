@@ -21,7 +21,6 @@ static bool glut_loop( bool render_texture, bool SRTM1,
                        // elevation extents will be chosen to keep the aspect ratio
                        // square.
                        float az_deg0, float az_deg1,
-                       int render_radius_cells,
 
                        // rendering and color-coding boundaries. Set to <=0 for
                        // defaults
@@ -40,7 +39,7 @@ static bool glut_loop( bool render_texture, bool SRTM1,
                            viewer_lat, viewer_lon,
                            NULL,
                            -1, -1,
-                           render_radius_cells,
+                           -1, zfar,
                            true,
                            render_texture, SRTM1,
                            dir_dems,
@@ -116,7 +115,6 @@ int main(int argc, char* argv[])
     const char* usage =
         "%s [--width WIDTH_PIXELS] [--height HEIGHT_PIXELS]\n"
         "   [--image OUT.png|OUT.pdf|OUT.svg]\n"
-        "   [--radius RENDER_RADIUS_CELLS]\n"
         "   [--texture] [--SRTM1]\n"
         "   [--allow-tile-downloads]\n"
         "   [--znear       ZNEAR]\n"
@@ -138,9 +136,6 @@ int main(int argc, char* argv[])
         "\n"
         "The image filename MUST be a .png file (the render will be written)\n"
         "OR a .pdf or .svg file (the annotated render will be written)\n"
-        "\n"
-        "By default I load 1000 of the DEM in each direction from the center\n"
-        "point. If --radius is given, I use that value instead\n"
         "\n"
         "When plotting to a window, AZ_..._DEG refers to the azimuth bounds of the\n"
         "VIEWPORT. When rendering to an image, to the\n"
@@ -178,7 +173,6 @@ int main(int argc, char* argv[])
         { "height",            required_argument, NULL, 'H' },
         { "cut-off-bottom-px", required_argument, NULL, 'c' },
         { "image",             required_argument, NULL, 'i' },
-        { "radius",            required_argument, NULL, 'R' },
         { "dirdems",           required_argument, NULL, 'd' },
         { "dirtiles",          required_argument, NULL, 't' },
         { "tiles",             required_argument, NULL, 'I' },
@@ -204,7 +198,6 @@ int main(int argc, char* argv[])
     bool        render_texture      = false;
     bool        SRTM1               = false;
     bool        allow_downloads     = false;
-    int         render_radius_cells = 1000;
 
     float znear       = HORIZONATOR_ZNEAR_DEFAULT;
     float zfar        = HORIZONATOR_ZFAR_DEFAULT;
@@ -248,15 +241,6 @@ int main(int argc, char* argv[])
             if(cut_off_bottom_px < 0)
             {
                 fprintf(stderr, "--cut-off-bottom-px must have an integer argument >= 0\n");
-                return 1;
-            }
-            break;
-
-        case 'R':
-            render_radius_cells = atoi(optarg);
-            if(render_radius_cells <= 0)
-            {
-                fprintf(stderr, "--radius must have an integer argument > 0\n");
                 return 1;
             }
             break;
@@ -392,7 +376,6 @@ int main(int argc, char* argv[])
                   lat, lon,
                   az_center_deg-az_radius_deg,
                   az_center_deg+az_radius_deg,
-                  render_radius_cells,
                   znear,zfar,znear_color,zfar_color,
                   dir_dems, dir_tiles,
                   tiles_name, tiles_url_fmt,
@@ -451,7 +434,7 @@ int main(int argc, char* argv[])
                            lat, lon,
                            &viewer_z,
                            width, height,
-                           render_radius_cells,
+                           -1, zfar,
                            true,
                            render_texture, SRTM1,
                            dir_dems, dir_tiles,

@@ -82,23 +82,54 @@ bool horizonator_dem_init(// output
               float viewer_lat,
               float viewer_lon,
 
-              // We will have 2*radius_cells per side
-              int radius_cells,
+              int render_radius_cells, // This should be given >0
+              float render_radius_m,   // or this, but not both
               const char* datadir,
-
               bool SRTM1)
 {
-    *ctx = (horizonator_dem_context_t){.radius_cells = radius_cells};
+    if(render_radius_cells < 0 && render_radius_m < 0)
+    {
+        MSG("Exactly one of (render_radius_cells,render_radius_m) should be >0. Both were <0");
+        return false;
+    }
+    if(render_radius_cells > 0 && render_radius_m > 0)
+    {
+        MSG("Exactly one of (render_radius_cells,render_radius_m) should be >0. Both were >0");
+        return false;
+    }
+
+    *ctx = (horizonator_dem_context_t){.cells_per_deg =
+                                       SRTM1 ?
+                                       (CELLS_PER_DEM_WIDTH_SRTM1 - 1) :
+                                       (CELLS_PER_DEM_WIDTH_SRTM3 - 1)};
+
+    if(render_radius_cells > 0)
+    {
+        ctx->radius_cells = render_radius_cells;
+    }
+    else
+    {
+        // I load a square grid of DEM cells. I want these cells do full
+        // encompass a circle of radius render_radius_m. vertex.glsl has:
+        //   vec2 en =
+        //       vec2( (i - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,
+        //             (j - viewer_cell_j) * DEG_PER_CELL * Rearth * pi/180. );
+        // So in the tangent plane d^2 = k^2 (dx^2 cos^2 + dy^2)
+        // Let the radius of the square grid be rcells. The max extent is
+        //   d^2 ~ k^2 ( rcells^2 cos^2 + 0..rcells^2 )
+        //   d^2 ~ k^2 ( 0..rcells^2 cos^2 + rcells^2 )
+        // The worst case is k^2 ( rcells^2 cos^2 ) so I pick rcells^2 such that
+        // render_radius_m^2 = k^2 ( rcells^2 cos^2 )
+        // -> rcells = render_radius_m / (k cos)
+        const double Rearth = 6371000.0;
+        const double cos_viewer_lat = cos( M_PI / 180.0 * viewer_lat );
+        ctx->radius_cells = (int)(0.5 + (double)render_radius_m / (Rearth * M_PI/180. * cos_viewer_lat / (double)ctx->cells_per_deg));
+    }
 
     const int DEM_expected_file_size =
         SRTM1 ?
         (CELLS_PER_DEM_WIDTH_SRTM1*CELLS_PER_DEM_WIDTH_SRTM1*2) :
         (CELLS_PER_DEM_WIDTH_SRTM3*CELLS_PER_DEM_WIDTH_SRTM3*2);
-
-    ctx->cells_per_deg =
-        SRTM1 ?
-        (CELLS_PER_DEM_WIDTH_SRTM1 - 1) :
-        (CELLS_PER_DEM_WIDTH_SRTM3 - 1);
 
     const float viewer_lon_lat[] = {viewer_lon, viewer_lat};
 
@@ -109,7 +140,7 @@ bool horizonator_dem_init(// output
         //
         //   icell_origin  = floor(latlon_view * cells_per_deg) - (radius-1)
         //   latlon_origin = floor(icell_origin / cells_per_deg)
-        int   icell_origin   = floor(viewer_lon_lat[i] * ctx->cells_per_deg) - (radius_cells-1);
+        int   icell_origin   = floor(viewer_lon_lat[i] * ctx->cells_per_deg) - (ctx->radius_cells-1);
         float origin_lon_lat = (float)icell_origin / (float)ctx->cells_per_deg;
 
         // Which DEM contains the SW corner of the render data
@@ -124,11 +155,11 @@ bool horizonator_dem_init(// output
         // I'm disabling these asserts because floating-point fuzz may make them
         // fail. I left them enabled long-enough to be confident that this stuff
         // works
-        // assert( radius_cells-1 < (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)cells_per_deg - (float)ctx->origin_dem_cellij [i]);
-        // assert( radius_cells   > (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)cells_per_deg - (float)ctx->origin_dem_cellij [i]);
+        // assert( ctx->radius_cells-1 < (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)cells_per_deg - (float)ctx->origin_dem_cellij [i]);
+        // assert( ctx->radius_cells   > (viewer_lon_lat[i] - (float)ctx->origin_dem_lon_lat [i]) * (float)cells_per_deg - (float)ctx->origin_dem_cellij [i]);
 
-        // I will have 2*radius_cells
-        int cellij_last = ctx->origin_dem_cellij[i] + radius_cells*2-1;
+        // I will have 2*ctx->radius_cells
+        int cellij_last = ctx->origin_dem_cellij[i] + ctx->radius_cells*2-1;
         int idem_last   = cellij_last / ctx->cells_per_deg;
         ctx->Ndems_ij[i] = idem_last + 1;
         if( cellij_last == idem_last*ctx->cells_per_deg )

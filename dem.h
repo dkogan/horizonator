@@ -47,10 +47,9 @@ bool horizonator_dem_init(// output
               float viewer_lat,
               float viewer_lon,
 
-              // We will have 2*radius_cells per side
-              int radius_cells,
+              int render_radius_cells, // This should be given >0
+              float render_radius_m,   // or this, but not both
               const char* datadir,
-
               bool SRTM1);
 
 void horizonator_dem_deinit( horizonator_dem_context_t* ctx );

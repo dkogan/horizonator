@@ -61,7 +61,10 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     const char* dir_tiles = NULL;
     const char* tiles_name = NULL;
     const char* tiles_url_fmt = NULL;
-    unsigned int render_radius_cells = 1000; // default
+
+    const int render_radius_cells_default = 1000;
+    int render_radius_cells = -1;
+    double render_radius_m  = -1.;
 
     char* keywords[] = {
         "lat", "lon",
@@ -71,7 +74,8 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         "dir_dems", "dir_tiles",
         "tiles_name", "tiles_url_fmt",
         "allow_downloads",
-        "radius",
+        "render_radius_cells",
+        "render_radius_m",
         NULL};
 
     if(self->ctx.offscreen.inited)
@@ -81,20 +85,30 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     }
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "ddII|ppsssspI", keywords,
+                                     "ddII|ppsssspid", keywords,
                                      &lat, &lon, &width, &height,
                                      &render_texture, &SRTM1,
                                      &dir_dems, &dir_tiles,
                                      &tiles_name, &tiles_url_fmt,
                                      &allow_downloads,
-                                     &render_radius_cells))
+                                     &render_radius_cells,
+                                     &render_radius_m))
         goto done;
+
+    if(render_radius_cells<0 && render_radius_m<0)
+        render_radius_cells = render_radius_cells_default;
+    else if(render_radius_cells>0 && render_radius_m>0)
+    {
+        BARF("both render_radius_cells,render_radius_m cannot be >0");
+        goto done;
+    }
+    
 
     if(! horizonator_init( &self->ctx,
                            lat, lon,
                            NULL,
                            width, height,
-                           render_radius_cells,
+                           render_radius_cells, render_radius_m,
                            true,
                            render_texture, SRTM1,
                            dir_dems, dir_tiles,

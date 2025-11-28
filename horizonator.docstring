@@ -60,5 +60,11 @@ The __init__() function takes
 - allow_downloads: optional boolean, defaulting to True. If True: we try to
   download missing OpenStreetMap tiles.
 
-- radius: optional integer, with some reasonable default. Specifies the size of
-  the DEM to load. This many cells are loaded to the N, S, E and W of the viewer.
+- render_radius_cells: optional integer, with some reasonable default. Specifies
+  the size of the DEM to load. This many cells are loaded to the N, S, E and W
+  of the viewer. Exclusive with render_radius_m. The radius can be given in
+  cells of meters, but not both
+
+- render_radius_m: optional float, with some reasonable default. Specifies the
+  size of the DEM to load. Exclusive with render_radius_cells. The radius can be
+  given in cells of meters, but not both

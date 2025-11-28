@@ -69,7 +69,8 @@ bool horizonator_init( // output
                        // report it here
                        float* viewer_z,
                        int offscreen_width, int offscreen_height,
-                       int render_radius_cells,
+                       int render_radius_cells, // This should be given >0
+                       float render_radius_m,   // or this, but not both
 
                        bool use_glut,
                        bool render_texture,
@@ -186,6 +187,7 @@ bool horizonator_init( // output
     if( !horizonator_dem_init( &ctx->dems,
                    viewer_lat, viewer_lon,
                    render_radius_cells,
+                   render_radius_m,
                    dir_dems,
                    SRTM1) )
     {
@@ -193,6 +195,8 @@ bool horizonator_init( // output
         goto done;
     }
     dem_context_inited = true;
+
+    render_radius_cells = ctx->dems.radius_cells;
 
     // Dense triangulation. This may be adjusted below
     int Nvertices   = (2*render_radius_cells) * (2*render_radius_cells);

@@ -92,7 +92,8 @@ bool horizonator_init( // output
                        // report it here
                        float* viewer_z,
                        int offscreen_width, int offscreen_height,
-                       int render_radius_cells,
+                       int render_radius_cells, // This should be given >0
+                       float render_radius_m,   // or this, but not both
 
                        bool use_glut,
                        bool render_texture,
