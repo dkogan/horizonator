@@ -614,6 +614,8 @@ bool horizonator_init( // output
         ctx->uniform_zfar             = glGetUniformLocation(ctx->program, "zfar");             assert_opengl();
         ctx->uniform_znear_color      = glGetUniformLocation(ctx->program, "znear_color");      assert_opengl();
         ctx->uniform_zfar_color       = glGetUniformLocation(ctx->program, "zfar_color");       assert_opengl();
+        ctx->uniform_curvature_scale  = glGetUniformLocation(ctx->program, "curvature_scale");  assert_opengl();
+        ctx->uniform_refraction_k     = glGetUniformLocation(ctx->program, "refraction_k");     assert_opengl();
 #undef make_and_set_uniform
 
         // And I set the other uniforms
@@ -621,6 +623,8 @@ bool horizonator_init( // output
         horizonator_set_zextents(ctx,
                                  HORIZONATOR_ZNEAR_DEFAULT, HORIZONATOR_ZFAR_DEFAULT,
                                  HORIZONATOR_ZNEAR_DEFAULT, HORIZONATOR_ZFAR_DEFAULT);
+        // Curvature correction is off by default: unchanged legacy behavior
+        horizonator_set_curvature(ctx, false, 0.13f);
     }
 
     if(offscreen_width > 0)
@@ -889,6 +893,23 @@ bool horizonator_set_zextents(horizonator_context_t* ctx,
     glUniform1f( ctx->uniform_zfar,        zfar);        assert_opengl();
     glUniform1f( ctx->uniform_znear_color, znear_color); assert_opengl();
     glUniform1f( ctx->uniform_zfar_color,  zfar_color);  assert_opengl();
+
+    return true;
+}
+
+bool horizonator_set_curvature(horizonator_context_t* ctx,
+                               bool curvature_enabled,
+                               float refraction_k)
+{
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
+    glUniform1f( ctx->uniform_curvature_scale, curvature_enabled ? 1.0f : 0.0f); assert_opengl();
+    glUniform1f( ctx->uniform_refraction_k,    refraction_k);                    assert_opengl();
 
     return true;
 }

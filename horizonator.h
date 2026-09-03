@@ -33,6 +33,7 @@ typedef struct
     int32_t uniform_texturemap_dlat2;
     int32_t uniform_znear, uniform_zfar;
     int32_t uniform_znear_color, uniform_zfar_color;
+    int32_t uniform_curvature_scale, uniform_refraction_k;
 
     uint32_t program;
 
@@ -138,6 +139,16 @@ bool horizonator_move(horizonator_context_t* ctx,
 bool horizonator_set_zextents(horizonator_context_t* ctx,
                               float znear,       float zfar,
                               float znear_color, float zfar_color);
+
+// Enables/disables the Earth-curvature-and-refraction correction to the
+// apparent elevation angle of rendered terrain. When curvature_enabled is
+// false (the default set by horizonator_init()), rendering uses the
+// original flat tangent-plane approximation, unchanged. refraction_k is
+// the atmospheric refraction coefficient (~0.13 is a commonly-used value;
+// see udeuschle.de); it is ignored when curvature_enabled is false
+bool horizonator_set_curvature(horizonator_context_t* ctx,
+                               bool curvature_enabled,
+                               float refraction_k);
 
 bool horizonator_redraw(const horizonator_context_t* ctx);
 
