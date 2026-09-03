@@ -14,6 +14,7 @@
 
 static bool glut_loop( bool render_texture, bool SRTM1,
                        float viewer_lat, float viewer_lon,
+                       float viewer_height_m,
 
                        // Bounds of the view. We expect az_deg1 > az_deg0. The azimuth
                        // edges lie at the edges of the image. So for an image that's
@@ -35,9 +36,10 @@ static bool glut_loop( bool render_texture, bool SRTM1,
 {
     horizonator_context_t ctx;
 
+    float viewer_z = -1.0f;
     if( !horizonator_init( &ctx,
                            viewer_lat, viewer_lon,
-                           NULL,
+                           &viewer_z,
                            -1, -1,
                            -1, zfar,
                            true,
@@ -48,6 +50,16 @@ static bool glut_loop( bool render_texture, bool SRTM1,
                            tiles_url_fmt,
                            allow_downloads) )
         return false;
+
+    if(viewer_height_m != 0.0f)
+    {
+        // horizonator_init() auto-selected a viewer_z sitting on the DEM
+        // ground surface. I add the height of the observer above that
+        // ground (e.g. the floor of an apartment building) and re-apply it.
+        viewer_z += viewer_height_m;
+        if(!horizonator_move(&ctx, &viewer_z, viewer_lat, viewer_lon))
+            return false;
+    }
 
     if(!horizonator_set_zextents(&ctx,
                                  znear, zfar, znear_color, zfar_color))
@@ -117,6 +129,7 @@ int main(int argc, char* argv[])
         "   [--image OUT.png|OUT.pdf|OUT.svg]\n"
         "   [--texture] [--SRTM1]\n"
         "   [--allow-tile-downloads]\n"
+        "   [--viewer-height METERS]\n"
         "   [--znear       ZNEAR]\n"
         "   [--zfar        ZFAR]\n"
         "   [--znear-color ZNEARCOLOR]\n"
@@ -159,6 +172,10 @@ int main(int argc, char* argv[])
         "would make it use 9 times more memory and computational resources, so\n"
         "sticking with the lower-resolution 3\" SRTM data is recommended for now.\n"
         "\n"
+        "--viewer-height adds the given number of meters to the viewer elevation\n"
+        "sampled from the DEM at LAT,LON (e.g. the height of an apartment floor\n"
+        "above street level). Defaults to 0.\n"
+        "\n"
         "The DEMs are in the directory given by --dirdems, or in\n"
         "~/.horizonator/DEMs_SRTM3/ (or DEMs_SRTM1) if omitted.\n"
         "\n"
@@ -179,6 +196,7 @@ int main(int argc, char* argv[])
         { "texture",           no_argument,       NULL, 'T' },
         { "SRTM1",             no_argument,       NULL, 'S' },
         { "allow-tile-downloads",no_argument,     NULL, 'a' },
+        { "viewer-height",     required_argument, NULL, 'V' },
         { "znear",             required_argument, NULL, '1' },
         { "zfar",              required_argument, NULL, '2' },
         { "znear-color",       required_argument, NULL, '3' },
@@ -198,6 +216,7 @@ int main(int argc, char* argv[])
     bool        render_texture      = false;
     bool        SRTM1               = false;
     bool        allow_downloads     = false;
+    float       viewer_height_m     = 0.0f;
 
     float znear       = HORIZONATOR_ZNEAR_DEFAULT;
     float zfar        = HORIZONATOR_ZFAR_DEFAULT;
@@ -315,6 +334,10 @@ int main(int argc, char* argv[])
             allow_downloads = true;
             break;
 
+        case 'V':
+            viewer_height_m = (float)atof(optarg);
+            break;
+
         case '?':
             fprintf(stderr, "Unknown option\n\n");
             fprintf(stderr, usage, argv[0]);
@@ -374,6 +397,7 @@ int main(int argc, char* argv[])
     {
         glut_loop(render_texture, SRTM1,
                   lat, lon,
+                  viewer_height_m,
                   az_center_deg-az_radius_deg,
                   az_center_deg+az_radius_deg,
                   znear,zfar,znear_color,zfar_color,
@@ -443,6 +467,19 @@ int main(int argc, char* argv[])
     {
         fprintf(stderr, "horizonator_init() failed\n");
         return false;
+    }
+
+    if(viewer_height_m != 0.0f)
+    {
+        // viewer_z was auto-selected by horizonator_init() to sit on the DEM
+        // ground surface. I add the height of the observer above that
+        // ground (e.g. the floor of an apartment building) and re-apply it.
+        viewer_z += viewer_height_m;
+        if(!horizonator_move(&ctx, &viewer_z, lat, lon))
+        {
+            fprintf(stderr, "horizonator_move() failed\n");
+            return false;
+        }
     }
 
     if(!horizonator_set_zextents(&ctx,
