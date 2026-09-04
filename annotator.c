@@ -154,7 +154,10 @@ bool annotate(// input
               const double lon,
               const double az_deg0,
               const double az_deg1,
-              const double ele_m)
+              const double ele_m,
+
+              const bool   curvature_enabled,
+              const double refraction_k)
 {
   bool result = false;
 
@@ -291,7 +294,9 @@ bool annotate(// input
                               az_deg0 * M_PI/180.,
                               az_deg1 * M_PI/180.,
                               width,
-                              height))
+                              height,
+                              curvature_enabled,
+                              refraction_k))
           continue;
 
       if(range_have < MIN_MARKER_DIST ||

@@ -22,4 +22,10 @@ bool annotate(// input
               const double lon,
               const double az_deg0,
               const double az_deg1,
-              const double ele_m);
+              const double ele_m,
+
+              // Must match whatever was passed to horizonator_set_curvature()
+              // for this render, or POIs will be placed incorrectly and fail
+              // to be found in the range image (looking occluded)
+              const bool   curvature_enabled,
+              const double refraction_k);

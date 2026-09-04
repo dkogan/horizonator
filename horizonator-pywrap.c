@@ -109,6 +109,7 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
                            NULL,
                            width, height,
                            render_radius_cells, render_radius_m,
+                           false, 0., 0., // no mesh azimuth restriction: render() may use any azimuth
                            true,
                            render_texture, SRTM1,
                            dir_dems, dir_tiles,
