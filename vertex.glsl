@@ -23,6 +23,13 @@ uniform int osmtile_lowestX, osmtile_lowestY;
 uniform float znear, zfar;
 uniform float znear_color, zfar_color;
 
+// Earth-curvature-and-refraction correction. curvature_scale is 0.0
+// (disabled: legacy flat tangent-plane rendering) or 1.0 (enabled).
+// refraction_k is the atmospheric refraction coefficient (ignored if
+// curvature_scale == 0)
+uniform float curvature_scale;
+uniform float refraction_k;
+
 // We send these to the fragment shader
 out vec3 rgb;
 out vec2 tex;
@@ -128,9 +135,23 @@ void main(void)
         vec2 en =
             vec2( (i - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,
                   (j - viewer_cell_j) * DEG_PER_CELL * Rearth * pi/180. );
-        vec3 enh = vec3( en.x, en.y, vertex.z - viewer_z );
 
         distance_ne = length(en);
+
+        // A target at horizontal distance distance_ne appears lower than
+        // this flat-plane geometry predicts, because it sits behind the
+        // curve of the Earth; atmospheric refraction partially
+        // compensates by bending the light ray back down. The standard
+        // approximation for this net apparent drop is
+        //   drop = (1-k) * d^2 / (2*Rearth)
+        // (k=0.13 is a commonly-used refraction coefficient; see
+        // udeuschle.de). curvature_scale==0 makes this vanish, giving
+        // back the original flat-plane behavior
+        float drop = curvature_scale * (1.0 - refraction_k) *
+                     distance_ne*distance_ne / (2.0*Rearth);
+
+        vec3 enh = vec3( en.x, en.y, vertex.z - viewer_z - drop );
+
         float az_rad = atan(en.x, en.y);
 
         // az = 0:     North
