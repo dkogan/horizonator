@@ -42,10 +42,10 @@ args = parse_args()
 import requests
 import json
 
-api = 'http://overpass-api.de/api/interpreter'
+api = 'https://overpass-api.de/api/interpreter'
 
 query = f'''
-[out:json];
+[out:json][timeout:60];
 
 node
  ["natural" = "peak" ]
@@ -55,8 +55,13 @@ node
 out;
 '''
 
+# The Overpass API rejects requests with no (or a generic) User-Agent, and
+# plain http:// tends to time out; https:// with an identifying UA is
+# reliable
 r = requests.post(api,
-                  data = query)
+                  data    = query,
+                  headers = {'User-Agent': 'horizonator query-peaks-from-osm.py'},
+                  timeout = 90)
 if r.status_code != 200:
     print(f"Overpass api error: {r.status_code} {r.reason=}",
           file = sys.stderr)

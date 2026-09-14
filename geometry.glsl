@@ -10,6 +10,14 @@ out vec3 rgb_fragment;
 in  vec2 tex[];
 out vec2 tex_fragment;
 
+// Per-vertex normal (world-space east/north/height frame), from
+// vertex.glsl. Just passed through here, per vertex, so the fragment
+// shader gets a value smoothly interpolated by the rasterizer across each
+// triangle -- and so continuous across the edge between two triangles
+// that share a vertex, unlike a flat per-triangle normal
+in  vec3 normal[];
+out vec3 normal_fragment;
+
 void main()
 {
     // The azimuth is gl_Position.x. Any triangles on the seam (some vertices
@@ -28,9 +36,10 @@ void main()
 
     for(int i=0; i<3; i++)
     {
-        rgb_fragment = rgb[i];
-        tex_fragment = tex[i];
-        gl_Position  = gl_in[i].gl_Position;
+        rgb_fragment    = rgb[i];
+        tex_fragment    = tex[i];
+        normal_fragment = normal[i];
+        gl_Position     = gl_in[i].gl_Position;
         EmitVertex();
     }
     EndPrimitive();
