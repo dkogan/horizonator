@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 #include "dem.h"
+#include "landcover.h"
 
 // these define the default front and back clipping planes, in meters
 #define HORIZONATOR_ZNEAR_DEFAULT 100.0f
@@ -33,12 +34,16 @@ typedef struct
     int32_t uniform_texturemap_dlat2;
     int32_t uniform_znear, uniform_zfar;
     int32_t uniform_znear_color, uniform_zfar_color;
+    int32_t uniform_curvature_scale, uniform_refraction_k;
+    int32_t uniform_shading_scale, uniform_sun_dir;
+    int32_t uniform_materials_scale;
 
     uint32_t program;
 
     float viewer_lat, viewer_lon;
 
     horizonator_dem_context_t dems;
+    horizonator_landcover_context_t landcover;
 
     struct
     {
@@ -81,6 +86,18 @@ static bool horizonator_context_isvalid(const horizonator_context_t* ctx)
 // SRTM1 selects between 1" SRTM and 3" SRTM. Currently every triangle is
 // rendered, so 1" SRTM tiles can easily overload the machine. Unless you need
 // the extra resolution, stick with 3" SRTM tiles for now
+//
+// By default the mesh covers the full circle of loaded DEM data (radius
+// render_radius_cells/render_radius_m), even though a given render usually
+// only looks at a fraction of that circle (see horizonator_pan_zoom()). If
+// restrict_mesh_azimuth is true, the mesh is built only for the
+// [mesh_az_deg0,mesh_az_deg1] azimuth wedge (plus a small margin), which can
+// dramatically cut the triangle count for a narrow panorama. This trades
+// away the ability to horizonator_pan_zoom() outside that wedge later
+// without gaps in the mesh, so it should only be used when the caller knows
+// it will never look outside that wedge (e.g. the "standalone" tool, which
+// renders one fixed view). Leave false for callers that let the user pan
+// around after loading (e.g. the interactive "horizonator" tool)
 bool horizonator_init( // output
                        horizonator_context_t* ctx,
 
@@ -95,10 +112,19 @@ bool horizonator_init( // output
                        int render_radius_cells, // This should be given >0
                        float render_radius_m,   // or this, but not both
 
+                       bool restrict_mesh_azimuth,
+                       float mesh_az_deg0, float mesh_az_deg1, // ignored unless restrict_mesh_azimuth
+
                        bool use_glut,
                        bool render_texture,
                        bool SRTM1,
                        const char* dir_dems,
+                       // Pre-baked land-cover tiles (see landcover.h and
+                       // build-landcover-tiles.py). NULL selects the default
+                       // (~/.horizonator/landcover). Missing tiles are
+                       // tolerated: those points just fall back to the
+                       // procedural elevation/slope material classification
+                       const char* dir_landcover,
                        const char* dir_tiles,
                        const char* tiles_name,
                        const char* tiles_url_fmt,
@@ -139,6 +165,37 @@ bool horizonator_set_zextents(horizonator_context_t* ctx,
                               float znear,       float zfar,
                               float znear_color, float zfar_color);
 
+// Enables/disables the Earth-curvature-and-refraction correction to the
+// apparent elevation angle of rendered terrain. When curvature_enabled is
+// false (the default set by horizonator_init()), rendering uses the
+// original flat tangent-plane approximation, unchanged. refraction_k is
+// the atmospheric refraction coefficient (~0.13 is a commonly-used value;
+// see udeuschle.de); it is ignored when curvature_enabled is false
+bool horizonator_set_curvature(horizonator_context_t* ctx,
+                               bool curvature_enabled,
+                               float refraction_k);
+
+// Enables/disables slope shading: terrain is darkened/lightened by a
+// directional light, based on a smoothly-interpolated per-vertex surface
+// normal (estimated from the DEM). When shading_enabled is false (the
+// default set by horizonator_init()), rendering is unchanged (the plain
+// distance-based grayscale). sun_az_deg (0=North, 90=East) and sun_el_deg
+// (0=horizon, 90=straight up) give the direction TOWARDS the sun; both
+// are ignored when shading_enabled is false
+bool horizonator_set_sun(horizonator_context_t* ctx,
+                         bool shading_enabled,
+                         float sun_az_deg,
+                         float sun_el_deg);
+
+// Enables/disables a first, purely procedural land-cover approximation
+// (no aerial imagery or real land-cover data): each point is tinted by
+// elevation (snow above a fixed snow line) and slope steepness (bare rock
+// on steep terrain), forest below the tree line and alpine grass above it
+// otherwise. When materials_enabled is false (the default set by
+// horizonator_init()), rendering is unchanged
+bool horizonator_set_materials(horizonator_context_t* ctx,
+                               bool materials_enabled);
+
 bool horizonator_redraw(const horizonator_context_t* ctx);
 
 // returns true if an intersection is found
@@ -177,6 +234,11 @@ bool horizonator_x_from_az( // output
                             double az_rad1,
                             int width);
 
+// curvature_enabled/refraction_k must match whatever was passed to
+// horizonator_set_curvature() for the render being annotated -- otherwise
+// the predicted screen position of (lat,lon,ele) will be off by the
+// curvature drop (can be >1km of apparent height at 100+km), and this will
+// incorrectly look occluded/unmatched
 bool horizonator_project( // output
                           double* x,
                           double* y,
@@ -193,7 +255,10 @@ bool horizonator_project( // output
                           double az_rad0,
                           double az_rad1,
                           int width,
-                          int height);
+                          int height,
+
+                          bool curvature_enabled,
+                          double refraction_k);
 
 bool horizonator_unproject(// output
                            float* lat, float* lon,

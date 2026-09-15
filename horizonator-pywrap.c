@@ -57,9 +57,10 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     int render_texture    = false;
     int SRTM1             = false;
     int allow_downloads   = true;
-    const char* dir_dems  = NULL;
-    const char* dir_tiles = NULL;
-    const char* tiles_name = NULL;
+    const char* dir_dems      = NULL;
+    const char* dir_landcover = NULL;
+    const char* dir_tiles     = NULL;
+    const char* tiles_name    = NULL;
     const char* tiles_url_fmt = NULL;
 
     const int render_radius_cells_default = 1000;
@@ -71,7 +72,7 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         "width", "height",
         "render_texture",
         "SRTM1",
-        "dir_dems", "dir_tiles",
+        "dir_dems", "dir_landcover", "dir_tiles",
         "tiles_name", "tiles_url_fmt",
         "allow_downloads",
         "render_radius_cells",
@@ -85,10 +86,10 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     }
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "ddII|ppsssspid", keywords,
+                                     "ddII|ppssssspid", keywords,
                                      &lat, &lon, &width, &height,
                                      &render_texture, &SRTM1,
-                                     &dir_dems, &dir_tiles,
+                                     &dir_dems, &dir_landcover, &dir_tiles,
                                      &tiles_name, &tiles_url_fmt,
                                      &allow_downloads,
                                      &render_radius_cells,
@@ -109,9 +110,10 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
                            NULL,
                            width, height,
                            render_radius_cells, render_radius_m,
+                           false, 0., 0., // no mesh azimuth restriction: render() may use any azimuth
                            true,
                            render_texture, SRTM1,
-                           dir_dems, dir_tiles,
+                           dir_dems, dir_landcover, dir_tiles,
                            tiles_name,
                            tiles_url_fmt,
                            allow_downloads ) )
