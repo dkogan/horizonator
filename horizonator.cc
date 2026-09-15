@@ -234,6 +234,7 @@ public:
                                   NULL,
                                   -1, -1,
                                   -1, zfar,
+                                  false, 0.f, 0.f, // no mesh azimuth restriction: I pan around freely
                                   false,
                                   render_texture, SRTM1,
                                   NULL,NULL,
