@@ -16,21 +16,54 @@
 #include "horizonator.h"
 
 
-#define MAX_MARKER_DIST 100000.0
 #define MIN_MARKER_DIST 500.0
 
 #define FUZZ_RANGE   500.
-#define FUZZ_PIXEL_Y 6
+
+// The vertical pixel search radius used to find a POI's true rendered
+// position isn't a fixed pixel count: the real positional uncertainty
+// (OSM coordinate precision, DEM sampling) is an ANGULAR one, a small
+// fraction of a degree. At low resolution a handful of pixels happens to
+// cover that; at high resolution the same few pixels cover only a tiny
+// sliver of a degree, and otherwise-valid matches silently fail. So a
+// fixed angular tolerance is converted to a pixel count from the actual
+// image resolution (see fuzz_pixel_y() below) instead
+#define ANGULAR_FUZZ_DEG 0.05
 
 
 #define LABEL_CROSSHAIR_R 3
 #define TEXT_MARGIN       2
 
+// Label text in black, leader line in a soft "almond green" -- readable on
+// the white background, and the line doesn't compete visually with the text
+#define LABEL_TEXT_R 0.0
+#define LABEL_TEXT_G 0.0
+#define LABEL_TEXT_B 0.0
+#define LABEL_LINE_R 0.576
+#define LABEL_LINE_G 0.773
+#define LABEL_LINE_B 0.447
+
+// Label text is drawn rotated by this angle: first letter at the bottom,
+// last letter at the top (a vertical column of text, reading bottom-up,
+// as if tilting your head to the left). cairo_rotate() rotates towards
+// the (downward-pointing) +y axis for positive angles, so a negative
+// angle here goes up, as wanted
+#define LABEL_ROTATION_RAD (-M_PI/2.0)
+
+// Every kept label's last (topmost) character sits this many pixels below
+// the top edge of the canvas (not the rendered/mesh area -- the canvas)
+#define LABEL_TOP_MARGIN_PX 30.0
+
+// Two labels whose horizontal (screen-x) positions are closer than this
+// are considered to conflict, and only the higher-elevation one of the
+// group is kept. Since the label text is vertical, its own on-screen
+// footprint is about one font-height wide; this multiplies that by a
+// safety margin
+#define LABEL_CONFLICT_GAP_FACTOR 1.5
+
 static const double POINTS_PER_INCH = 72.;
 static const double PIXELS_PER_INCH = 300.;
 static const double CAIRO_SCALE     = POINTS_PER_INCH / PIXELS_PER_INCH;
-
-static int font_height = 20;
 
 static
 double string_width(cairo_t *cr,
@@ -47,19 +80,13 @@ double string_width(cairo_t *cr,
 
 
 
-typedef struct
+// compares two visible_poi_t by their screen-x position
+static int compar_visible_poi_x( const void* _a, const void* _b )
 {
-  float x,y;
-} xy_t;
+  const visible_poi_t* a = (const visible_poi_t*)_a;
+  const visible_poi_t* b = (const visible_poi_t*)_b;
 
-// compares two POIs by their draw_x. Sorts disabled POIs to the end
-static int compar_poi_x( const void* _idx0, const void* _idx1, void* cookie )
-{
-  const xy_t* xy   = (const xy_t*)cookie;
-  const int*  idx0 = (const int*)_idx0;
-  const int*  idx1 = (const int*)_idx1;
-
-  if( xy[ *idx0 ].x < xy[ *idx1 ].x )
+  if( a->x < b->x )
     return -1;
   else
     return 1;
@@ -67,23 +94,42 @@ static int compar_poi_x( const void* _idx0, const void* _idx1, void* cookie )
 
 static
 void draw_label( cairo_t* cr,
+                 // the peak's own screen position
                  double x, double y,
-                 // top of the label
-                 double y_label,
                  double lat, double lon,
                  const char* name )
 {
+  // The text is vertical (LABEL_ROTATION_RAD), growing from its first
+  // (bottom) character up to its last (top) character. We want the LAST
+  // character LABEL_TOP_MARGIN_PX below the top of the canvas, so the
+  // anchor (first character, where the leader line ends) is that margin
+  // plus the full string length below the canvas top
+  const double string_w    = string_width(cr, name);
+  const double text_start_y = LABEL_TOP_MARGIN_PX + string_w;
+
+  cairo_set_source_rgb(cr, LABEL_LINE_R, LABEL_LINE_G, LABEL_LINE_B);
+
   cairo_move_to(cr, x-LABEL_CROSSHAIR_R, y);
   cairo_rel_line_to(cr, 2*LABEL_CROSSHAIR_R, 0);
 
   cairo_move_to(cr, x, y+LABEL_CROSSHAIR_R);
-  cairo_line_to(cr, x, y_label);
+  cairo_line_to(cr, x, text_start_y);
 
   cairo_stroke(cr);
 
+  // The label text, rotated LABEL_ROTATION_RAD: anchored exactly where the
+  // leader line ends, and drawn along the rotated axis from there, so the
+  // anchor point doesn't move as the rotation changes. cairo's "current
+  // point" is a user-space coordinate, so to rotate around a specific
+  // device-space point we translate there FIRST, rotate, then draw at the
+  // new (local) origin
+  cairo_set_source_rgb(cr, LABEL_TEXT_R, LABEL_TEXT_G, LABEL_TEXT_B);
 
-  // cairo wants the bottom of the label
-  cairo_move_to(cr, x, y_label + font_height);
+  cairo_save(cr);
+  cairo_translate(cr, x, text_start_y);
+  cairo_rotate(cr, LABEL_ROTATION_RAD);
+  cairo_move_to(cr, 0, 0);
+
   char url[256];
   bool url_valid =
     (snprintf(url, sizeof(url),
@@ -93,6 +139,8 @@ void draw_label( cairo_t* cr,
   if(url_valid) cairo_tag_begin (cr, CAIRO_TAG_LINK, url);
   cairo_show_text(cr, name);
   if(url_valid) cairo_tag_end (cr, CAIRO_TAG_LINK);
+
+  cairo_restore(cr);
 }
 
 
@@ -139,6 +187,112 @@ done:
   return result;
 }
 
+int find_visible_pois(// output
+                      visible_poi_t* visible,
+
+                      // input
+                      const float* range_image,
+                      const int width,
+                      const int height,
+                      const int cut_off_bottom_px,
+
+                      const poi_t* pois,
+                      const int Npois,
+                      const double lat,
+                      const double lon,
+                      const double az_deg0,
+                      const double az_deg1,
+                      const double ele_m,
+
+                      const bool   curvature_enabled,
+                      const double refraction_k,
+
+                      const double max_marker_dist_m)
+{
+  const int height_out = height - cut_off_bottom_px;
+  const double cos_lat = cos(lat * M_PI/180.);
+
+  // Same angular resolution horizontally and vertically (see README), so
+  // this is the degrees/pixel in both directions
+  const double deg_per_pixel = (az_deg1-az_deg0) / (double)width;
+  const int fuzz_pixel_y = (int)ceil(ANGULAR_FUZZ_DEG / deg_per_pixel);
+
+  int Nvisible = 0;
+
+  for(int i=0; i<Npois; i++)
+  {
+      double crosshair_x, crosshair_y;
+      double range_have;
+      if(!horizonator_project(&crosshair_x, &crosshair_y, &range_have,
+                              lat, cos_lat,
+                              lon,
+                              ele_m,
+                              pois[i].lat,
+                              pois[i].lon,
+                              pois[i].ele_m,
+                              az_deg0 * M_PI/180.,
+                              az_deg1 * M_PI/180.,
+                              width,
+                              height,
+                              curvature_enabled,
+                              refraction_k))
+          continue;
+
+      if(range_have < MIN_MARKER_DIST ||
+         range_have > max_marker_dist_m )
+          // too close or too far to label
+          continue;
+
+      // I'm finished with the projection. I now unproject to look for
+      // occlusions
+
+      // The rendered peaks usually don't end up exactly where the POI list
+      // says they should be. I scan the range map vertically to find the true
+      // peak (or to decide that it's occluded)
+      int   fuzz_nearest = 0; // initializing to pacify compiler
+      double err_nearest = DBL_MAX;
+
+      for( int fuzz = -fuzz_pixel_y; fuzz < fuzz_pixel_y; fuzz++ )
+      {
+        if(crosshair_y + (double)fuzz < 0)
+          continue;
+        if( crosshair_y + (double)fuzz >= height_out )
+          break;
+
+        // As I move down the image the range will get closer and closer. I
+        // pick the highest value that's closest
+        const float range =
+          range_image[width*( (int)round(crosshair_y) + fuzz) +
+                      (int)round(crosshair_x)];
+
+        if(range <= 0.0f)
+          // no render data here
+          continue;
+
+        double err = fabs(range_have - range);
+        if( err < err_nearest )
+        {
+          err_nearest  = err;
+          fuzz_nearest = fuzz;
+        }
+        else
+          // it can only get worse from here, so give up
+          break;
+      }
+
+      if( err_nearest < FUZZ_RANGE )
+      {
+          visible[Nvisible].poi_index = i;
+          visible[Nvisible].x         = crosshair_x;
+          visible[Nvisible].y         = crosshair_y + (double)fuzz_nearest;
+          visible[Nvisible].range     = range_have;
+          Nvisible++;
+      }
+  }
+
+  return Nvisible;
+}
+
 bool annotate(// input
               const char* out_filename,
               // assumed to be stored densely.
@@ -154,17 +308,33 @@ bool annotate(// input
               const double lon,
               const double az_deg0,
               const double az_deg1,
-              const double ele_m)
+              const double ele_m,
+
+              const bool   curvature_enabled,
+              const double refraction_k,
+
+              // POIs farther than this are never labelled. Pass the same
+              // zfar used for the render: there's no point labelling
+              // something farther than what was actually rendered
+              const double max_marker_dist_m,
+
+              // Label text height, in real typographic points (1/72in),
+              // as it'll appear in the output PDF/SVG
+              const double label_font_size_pt)
 {
   bool result = false;
 
+  // label_font_size_pt is in real typographic points, i.e. as it appears
+  // in the final PDF/SVG page (which is CAIRO_SCALE units per image
+  // pixel). font_height is the corresponding size in the image's own
+  // pixel-like coordinate system, which is what cairo_set_font_size()
+  // wants here, since we're drawing under a cairo_scale(CAIRO_SCALE)
+  const double font_height = label_font_size_pt / CAIRO_SCALE;
+
   const int height_out = height - cut_off_bottom_px;
 
-  // For sorting, further down
-  int poi_indices[Npois];
-  int Npoi_indices = 0;
-
-  xy_t labels_xy[Npois];
+  visible_poi_t visible[Npois];
+  int Nvisible = 0;
 
   uint8_t*         image_rgb32 = NULL;
   cairo_surface_t* surface     = NULL;
@@ -273,120 +443,68 @@ bool annotate(// input
   cairo_paint(cr);
 
   cairo_set_font_size(cr, font_height - TEXT_MARGIN);
-  cairo_set_source_rgb(cr, 1.0, 1.0, 0.0);
-
 
   ////// Pick and render the annotations
-  for(int i=0; i<Npois; i++)
+  Nvisible = find_visible_pois(visible,
+                               range_image, width, height, cut_off_bottom_px,
+                               pois, Npois,
+                               lat, lon, az_deg0, az_deg1, ele_m,
+                               curvature_enabled, refraction_k,
+                               max_marker_dist_m);
+
+  // Now that I have all the crosshair positions: detect horizontal
+  // conflicts, and within each conflicting group, keep only the
+  // highest-elevation POI -- discarding the leader line and label
+  // entirely for the others in that group.
+  //
+  // In its own block: the VLA below has a size that depends on
+  // Nvisible, and the TRY() macro used earlier in this function goto's
+  // past this point to the shared `done` label -- a goto is not allowed
+  // to jump into the scope of a variably-sized array, so that scope must
+  // end (with this block) before `done`
   {
-      double crosshair_x, crosshair_y;
-      double range_have;
-      if(!horizonator_project(&crosshair_x, &crosshair_y, &range_have,
-                              lat, cos_lat,
-                              lon,
-                              ele_m,
-                              pois[i].lat,
-                              pois[i].lon,
-                              pois[i].ele_m,
-                              az_deg0 * M_PI/180.,
-                              az_deg1 * M_PI/180.,
-                              width,
-                              height))
-          continue;
+  qsort( visible, Nvisible, sizeof(visible[0]), &compar_visible_poi_x );
 
-      if(range_have < MIN_MARKER_DIST ||
-         range_have > MAX_MARKER_DIST )
-          // too close or too far to label
-          continue;
+  const double conflict_gap = font_height * LABEL_CONFLICT_GAP_FACTOR;
 
-      // crosshair_y will be checked below in the fuzz loop
+  bool keep[Nvisible ? Nvisible : 1];
 
+  int i = 0;
+  while( i < Nvisible )
+  {
+    // Chain together consecutive (in x order) POIs whose gap to their
+    // neighbor is under the threshold: [i,j] is one conflicting group
+    int j = i;
+    while( j+1 < Nvisible &&
+           visible[j+1].x - visible[j].x < conflict_gap )
+      j++;
 
-      // I'm finished with the projection. I now unproject to look for
-      // occlusions
+    int ibest = i;
+    for( int k=i+1; k<=j; k++ )
+      if( pois[ visible[k].poi_index ].ele_m > pois[ visible[ibest].poi_index ].ele_m )
+        ibest = k;
 
-      // The rendered peaks usually don't end up exactly where the POI list
-      // says they should be. I scan the range map vertically to find the true
-      // peak (or to decide that it's occluded)
-      int   fuzz_nearest = 0; // initializing to pacify compiler
-      double err_nearest = DBL_MAX;
+    for( int k=i; k<=j; k++ )
+      keep[k] = (k == ibest);
 
-      for( int fuzz = -FUZZ_PIXEL_Y; fuzz < FUZZ_PIXEL_Y; fuzz++ )
-      {
-        if(crosshair_y + (double)fuzz < 0)
-          continue;
-        if( crosshair_y + (double)fuzz >= height_out )
-          break;
-
-        // As I move down the image the range will get closer and closer. I
-        // pick the highest value that's closest
-        const float range =
-          range_image[width*( (int)round(crosshair_y) + fuzz) +
-                      (int)round(crosshair_x)];
-
-        if(range <= 0.0f)
-          // no render data here
-          continue;
-
-        double err = fabs(range_have - range);
-        if( err < err_nearest )
-        {
-          err_nearest  = err;
-          fuzz_nearest = fuzz;
-        }
-        else
-          // it can only get worse from here, so give up
-          break;
-      }
-
-      if( err_nearest < FUZZ_RANGE )
-      {
-          poi_indices[Npoi_indices++] = i;
-          labels_xy[i].x = crosshair_x;
-          labels_xy[i].y = crosshair_y + (float)fuzz_nearest;
-      }
+    i = j+1;
   }
 
-  // Now that I have all the crosshair positions, compute the label positions.
-
-  // start out by sorting the POIs by their crosshair_x
-  qsort_r( poi_indices, Npoi_indices, sizeof(poi_indices[0]),
-           &compar_poi_x, labels_xy );
-
-  // I now traverse the sorted list of POIs, keeping track of groups of POIs
-  // that overlap in the horizontal. After each overlapping group is complete,
-  // set up the labels of each group member to stagger the labels and avoid
-  // overlap
-  float overlapgroup_right = -1; // not in an overlapping group at first
-  float current_y          = 0;  // start on top
-  for( int i=0; i<Npoi_indices; i++ )
+  for( int i=0; i<Nvisible; i++ )
   {
-    const poi_t* poi      = &pois     [ poi_indices[i] ];
-    xy_t*        label_xy = &labels_xy[ poi_indices[i] ];
+    if( !keep[i] )
+      continue;
 
-    float left  = label_xy->x;
-    float right = label_xy->x + string_width(cr,poi->name);
-
-    if( left > overlapgroup_right || current_y + font_height >= height_out )
-    {
-      // not overlapping, or the label is too low. Draw label on top.
-      current_y = 0;
-      overlapgroup_right = right;
-    }
-    else
-    {
-      // I overlap the previous. Thus draw the label a bit lower
-      if( overlapgroup_right < right )
-        overlapgroup_right = right;
-    }
+    const poi_t* poi = &pois[ visible[i].poi_index ];
 
     draw_label(cr,
-               label_xy->x, label_xy->y, current_y,
+               visible[i].x, visible[i].y,
                poi->lat, poi->lon,
                poi->name);
-
-    current_y += font_height;
   }
+  }
+
+  cairo_set_source_rgb(cr, LABEL_TEXT_R, LABEL_TEXT_G, LABEL_TEXT_B);
 
   const int bearing_annotation_spacing = 15;
   for(int az=180; az>-180; az -= bearing_annotation_spacing)

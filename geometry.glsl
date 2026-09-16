@@ -5,10 +5,36 @@
 layout (triangles) in;
 layout (triangle_strip, max_vertices=3) out;
 
-in  vec3 rgb[];
-out vec3 rgb_fragment;
+// 0 at znear_color, 1 at zfar_color -- how far towards the atmospheric
+// haze color this point should be blended (see COLOR_NEAR_DEFAULT in
+// fragment.glsl for why that blend happens there, not here)
+in  float atmo_t[];
+out float atmo_t_fragment;
 in  vec2 tex[];
 out vec2 tex_fragment;
+
+// Per-vertex normal (world-space east/north/height frame), from
+// vertex.glsl. Just passed through here, per vertex, so the fragment
+// shader gets a value smoothly interpolated by the rasterizer across each
+// triangle -- and so continuous across the edge between two triangles
+// that share a vertex, unlike a flat per-triangle normal
+in  vec3 normal[];
+out vec3 normal_fragment;
+
+// Raw DEM elevation, for the procedural material classification in
+// fragment.glsl
+in  float elevation_m[];
+out float elevation_fragment;
+
+// Real land-cover class (see landcover.h), for the --materials real-data
+// path in fragment.glsl. 0 means no data: fragment.glsl falls back to the
+// procedural elevation/slope classification for that vertex. This is a
+// small integer code, not something meaningful to blend, so it's flat
+// (no interpolation across the triangle -- every fragment gets the
+// provoking vertex's class outright, unlike the smoothly-interpolated
+// normal/elevation above)
+in       float landcover_class[];
+flat out float landcover_class_fragment;
 
 void main()
 {
@@ -28,9 +54,12 @@ void main()
 
     for(int i=0; i<3; i++)
     {
-        rgb_fragment = rgb[i];
-        tex_fragment = tex[i];
-        gl_Position  = gl_in[i].gl_Position;
+        atmo_t_fragment    = atmo_t[i];
+        tex_fragment       = tex[i];
+        normal_fragment    = normal[i];
+        elevation_fragment = elevation_m[i];
+        landcover_class_fragment = landcover_class[i];
+        gl_Position        = gl_in[i].gl_Position;
         EmitVertex();
     }
     EndPrimitive();
