@@ -290,7 +290,14 @@ int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
             cell_ij[i] = ctx->cells_per_deg;
         }
 
-        if( dem_ij[i] >= ctx->Ndems_ij[i] ) return -1;
+        // dem_ij[i] can go negative right here: if cell_ij[i] was exactly 0
+        // -- i.e. this is the very first row/column of the whole loaded
+        // grid, not just of one DEM tile -- the "borrow the overlap row
+        // from the previous DEM" adjustment two lines above decrements it
+        // from 0 to -1, but there IS no previous DEM to borrow from at the
+        // grid's own origin. Un-checked, indexing ctx->dems[][] with that
+        // -1 read out of bounds (undefined behavior; readily a segfault)
+        if( dem_ij[i] < 0 || dem_ij[i] >= ctx->Ndems_ij[i] ) return -1;
     }
 
     const unsigned char* dem = ctx->dems[dem_ij[0]][dem_ij[1]];

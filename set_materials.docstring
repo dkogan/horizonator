@@ -1,0 +1,21 @@
+Enables/disables land-cover material tinting
+
+SYNOPSIS
+
+    h.set_materials(True)
+
+DESCRIPTION
+
+Mirrors horizonator_set_materials() in horizonator.h. When
+materials_enabled is False (the default), rendering is untinted by land
+cover. When True: real land cover, where pre-baked tiles are available
+(see landcover.h and build-landcover-tiles.py), falling back to a
+procedural elevation/slope classification elsewhere.
+
+ARGUMENTS
+
+- materials_enabled: boolean
+
+RETURNED VALUES
+
+None. Raises an exception on failure.

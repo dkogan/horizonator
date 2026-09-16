@@ -1,0 +1,23 @@
+Enables/disables the Earth-curvature-and-refraction correction
+
+SYNOPSIS
+
+    h.set_curvature(True, refraction_k = 0.13)
+
+DESCRIPTION
+
+Mirrors horizonator_set_curvature() in horizonator.h. When
+curvature_enabled is False (the default), rendering uses the original
+flat tangent-plane approximation, unchanged. refraction_k is the
+atmospheric refraction coefficient (0.13 is a commonly-used value; see
+udeuschle.de); ignored when curvature_enabled is False.
+
+ARGUMENTS
+
+- curvature_enabled: boolean
+
+- refraction_k: optional float, defaulting to 0.13
+
+RETURNED VALUES
+
+None. Raises an exception on failure.

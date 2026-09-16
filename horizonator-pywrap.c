@@ -57,25 +57,30 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     int render_texture    = false;
     int SRTM1             = false;
     int allow_downloads   = true;
-    const char* dir_dems  = NULL;
-    const char* dir_tiles = NULL;
-    const char* tiles_name = NULL;
+    const char* dir_dems      = NULL;
+    const char* dir_landcover = NULL;
+    const char* dir_tiles     = NULL;
+    const char* tiles_name    = NULL;
     const char* tiles_url_fmt = NULL;
 
     const int render_radius_cells_default = 1000;
     int render_radius_cells = -1;
     double render_radius_m  = -1.;
+    int restrict_mesh_azimuth = false;
+    double mesh_az_deg0 = 0., mesh_az_deg1 = 0.;
 
     char* keywords[] = {
         "lat", "lon",
         "width", "height",
         "render_texture",
         "SRTM1",
-        "dir_dems", "dir_tiles",
+        "dir_dems", "dir_landcover", "dir_tiles",
         "tiles_name", "tiles_url_fmt",
         "allow_downloads",
         "render_radius_cells",
         "render_radius_m",
+        "restrict_mesh_azimuth",
+        "mesh_az_deg0", "mesh_az_deg1",
         NULL};
 
     if(self->ctx.offscreen.inited)
@@ -85,14 +90,16 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     }
 
     if( !PyArg_ParseTupleAndKeywords(args, kwargs,
-                                     "ddII|ppsssspid", keywords,
+                                     "ddII|ppssssspidpdd", keywords,
                                      &lat, &lon, &width, &height,
                                      &render_texture, &SRTM1,
-                                     &dir_dems, &dir_tiles,
+                                     &dir_dems, &dir_landcover, &dir_tiles,
                                      &tiles_name, &tiles_url_fmt,
                                      &allow_downloads,
                                      &render_radius_cells,
-                                     &render_radius_m))
+                                     &render_radius_m,
+                                     &restrict_mesh_azimuth,
+                                     &mesh_az_deg0, &mesh_az_deg1))
         goto done;
 
     if(render_radius_cells<0 && render_radius_m<0)
@@ -102,16 +109,25 @@ py_horizonator_init(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
         BARF("both render_radius_cells,render_radius_m cannot be >0");
         goto done;
     }
-    
+
 
     if(! horizonator_init( &self->ctx,
                            lat, lon,
                            NULL,
                            width, height,
                            render_radius_cells, render_radius_m,
+                           // By default: no mesh azimuth restriction, so
+                           // render() may use any azimuth. Pass
+                           // restrict_mesh_azimuth=True (with
+                           // mesh_az_deg0/1) for a memory-bounded mesh
+                           // instead -- e.g. when panorama_tiles() (see
+                           // rebuild_mesh() below) will be used, where the
+                           // caller commits to a fixed sequence of wedges
+                           // up front
+                           restrict_mesh_azimuth, mesh_az_deg0, mesh_az_deg1,
                            true,
                            render_texture, SRTM1,
-                           dir_dems, dir_tiles,
+                           dir_dems, dir_landcover, dir_tiles,
                            tiles_name,
                            tiles_url_fmt,
                            allow_downloads ) )
@@ -278,16 +294,142 @@ render(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
     return result;
 }
 
+static PyObject*
+set_curvature(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
+{
+    PyObject* result = NULL;
+
+    int curvature_enabled;
+    double refraction_k = 0.13;
+
+    char* keywords[] = {"curvature_enabled", "refraction_k", NULL};
+
+    if( !PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "p|d", keywords,
+                                     &curvature_enabled, &refraction_k))
+        goto done;
+
+    if( !horizonator_set_curvature(&self->ctx, curvature_enabled, refraction_k))
+    {
+        BARF("horizonator_set_curvature() failed");
+        goto done;
+    }
+
+    Py_INCREF(Py_None);
+    result = Py_None;
+
+ done:
+    return result;
+}
+
+static PyObject*
+set_sun(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
+{
+    PyObject* result = NULL;
+
+    int shading_enabled;
+    double sun_az_deg = 135.0, sun_el_deg = 45.0;
+
+    char* keywords[] = {"shading_enabled", "sun_az_deg", "sun_el_deg", NULL};
+
+    if( !PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "p|dd", keywords,
+                                     &shading_enabled, &sun_az_deg, &sun_el_deg))
+        goto done;
+
+    if( !horizonator_set_sun(&self->ctx, shading_enabled, sun_az_deg, sun_el_deg))
+    {
+        BARF("horizonator_set_sun() failed");
+        goto done;
+    }
+
+    Py_INCREF(Py_None);
+    result = Py_None;
+
+ done:
+    return result;
+}
+
+static PyObject*
+set_materials(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
+{
+    PyObject* result = NULL;
+
+    int materials_enabled;
+
+    char* keywords[] = {"materials_enabled", NULL};
+
+    if( !PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "p", keywords,
+                                     &materials_enabled))
+        goto done;
+
+    if( !horizonator_set_materials(&self->ctx, materials_enabled))
+    {
+        BARF("horizonator_set_materials() failed");
+        goto done;
+    }
+
+    Py_INCREF(Py_None);
+    result = Py_None;
+
+ done:
+    return result;
+}
+
+static PyObject*
+rebuild_mesh(py_horizonator_t* self, PyObject* args, PyObject* kwargs)
+{
+    PyObject* result = NULL;
+
+    double mesh_az_deg0, mesh_az_deg1;
+
+    char* keywords[] = {"mesh_az_deg0", "mesh_az_deg1", NULL};
+
+    if( !PyArg_ParseTupleAndKeywords(args, kwargs,
+                                     "dd", keywords,
+                                     &mesh_az_deg0, &mesh_az_deg1))
+        goto done;
+
+    if( !horizonator_rebuild_mesh(&self->ctx, true, mesh_az_deg0, mesh_az_deg1))
+    {
+        BARF("horizonator_rebuild_mesh() failed");
+        goto done;
+    }
+
+    Py_INCREF(Py_None);
+    result = Py_None;
+
+ done:
+    return result;
+}
+
 static const char py_horizonator_docstring[] =
 #include "horizonator.docstring.h"
     ;
 static const char render_docstring[] =
 #include "render.docstring.h"
     ;
+static const char rebuild_mesh_docstring[] =
+#include "rebuild_mesh.docstring.h"
+    ;
+static const char set_curvature_docstring[] =
+#include "set_curvature.docstring.h"
+    ;
+static const char set_sun_docstring[] =
+#include "set_sun.docstring.h"
+    ;
+static const char set_materials_docstring[] =
+#include "set_materials.docstring.h"
+    ;
 
 static PyMethodDef py_horizonator_methods[] =
     {
-        PYMETHODDEF_ENTRY(, render, METH_VARARGS | METH_KEYWORDS),
+        PYMETHODDEF_ENTRY(, render,        METH_VARARGS | METH_KEYWORDS),
+        PYMETHODDEF_ENTRY(, rebuild_mesh,  METH_VARARGS | METH_KEYWORDS),
+        PYMETHODDEF_ENTRY(, set_curvature, METH_VARARGS | METH_KEYWORDS),
+        PYMETHODDEF_ENTRY(, set_sun,       METH_VARARGS | METH_KEYWORDS),
+        PYMETHODDEF_ENTRY(, set_materials, METH_VARARGS | METH_KEYWORDS),
         {}
     };
 

@@ -3,6 +3,18 @@
 #version 420
 
 layout (location = 0) in vec3 vertex;
+// Per-vertex normal (world-space east/north/height frame), estimated on
+// the CPU by finite differences over the DEM (see horizonator-lib.c). Used
+// for smooth slope shading: interpolated by the rasterizer across each
+// triangle, so shading is continuous across triangle edges
+layout (location = 1) in vec3 normal_attr;
+
+// Per-vertex land-cover class (see landcover.h), sampled on the CPU from
+// pre-baked tiles (horizonator-lib.c). 0 means no real data here -- the
+// fragment shader falls back to the procedural elevation/slope
+// classification for those points. A small integer code, packed as a
+// GL_UNSIGNED_BYTE attribute; comes through here as a float in [0,255]
+layout (location = 2) in float landcover_class_attr;
 
 // We receive these from the CPU code
 uniform float viewer_cell_i, viewer_cell_j;
@@ -23,9 +35,33 @@ uniform int osmtile_lowestX, osmtile_lowestY;
 uniform float znear, zfar;
 uniform float znear_color, zfar_color;
 
+// Earth-curvature-and-refraction correction. curvature_scale is 0.0
+// (disabled: legacy flat tangent-plane rendering) or 1.0 (enabled).
+// refraction_k is the atmospheric refraction coefficient (ignored if
+// curvature_scale == 0)
+uniform float curvature_scale;
+uniform float refraction_k;
+
 // We send these to the fragment shader
-out vec3 rgb;
+//
+// atmo_t is 0 at znear_color and 1 at zfar_color: how far towards the
+// atmospheric haze color this point should be blended, in fragment.glsl
+// (which also knows about material colors, and needs this to decide the
+// near/far blend from a common starting point -- see COLOR_NEAR_DEFAULT
+// there)
+out float atmo_t;
 out vec2 tex;
+
+// Passed through to the geometry/fragment shaders for smooth slope shading
+out vec3 normal;
+
+// Passed through to the geometry/fragment shaders for --materials
+out float landcover_class;
+
+// Raw DEM elevation (meters above sea level, NOT relative to the viewer),
+// for the procedural material classification (snow line etc.) in
+// fragment.glsl
+out float elevation_m;
 
 const float Rearth = 6371000.0;
 const float pi     = 3.14159265358979;
@@ -128,9 +164,26 @@ void main(void)
         vec2 en =
             vec2( (i - viewer_cell_i) * DEG_PER_CELL * Rearth * pi/180. * cos_viewer_lat,
                   (j - viewer_cell_j) * DEG_PER_CELL * Rearth * pi/180. );
-        vec3 enh = vec3( en.x, en.y, vertex.z - viewer_z );
 
         distance_ne = length(en);
+
+        // A target at horizontal distance distance_ne appears lower than
+        // this flat-plane geometry predicts, because it sits behind the
+        // curve of the Earth; atmospheric refraction partially
+        // compensates by bending the light ray back down. The standard
+        // approximation for this net apparent drop is
+        //   drop = (1-k) * d^2 / (2*Rearth)
+        // (k=0.13 is a commonly-used refraction coefficient; see
+        // udeuschle.de). curvature_scale==0 makes this vanish, giving
+        // back the original flat-plane behavior
+        float drop = curvature_scale * (1.0 - refraction_k) *
+                     distance_ne*distance_ne / (2.0*Rearth);
+
+        vec3 enh = vec3( en.x, en.y, vertex.z - viewer_z - drop );
+        normal = normal_attr;
+        elevation_m = vertex.z;
+        landcover_class = landcover_class_attr;
+
         float az_rad = atan(en.x, en.y);
 
         // az = 0:     North
@@ -156,8 +209,6 @@ void main(void)
                             1.0 );
     }
 
-    rgb.r = max(min((distance_ne - znear_color) / (zfar_color - znear_color),
-                    1.0), 0.0);
-    rgb.g = 0.;
-    rgb.b = 0.;
+    atmo_t = clamp((distance_ne - znear_color) / (zfar_color - znear_color),
+                   0.0, 1.0);
 }

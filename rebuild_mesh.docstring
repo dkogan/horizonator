@@ -1,0 +1,47 @@
+Rebuilds the terrain mesh, restricted to a new azimuth wedge
+
+SYNOPSIS
+
+    import horizonator
+
+    h = horizonator.horizonator(45.77294, 4.82993, 400, 200,
+                                restrict_mesh_azimuth = True,
+                                mesh_az_deg0 = -15, mesh_az_deg1 = 15)
+
+    for az0 in range(-180, 180, 30):
+        h.rebuild_mesh(az0, az0+30)
+        image, ranges = h.render(az0, az0+30)
+        ...
+
+DESCRIPTION
+
+Lets a caller render a wide panorama as a sequence of narrow tiles, each
+with a memory-bounded mesh, all on the SAME already-inited context: this
+function replaces the mesh built by the constructor (or by a previous
+call to this function) with one restricted to [mesh_az_deg0,mesh_az_deg1]
+instead, WITHOUT recreating the underlying GL context.
+
+This distinction matters: repeatedly constructing a new horizonator
+object (one context per tile) leaks memory inside the Mesa/llvmpipe
+software-rendering driver itself -- confirmed empirically, and outside
+this project's code to fix. Building one object and calling
+rebuild_mesh() between tiles avoids that leak entirely (verified flat
+memory across many tiles in a row).
+
+The constructor's own restrict_mesh_azimuth/mesh_az_deg0/mesh_az_deg1
+arguments only set the INITIAL wedge (or, if restrict_mesh_azimuth is
+left at its default of False, mesh the whole loaded circle instead, with
+no bound on the mesh's memory footprint -- fine for a single moderate
+render, risky for a wide panorama at high resolution, e.g. with
+SRTM1=True). Call this function to change the wedge afterwards.
+
+ARGUMENTS
+
+- mesh_az_deg0, mesh_az_deg1: the new azimuth wedge to mesh, in degrees.
+  Should comfortably cover the az_deg0,az_deg1 that the following
+  render(...) call(s) will use -- a small margin is added internally, but
+  looking far outside [mesh_az_deg0,mesh_az_deg1] will leave gaps
+
+RETURNED VALUES
+
+None. Raises an exception on failure.

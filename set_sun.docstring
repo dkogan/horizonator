@@ -1,0 +1,26 @@
+Enables/disables directional slope shading
+
+SYNOPSIS
+
+    h.set_sun(True, sun_az_deg = 135, sun_el_deg = 45)
+
+DESCRIPTION
+
+Mirrors horizonator_set_sun() in horizonator.h. When shading_enabled is
+False (the default), rendering is unchanged (the plain distance-based
+grayscale/materials coloring, with no directional lighting). sun_az_deg
+(0=North, 90=East) and sun_el_deg (0=horizon, 90=straight up) give the
+direction TOWARDS the sun; both are ignored when shading_enabled is
+False.
+
+ARGUMENTS
+
+- shading_enabled: boolean
+
+- sun_az_deg: optional float, defaulting to 135 (southeast)
+
+- sun_el_deg: optional float, defaulting to 45
+
+RETURNED VALUES
+
+None. Raises an exception on failure.
