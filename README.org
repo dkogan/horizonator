@@ -127,9 +127,45 @@ bounds, run the =./standalone= tool. Example:
 [[file:example-standalone.png]]
 
 This can either run a static GLUT application, or it can render to a =.png=
-image on disk and/or a binary range image. Run with =--help= for details. Note
-that the azimuth extents are currently specified differently than they are in
-the interactive tool.
+image on disk (or a =.pdf=/=.svg= image annotated with named peaks; see
+below) and/or a binary range image. Note that the azimuth extents are
+currently specified differently than they are in the interactive tool.
+
+*** Options
+Run =./standalone --help= for the full, up-to-date list of options and a
+detailed explanation of how each one affects the render. The most important
+ones, grouped by what they do:
+
+- *Field of view*: =--znear=/=--zfar= bound the rendered distance, in
+  meters; raising =--znear= is a good way to skip an uninteresting nearby
+  plain. The vertical field of view isn't set directly: it falls out of
+  =--width=, =--height= and =AZ_RADIUS_DEG=, since the same angular
+  resolution is used in both directions. A real mountain panorama usually
+  only occupies a few degrees of elevation, so an explicit, small
+  =--height= (rather than the default, which assumes a much wider vertical
+  span) both crops away the resulting excess sky and increases the
+  effective resolution of the relief that matters -- the single biggest
+  lever for a sharp-looking render.
+- *Earth curvature and atmospheric refraction*: =--curvature= corrects the
+  apparent elevation of distant terrain for the curvature of the Earth,
+  partly compensated by atmospheric refraction (=--refraction-k=, default
+  0.13). Off by default (flat tangent-plane rendering); matters at 100+km.
+- *Color and ridge outlines*: by default the render is color-coded by
+  range (dark gray near, fading to light gray/white far away), with the
+  crest of each visible ridge/mountain-range layer outlined, the way
+  classic drawn panoramas (e.g. [[https://www.udeuschle.de/panoramas/makepanoramas_en.htm][udeuschle.de]]) do it. See
+  =--no-ridge-lines=, =--ridge-line-threshold= and =--ridge-line-gray= to
+  disable or tune this.
+- *Peak labels*: with a =.pdf=/=.svg= output filename, named peaks are
+  labelled on the render (see [[https://github.com/dkogan/horizonator/blob/master/query-peaks-from-osm.py][query-peaks-from-osm.py]] to generate the list
+  for your own area, and edit the =#include= near the bottom of
+  [[https://github.com/dkogan/horizonator/blob/master/standalone.c][standalone.c]] to point at it).
+- *Viewer position*: =--viewer-height= adds a number of meters to the
+  viewer elevation sampled from the DEM (e.g. the height of an apartment
+  floor above street level).
+- *Performance*: by default the mesh only covers the azimuth wedge that's
+  actually being rendered, not the full circle of loaded DEM data; see
+  =--no-restrict-mesh-azimuth= and the DEM resolution section below.
 
 ** C API
 The tool can be invoked from C. The [[https://github.com/dkogan/horizonator/blob/master/horizonator.h][header comments]] and its usages in the
@@ -155,10 +191,13 @@ things works well.
 
 The view straight ahead (elevation = 0) is at the center of the render.
 
-This tool operates in the tangent plane to the viewer, so it assumes that
-locally, the Earth is flat. This produces small inaccuracies, but unless we care
-about small pixel-level errors, this is a good approximation. I will eventually
-fix this.
+By default this tool operates in the tangent plane to the viewer, so it
+assumes that locally, the Earth is flat. This is a good approximation at
+short range, but at 100+km (e.g. distant high peaks) the apparent elevation
+angle can be off by upwards of a kilometer of apparent height. Pass
+=--curvature= (on the =standalone= tool; =horizonator_set_curvature()= in
+the C/Python APIs) to correct for Earth curvature and atmospheric
+refraction instead.
 
 * DEM resolution
 By default, 3" DEMs are used. These are the low-res SRTM data, which is
@@ -172,18 +211,30 @@ objects. Until that is implemented, the 9x increase in triangles present in the
 SRTM1 data could become a problem. Support for 1" data /is/ in place, and can be
 selected with the =SRTM1= option in all the APIs and commandline tools.
 
+The =standalone= tool mitigates this somewhat: since each invocation renders a
+single, fixed azimuth wedge, it only meshes that wedge (plus a small margin)
+instead of the full circle of loaded DEM data, cutting the triangle count
+without changing the output (see =--no-restrict-mesh-azimuth= to disable
+this). This doesn't help the interactive =horizonator= tool, which allows
+panning to any azimuth after the data is loaded, and so still meshes the
+full circle.
+
 * Nice-to-have improvements
 In no particular order:
 
 - Texturing with aerial imagery
 - Being more efficient about data loading: the DEM and texture resolution needs
-  to be high close-in, but can be dramatically lower further out.
+  to be high close-in, but can be dramatically lower further out. The
+  =standalone= tool only meshes the azimuth wedge it renders (see DEM
+  resolution above), but a true level-of-detail scheme (full resolution
+  close in, coarser far away) isn't implemented yet
 - Higher-res DEMs are available (1sec SRTM instead of 3sec). It would be nice to
   use them, /if/ we can do so efficiently
 - Nicer handling of the mesh immediately near the viewer.
 - Intelligently loading faraway data. Currently we load data a constant number
   of cells away from the viewer
-- Peak-labelling the render
+- Peak-labelling the render: done for the =standalone= tool's =.pdf=/=.svg=
+  output (see [[https://github.com/dkogan/horizonator/blob/master/query-peaks-from-osm.py][query-peaks-from-osm.py]]); not yet wired into the interactive tool
 - More UI stuff
   - text showing the current lat, lon, az bounds
   - text inputs to change the current lat, lon, az bounds
