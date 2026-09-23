@@ -5,7 +5,7 @@
 
 // at most I allow a grid of this many DEMs. I can malloc the exact number, but
 // this is easier
-#define max_Ndems_ij 4
+#define max_Ndems_ij 6
 
 typedef struct
 {

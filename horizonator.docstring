@@ -54,6 +54,12 @@ The __init__() function takes
 - dir_dems: optional string, defaulting to "~/.horizonator/DEMs_SRTM3". The path
   to the .hgt files containing the SRTM DEMs
 
+- dir_landcover: optional string, defaulting to "~/.horizonator/landcover".
+  The path to the pre-baked land-cover tiles used by the renderer's
+  procedural-materials fallback (see landcover.h and
+  build-landcover-tiles.py); not otherwise exposed through this Python
+  binding
+
 - dir_tiles: optional string, defaulting to "~/.horizonator/tiles". Ths
   OpenStreetMap tiles are downloaded and stored here.
 
@@ -68,3 +74,16 @@ The __init__() function takes
 - render_radius_m: optional float, with some reasonable default. Specifies the
   size of the DEM to load. Exclusive with render_radius_cells. The radius can be
   given in cells of meters, but not both
+
+- restrict_mesh_azimuth: optional boolean, defaulting to False. If False:
+  the mesh covers the whole loaded circle of DEM data, and render(...) may
+  look in any direction -- simplest, but with no bound on the mesh's
+  memory footprint. If True: the mesh only covers the
+  [mesh_az_deg0,mesh_az_deg1] wedge (plus a small margin), dramatically
+  cutting memory use for a narrow render, at the cost of no longer being
+  able to render(...) outside that wedge without gaps -- see
+  rebuild_mesh() to change the wedge later, e.g. to render a wide
+  panorama as a sequence of narrow, memory-bounded tiles
+
+- mesh_az_deg0, mesh_az_deg1: the initial azimuth wedge to mesh, in
+  degrees. Ignored unless restrict_mesh_azimuth

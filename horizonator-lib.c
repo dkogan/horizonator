@@ -18,6 +18,7 @@
 #include "horizonator.h"
 #include "bench.h"
 #include "dem.h"
+#include "landcover.h"
 #include "util.h"
 
 
@@ -29,6 +30,16 @@
 #define OSM_TILE_TEXTURE_NAME_DEFAULT    "mapnik"
 #define OSM_TILE_TEXTURE_URL_FMT_DEFAULT "https://tile.openstreetmap.org/%d/%d/%d.png"
 
+// Used by restrict_mesh_azimuth (see horizonator_init()). Cells beyond this
+// azimuth margin outside [mesh_az_deg0,mesh_az_deg1] are skipped when
+// building the mesh
+#define MESH_AZIMUTH_MARGIN_DEG   5.0f
+// Cells within this many DEM cells of the viewer are always meshed,
+// regardless of azimuth: right next to the viewer, azimuth changes very
+// quickly from one cell to the next, so an azimuth-only test is unreliable
+// there. This inner disk is cheap to mesh in full regardless
+#define MESH_INNER_RADIUS_CELLS   100
+
 #define assert_opengl()                                 \
     do {                                                \
         int error = glGetError();                       \
@@ -39,6 +50,419 @@
         }                                               \
     } while(0)
 
+
+// Builds (or rebuilds) the terrain mesh -- the VAO plus the position/
+// normal/landcover-class VBOs and the triangle-index EBO -- from ctx's
+// already-loaded DEM/landcover data. Called once by horizonator_init()
+// itself for the initial mesh, but also directly callable afterwards, on
+// that same already-inited context, to change the meshed azimuth wedge
+// (e.g. to render a wide panorama as a sequence of narrow tiles: call this
+// again with a new [mesh_az_deg0,mesh_az_deg1] between tiles, instead of
+// tearing down and recreating the whole context).
+//
+// This split exists because of a real memory leak, confirmed empirically,
+// that has nothing to do with these GL objects: repeatedly calling
+// horizonator_init()/horizonator_deinit() in one process (to build each
+// tile in a fresh context) grows RSS by ~30-40MB per cycle even with every
+// GL object here properly glDelete*'d -- the growth is inside Mesa's
+// llvmpipe software-rendering shader compiler (libLLVM/libgallium), which
+// this project's code has no way to reach into and free. Reusing one
+// context across many calls to this function instead measured perfectly
+// flat memory. See horizonator_deinit() for the (real, and fixed) leak
+// that WAS in this project's own code: the VAO/VBO/EBO handles used to be
+// local variables, discarded as soon as horizonator_init() returned, with
+// no way for horizonator_deinit() to ever free them
+bool horizonator_rebuild_mesh(horizonator_context_t* ctx,
+                              bool restrict_mesh_azimuth,
+                              float mesh_az_deg0, float mesh_az_deg1)
+{
+    bool result = false;
+    uint8_t*  cell_in_view = NULL;
+    uint64_t* needed       = NULL;
+    uint32_t* word_start   = NULL;
+
+    // A previous mesh exists (either from an earlier call to this
+    // function, or from horizonator_init()'s own first build) if
+    // vertex_array_id is nonzero: free it before building the new one.
+    // ctx is zero-initialized by horizonator_init(), so this is
+    // automatically skipped on the very first call
+    if(ctx->vertex_array_id != 0)
+    {
+        glDeleteVertexArrays(1, &ctx->vertex_array_id);
+        glDeleteBuffers(1, &ctx->vertex_buf_id);
+        glDeleteBuffers(1, &ctx->normal_buf_id);
+        glDeleteBuffers(1, &ctx->landcover_buf_id);
+        glDeleteBuffers(1, &ctx->index_buf_id);
+    }
+
+    const int   render_radius_cells = ctx->dems.radius_cells;
+    const float viewer_lat          = ctx->viewer_lat;
+    const float viewer_lon          = ctx->viewer_lon;
+
+    // Optional azimuth restriction: precompute, for each DEM cell, whether
+    // it lies within [mesh_az_deg0,mesh_az_deg1] (plus a margin), or close
+    // enough to the viewer to always be included. NULL means "no
+    // restriction: mesh the whole loaded circle", to keep the existing
+    // behavior for callers that don't ask for this (e.g. the interactive
+    // tool, which lets the user pan beyond the initial view)
+    if(restrict_mesh_azimuth)
+    {
+        cell_in_view = malloc((size_t)(2*render_radius_cells) * (size_t)(2*render_radius_cells));
+        if(cell_in_view == NULL)
+        {
+            MSG("malloc(cell_in_view) failed");
+            goto done;
+        }
+
+        // Same formula as horizonator_move() uses to place the viewer
+        // within the loaded cell grid
+        const float viewer_cell_i =
+            (viewer_lon - ctx->dems.origin_dem_lon_lat[0]) * ctx->dems.cells_per_deg -
+            ctx->dems.origin_dem_cellij[0];
+        const float viewer_cell_j =
+            (viewer_lat - ctx->dems.origin_dem_lon_lat[1]) * ctx->dems.cells_per_deg -
+            ctx->dems.origin_dem_cellij[1];
+        const float cos_viewer_lat_local = cosf(viewer_lat * (float)M_PI/180.0f);
+
+        const float az_center = (mesh_az_deg0 + mesh_az_deg1)/2.0f;
+        const float az_lo     = mesh_az_deg0 - MESH_AZIMUTH_MARGIN_DEG;
+        const float az_hi     = mesh_az_deg1 + MESH_AZIMUTH_MARGIN_DEG;
+
+        const int W = 2*render_radius_cells;
+        for(int j=0; j<W; j++)
+            for(int i=0; i<W; i++)
+            {
+                const float di = (float)i - viewer_cell_i;
+                const float dj = (float)j - viewer_cell_j;
+
+                bool in_view;
+                if(fabsf(di) <= MESH_INNER_RADIUS_CELLS && fabsf(dj) <= MESH_INNER_RADIUS_CELLS)
+                    in_view = true;
+                else
+                {
+                    // Same azimuth definition as vertex.glsl: 0 = North, 90 = East
+                    float az_deg = atan2f(di*cos_viewer_lat_local, dj) * 180.0f/(float)M_PI;
+
+                    // Unwrap az_deg to within 180 of az_center, to handle
+                    // the +-180 wraparound correctly regardless of where
+                    // az_center falls
+                    float d = az_deg - az_center;
+                    d -= 360.0f * roundf(d/360.0f);
+                    az_deg = az_center + d;
+
+                    in_view = (az_deg >= az_lo && az_deg <= az_hi);
+                }
+
+                cell_in_view[j*W + i] = in_view ? 1 : 0;
+            }
+    }
+
+    // Which quads get meshed, and therefore which vertices are needed at all.
+    // A quad is kept unless cell_in_view says none of its 4 corners are in
+    // view (see the index loop below, which must use the same test). Only the
+    // vertices of kept quads are emitted: with an azimuth restriction that is
+    // a thin wedge of the loaded disk, so the buffers are sized for the wedge
+    // rather than for the whole circle (which at SRTM1 resolution and a long
+    // --zfar is several GB). Vertex order stays row-major over the DEM grid,
+    // so a vertex's buffer index is the number of needed cells before it:
+    // a bitmap plus per-word prefix counts gives that in O(1) without an
+    // array of ints per cell
+    const int W = 2*render_radius_cells;
+    const size_t Ncells  = (size_t)W * (size_t)W;
+    const size_t Nwords  = (Ncells + 63) / 64;
+    needed     = calloc(Nwords, sizeof(uint64_t));
+    word_start = malloc(Nwords * sizeof(uint32_t));
+    if(needed == NULL || word_start == NULL)
+    {
+        MSG("malloc(needed vertices bitmap) failed");
+        goto done;
+    }
+
+#define QUAD_KEPT(i,j)                                                  \
+    (cell_in_view == NULL ||                                            \
+     cell_in_view[((j)+0)*W + ((i)+0)] ||                               \
+     cell_in_view[((j)+1)*W + ((i)+1)] ||                               \
+     cell_in_view[((j)+1)*W + ((i)+0)] ||                               \
+     cell_in_view[((j)+0)*W + ((i)+1)])
+
+    size_t Nquads = 0;
+    for( int j=0; j<W-1; j++ )
+        for( int i=0; i<W-1; i++ )
+            if(QUAD_KEPT(i,j))
+            {
+                Nquads++;
+                const size_t c00 = (size_t)j*W + i;
+                const size_t c10 = c00 + W;
+                needed[ c00   /64] |= (uint64_t)1 << ( c00   %64);
+                needed[(c00+1)/64] |= (uint64_t)1 << ((c00+1)%64);
+                needed[ c10   /64] |= (uint64_t)1 << ( c10   %64);
+                needed[(c10+1)/64] |= (uint64_t)1 << ((c10+1)%64);
+            }
+
+    size_t Nvertices_sz = 0;
+    for(size_t w=0; w<Nwords; w++)
+    {
+        word_start[w] = (uint32_t)Nvertices_sz;
+        Nvertices_sz += (size_t)__builtin_popcountll(needed[w]);
+    }
+    if(Nvertices_sz >= (size_t)INT32_MAX/3 || Nquads*6 >= (size_t)INT32_MAX)
+    {
+        MSG("The mesh is too big to index (%zu vertices / %zu triangles). Try a smaller --zfar",
+            Nvertices_sz, 2*Nquads);
+        goto done;
+    }
+    const int Nvertices = (int)Nvertices_sz;
+    ctx->Ntriangles     = (int)(2*Nquads);
+
+#define VERTEX_NEEDED(c) (((needed[(c)/64] >> ((c)%64)) & 1) != 0)
+#define VERTEX_INDEX(c)  ((size_t)word_start[(c)/64] + \
+    (size_t)__builtin_popcountll(needed[(c)/64] & (((uint64_t)1 << ((c)%64)) - 1)))
+
+    // vertices
+    //
+    // I fill in the VBO. Each point is a 16-bit integer tuple
+    // (ilon,ilat,height). The first 2 args are indices into the virtual DEM
+    // (accessed with horizonator_dem_sample). The height is in meters
+    {
+        GLuint vertexArrayID;
+        glGenVertexArrays(1, &vertexArrayID);
+        glBindVertexArray(vertexArrayID);
+        ctx->vertex_array_id = vertexArrayID;
+
+        GLuint vertexBufID;
+        glGenBuffers(1, &vertexBufID);
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBufID);
+        ctx->vertex_buf_id = vertexBufID;
+
+        glEnableVertexAttribArray(0);
+
+#define VBO_USES_INTEGERS 1
+
+#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
+        // 16-bit integers. Only one of the paths below work with these
+        glBufferData(GL_ARRAY_BUFFER, (Nvertices+1)*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_SHORT, GL_FALSE, 0, NULL);
+        GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+#else
+        // 32-bit floats. These take more space, but work with all the paths below
+        glBufferData(GL_ARRAY_BUFFER, (Nvertices+1)*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+        GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+#endif
+
+        if(vertices == NULL)
+        {
+            MSG("glMapBuffer() failed: not enough memory for a mesh of %d vertices / %d triangles (try a smaller --zfar, or coarser DEMs)",
+                Nvertices, ctx->Ntriangles);
+            goto done;
+        }
+
+        // Per-vertex normal, for smooth (Gouraud-style) slope shading: the
+        // rasterizer interpolates this across each triangle, so shading is
+        // continuous across triangle edges (no visible facets), unlike a
+        // flat per-triangle normal. Estimated by finite differences on the
+        // 4 DEM neighbors -- needs real (not integer-quantized) precision,
+        // so this is its own float VBO rather than packed into the
+        // position one above
+        GLuint normalBufID;
+        glGenBuffers(1, &normalBufID);
+        glBindBuffer(GL_ARRAY_BUFFER, normalBufID);
+        ctx->normal_buf_id = normalBufID;
+        glEnableVertexAttribArray(1);
+        glBufferData(GL_ARRAY_BUFFER, (Nvertices+1)*3*sizeof(GLfloat), NULL, GL_STATIC_DRAW);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+        GLfloat* normals = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+
+        if(normals == NULL)
+        {
+            MSG("glMapBuffer() failed: not enough memory for a mesh of %d vertices / %d triangles (try a smaller --zfar, or coarser DEMs)",
+                Nvertices, ctx->Ntriangles);
+            goto done;
+        }
+
+        // Per-vertex land-cover class (see landcover.h), for the
+        // --materials real-data path. One byte/vertex: this is a small
+        // integer code, not something that benefits from float precision
+        GLuint landcoverBufID;
+        glGenBuffers(1, &landcoverBufID);
+        glBindBuffer(GL_ARRAY_BUFFER, landcoverBufID);
+        ctx->landcover_buf_id = landcoverBufID;
+        glEnableVertexAttribArray(2);
+        glBufferData(GL_ARRAY_BUFFER, (Nvertices+1)*sizeof(GLubyte), NULL, GL_STATIC_DRAW);
+        glVertexAttribPointer(2, 1, GL_UNSIGNED_BYTE, GL_FALSE, 0, NULL);
+        GLubyte* landcover_classes = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+
+        if(landcover_classes == NULL)
+        {
+            MSG("glMapBuffer() failed: not enough memory for a mesh of %d vertices / %d triangles (try a smaller --zfar, or coarser DEMs)",
+                Nvertices, ctx->Ntriangles);
+            goto done;
+        }
+
+        // meters/cell, East-West and North-South. Same formula as the
+        // (disabled) CPU-side paths below, factored out since the normal
+        // computation needs it on every vertex
+        const float Rearth          = 6371000.0f;
+        const float cos_viewer_lat_here = cosf( M_PI / 180.0f * viewer_lat );
+        const float cellsize_ns     = Rearth * (float)(M_PI/180.0) / (float)ctx->dems.cells_per_deg;
+        const float cellsize_ew     = cellsize_ns * cos_viewer_lat_here;
+
+        int vertex_buf_idx    = 0;
+        int normal_buf_idx    = 0;
+        int landcover_buf_idx = 0;
+
+        for( int j=0; j<2*render_radius_cells; j++ )
+        {
+            for( int i=0; i<2*render_radius_cells; i++ )
+            {
+                if(!VERTEX_NEEDED((size_t)j*W + i))
+                    continue;
+
+                int32_t z = horizonator_dem_sample(&ctx->dems, i,j);
+
+                // Several paths are available. These require corresponding
+                // updates in the GLSL, and exist for testing
+#if 0
+                // The CPU does all the math for the data procesing.
+#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
+#error "This path requires floating-point vertices"
+#endif
+                const float Rearth = 6371000.0;
+                const float cos_viewer_lat = cosf( M_PI / 180.0f * viewer_lat );
+                float e = ((float)i - viewer_cell[0]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f * cos_viewer_lat;
+                float n = ((float)j - viewer_cell[1]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f;
+                float h = (float)z - viewer_z;
+
+                float d_ne = hypotf(e,n);
+                vertices[vertex_buf_idx++] = atan2f(e,n   ) / M_PI;
+                vertices[vertex_buf_idx++] = atan2f(h,d_ne) / M_PI;
+                vertices[vertex_buf_idx++] = d_ne;
+#elif 0
+                // The CPU does some of the math for the data procesing.
+                // Requires 32-bit floats for the vertices (selected above).
+#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
+#error "This path requires floating-point vertices"
+#endif
+                const float Rearth = 6371000.0;
+                const float cos_viewer_lat = cosf( M_PI / 180.0f * viewer_lat );
+                float e = ((float)i - viewer_cell[0]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f * cos_viewer_lat;
+                float n = ((float)j - viewer_cell[1]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f;
+                float h = (float)z - viewer_z;
+
+                vertices[vertex_buf_idx++] = e;
+                vertices[vertex_buf_idx++] = n;
+                vertices[vertex_buf_idx++] = h;
+#else
+                // Integers into the VBO. All the work done in the GPU
+                vertices[vertex_buf_idx++] = i;
+                vertices[vertex_buf_idx++] = j;
+                vertices[vertex_buf_idx++] = z;
+#endif
+
+                // Finite-difference normal from the 4 DEM neighbors
+                // (clamped at the edges of the loaded grid, where a
+                // neighbor is missing: falls back to a one-sided
+                // difference there instead of a centered one)
+                int i_prev = i>0                    ? i-1 : i;
+                int i_next = i<2*render_radius_cells-1 ? i+1 : i;
+                int j_prev = j>0                    ? j-1 : j;
+                int j_next = j<2*render_radius_cells-1 ? j+1 : j;
+
+                int32_t z_i_prev = horizonator_dem_sample(&ctx->dems, i_prev, j);
+                int32_t z_i_next = horizonator_dem_sample(&ctx->dems, i_next, j);
+                int32_t z_j_prev = horizonator_dem_sample(&ctx->dems, i, j_prev);
+                int32_t z_j_next = horizonator_dem_sample(&ctx->dems, i, j_next);
+
+                // Tangent vectors along the East and North grid directions
+                // (in meters), and the cross product of the two (East x
+                // North = Up, in a right-handed ENU frame -- so this always
+                // comes out pointing "up", no sign ambiguity to resolve,
+                // unlike a per-triangle normal from arbitrarily-wound
+                // vertices)
+                float tangent_east_x  = (float)(i_next - i_prev) * cellsize_ew;
+                float tangent_east_z  = (float)(z_i_next - z_i_prev);
+                float tangent_north_y = (float)(j_next - j_prev) * cellsize_ns;
+                float tangent_north_z = (float)(z_j_next - z_j_prev);
+
+                float nx = -tangent_east_z * tangent_north_y;
+                float ny = -tangent_east_x * tangent_north_z;
+                float nz =  tangent_east_x * tangent_north_y;
+
+                float ninv = 1.0f / sqrtf(nx*nx + ny*ny + nz*nz);
+                normals[normal_buf_idx++] = nx*ninv;
+                normals[normal_buf_idx++] = ny*ninv;
+                normals[normal_buf_idx++] = nz*ninv;
+
+                landcover_classes[landcover_buf_idx++] =
+                    horizonator_landcover_sample(&ctx->landcover, i, j);
+            }
+        }
+
+        glBindBuffer(GL_ARRAY_BUFFER, landcoverBufID);
+        int res = glUnmapBuffer(GL_ARRAY_BUFFER);
+        assert( res == GL_TRUE );
+        assert( landcover_buf_idx == Nvertices );
+
+        glBindBuffer(GL_ARRAY_BUFFER, normalBufID);
+        res = glUnmapBuffer(GL_ARRAY_BUFFER);
+        assert( res == GL_TRUE );
+        assert( normal_buf_idx == Nvertices*3 );
+
+        glBindBuffer(GL_ARRAY_BUFFER, vertexBufID);
+        res = glUnmapBuffer(GL_ARRAY_BUFFER);
+        assert( res == GL_TRUE );
+        assert( vertex_buf_idx == Nvertices*3 );
+    }
+
+    // indices
+    {
+        GLuint indexBufID;
+        glGenBuffers(1, &indexBufID);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufID);
+        ctx->index_buf_id = indexBufID;
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, ((size_t)ctx->Ntriangles+1)*3*sizeof(GLuint), NULL, GL_STATIC_DRAW);
+
+        GLuint* indices = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
+
+        if(indices == NULL)
+        {
+            MSG("glMapBuffer() failed: not enough memory for a mesh of %d vertices / %d triangles (try a smaller --zfar, or coarser DEMs)",
+                Nvertices, ctx->Ntriangles);
+            goto done;
+        }
+        size_t idx = 0;
+        for( int j=0; j<W-1; j++ )
+            for( int i=0; i<W-1; i++ )
+            {
+                if(!QUAD_KEPT(i,j))
+                    continue;
+
+                const size_t c00 = (size_t)j*W + i;
+                const GLuint v00 = (GLuint)VERTEX_INDEX(c00);
+                const GLuint v01 = (GLuint)VERTEX_INDEX(c00 + 1);
+                const GLuint v10 = (GLuint)VERTEX_INDEX(c00 + W);
+                const GLuint v11 = (GLuint)VERTEX_INDEX(c00 + W + 1);
+
+                indices[idx++] = v00;
+                indices[idx++] = v11;
+                indices[idx++] = v10;
+
+                indices[idx++] = v00;
+                indices[idx++] = v01;
+                indices[idx++] = v11;
+            }
+        assert(idx == (size_t)ctx->Ntriangles*3);
+        int res = glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
+        assert( res == GL_TRUE );
+    }
+
+    result = true;
+ done:
+    free(cell_in_view);
+    free(needed);
+    free(word_start);
+    return result;
+}
 
 // The main init routine. We support 3 modes:
 //
@@ -75,10 +499,14 @@ bool horizonator_init( // output
                        int render_radius_cells, // This should be given >0
                        float render_radius_m,   // or this, but not both
 
+                       bool restrict_mesh_azimuth,
+                       float mesh_az_deg0, float mesh_az_deg1,
+
                        bool use_glut,
                        bool render_texture,
                        bool SRTM1,
                        const char* dir_dems,
+                       const char* dir_landcover,
                        const char* dir_tiles,
                        const char* tiles_name,
                        const char* tiles_url_fmt,
@@ -86,8 +514,9 @@ bool horizonator_init( // output
 {
     *ctx = (horizonator_context_t){};
 
-    bool result             = false;
-    bool dem_context_inited = false;
+    bool result                   = false;
+    bool dem_context_inited       = false;
+    bool landcover_context_inited = false;
 
 
     if(tiles_name == NULL)
@@ -98,6 +527,8 @@ bool horizonator_init( // output
         dir_dems  = SRTM1 ?
             "~/.horizonator/DEMs_SRTM1" :
             "~/.horizonator/DEMs_SRTM3";
+    if(dir_landcover == NULL)
+        dir_landcover = "~/.horizonator/landcover";
 
     char _dir_tiles[256];
     if(dir_tiles == NULL)
@@ -182,10 +613,9 @@ bool horizonator_init( // output
 
     static_assert(sizeof(GLint) == sizeof(ctx->uniform_aspect),
                   "horizonator_context_t.uniform_... must be a GLint");
-
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
-    glClearColor(0, 0, 1, 0);
+    glClearColor(1, 1, 1, 0);
 
     if( !horizonator_dem_init( &ctx->dems,
                    viewer_lat, viewer_lon,
@@ -199,11 +629,16 @@ bool horizonator_init( // output
     }
     dem_context_inited = true;
 
-    render_radius_cells = ctx->dems.radius_cells;
+    // Reuses ctx->dems' grid geometry outright (see landcover.h) -- must
+    // come after horizonator_dem_init() above, never before
+    if( !horizonator_landcover_init( &ctx->landcover, &ctx->dems, dir_landcover) )
+    {
+        MSG("Couldn't init landcover tiles. Giving up");
+        goto done;
+    }
+    landcover_context_inited = true;
 
-    // Dense triangulation. This may be adjusted below
-    int Nvertices   = (2*render_radius_cells) * (2*render_radius_cells);
-    ctx->Ntriangles = (2*render_radius_cells - 1)*(2*render_radius_cells - 1) * 2;
+    render_radius_cells = ctx->dems.radius_cells;
 
     typedef struct
     {
@@ -224,6 +659,7 @@ bool horizonator_init( // output
     {
         GLuint texID;
         glGenTextures(1, &texID);
+        ctx->texture_id = texID;
 
         void getOSMTileID( // output tile indices
                           int* x, int* y,
@@ -409,116 +845,18 @@ bool horizonator_init( // output
                     return false;
     }
 
-    // vertices
-    //
-    // I fill in the VBO. Each point is a 16-bit integer tuple
-    // (ilon,ilat,height). The first 2 args are indices into the virtual DEM
-    // (accessed with horizonator_dem_sample). The height is in meters
-    {
-        GLuint vertexArrayID;
-        glGenVertexArrays(1, &vertexArrayID);
-        glBindVertexArray(vertexArrayID);
+    // horizonator_rebuild_mesh() (see below) reads the viewer position from
+    // ctx, not from a parameter -- normally set by horizonator_move(),
+    // called further below, but that's too late for this first build
+    ctx->viewer_lat = viewer_lat;
+    ctx->viewer_lon = viewer_lon;
 
-        GLuint vertexBufID;
-        glGenBuffers(1, &vertexBufID);
-        glBindBuffer(GL_ARRAY_BUFFER, vertexBufID);
-
-        glEnableVertexAttribArray(0);
-
-#define VBO_USES_INTEGERS 1
-
-#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
-        // 16-bit integers. Only one of the paths below work with these
-        glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_SHORT, GL_FALSE, 0, NULL);
-        GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-#else
-        // 32-bit floats. These take more space, but work with all the paths below
-        glBufferData(GL_ARRAY_BUFFER, Nvertices*3*sizeof(GLshort), NULL, GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-        GLshort* vertices = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-#endif
-
-        int vertex_buf_idx = 0;
-
-        for( int j=0; j<2*render_radius_cells; j++ )
-        {
-            for( int i=0; i<2*render_radius_cells; i++ )
-            {
-                int32_t z = horizonator_dem_sample(&ctx->dems, i,j);
-
-                // Several paths are available. These require corresponding
-                // updates in the GLSL, and exist for testing
-#if 0
-                // The CPU does all the math for the data procesing.
-#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
-#error "This path requires floating-point vertices"
-#endif
-                const float Rearth = 6371000.0;
-                const float cos_viewer_lat = cosf( M_PI / 180.0f * viewer_lat );
-                float e = ((float)i - viewer_cell[0]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f * cos_viewer_lat;
-                float n = ((float)j - viewer_cell[1]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f;
-                float h = (float)z - viewer_z;
-
-                float d_ne = hypotf(e,n);
-                vertices[vertex_buf_idx++] = atan2f(e,n   ) / M_PI;
-                vertices[vertex_buf_idx++] = atan2f(h,d_ne) / M_PI;
-                vertices[vertex_buf_idx++] = d_ne;
-#elif 0
-                // The CPU does some of the math for the data procesing.
-                // Requires 32-bit floats for the vertices (selected above).
-#if defined VBO_USES_INTEGERS && VBO_USES_INTEGERS
-#error "This path requires floating-point vertices"
-#endif
-                const float Rearth = 6371000.0;
-                const float cos_viewer_lat = cosf( M_PI / 180.0f * viewer_lat );
-                float e = ((float)i - viewer_cell[0]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f * cos_viewer_lat;
-                float n = ((float)j - viewer_cell[1]) / ctx->dems.cells_per_deg * Rearth * M_PI/180.f;
-                float h = (float)z - viewer_z;
-
-                vertices[vertex_buf_idx++] = e;
-                vertices[vertex_buf_idx++] = n;
-                vertices[vertex_buf_idx++] = h;
-#else
-                // Integers into the VBO. All the work done in the GPU
-                vertices[vertex_buf_idx++] = i;
-                vertices[vertex_buf_idx++] = j;
-                vertices[vertex_buf_idx++] = z;
-#endif
-            }
-        }
-
-        int res = glUnmapBuffer(GL_ARRAY_BUFFER);
-        assert( res == GL_TRUE );
-        assert( vertex_buf_idx == Nvertices*3 );
-    }
-
-    // indices
-    {
-        GLuint indexBufID;
-        glGenBuffers(1, &indexBufID);
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBufID);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, ctx->Ntriangles*3*sizeof(GLuint), NULL, GL_STATIC_DRAW);
-
-        GLuint* indices = glMapBuffer(GL_ELEMENT_ARRAY_BUFFER, GL_WRITE_ONLY);
-        int idx = 0;
-        for( int j=0; j<(2*render_radius_cells-1); j++ )
-        {
-            for( int i=0; i<(2*render_radius_cells-1); i++ )
-            {
-                indices[idx++] = (j + 0)*(2*render_radius_cells) + (i + 0);
-                indices[idx++] = (j + 1)*(2*render_radius_cells) + (i + 1);
-                indices[idx++] = (j + 1)*(2*render_radius_cells) + (i + 0);
-
-                indices[idx++] = (j + 0)*(2*render_radius_cells) + (i + 0);
-                indices[idx++] = (j + 0)*(2*render_radius_cells) + (i + 1);
-                indices[idx++] = (j + 1)*(2*render_radius_cells) + (i + 1);
-            }
-        }
-        int res = glUnmapBuffer(GL_ELEMENT_ARRAY_BUFFER);
-        assert( res == GL_TRUE );
-        assert(idx == ctx->Ntriangles*3);
-    }
+    // Builds the VAO/VBOs/EBO (see horizonator_rebuild_mesh() below). Split
+    // out so it can also be called again later, on this same context/GL
+    // program, to reduce a wide panorama into a sequence of narrow,
+    // memory-bounded tiles without ever recreating the GL context
+    if( !horizonator_rebuild_mesh(ctx, restrict_mesh_azimuth, mesh_az_deg0, mesh_az_deg1) )
+        goto done;
 
     // shaders
     {
@@ -570,6 +908,16 @@ bool horizonator_init( // output
         if( strlen(msg) )
             printf("program info after glLinkProgram(): %s\n", msg);
 
+        // Once attached to (and linked into) the program, the shader
+        // objects themselves are no longer needed standalone: this marks
+        // each for deletion, which actually happens once it's later
+        // detached (glDeleteProgram(), in horizonator_deinit(), does that
+        // detach). Standard practice, and one less handle we'd otherwise
+        // have to track/free ourselves
+        glDeleteShader(vertexShader);   assert_opengl();
+        glDeleteShader(fragmentShader); assert_opengl();
+        glDeleteShader(geometryShader); assert_opengl();
+
         glUseProgram(ctx->program);  assert_opengl();
         glGetProgramInfoLog( ctx->program, sizeof(msg), &len, msg );
         if( strlen(msg) )
@@ -614,6 +962,11 @@ bool horizonator_init( // output
         ctx->uniform_zfar             = glGetUniformLocation(ctx->program, "zfar");             assert_opengl();
         ctx->uniform_znear_color      = glGetUniformLocation(ctx->program, "znear_color");      assert_opengl();
         ctx->uniform_zfar_color       = glGetUniformLocation(ctx->program, "zfar_color");       assert_opengl();
+        ctx->uniform_curvature_scale  = glGetUniformLocation(ctx->program, "curvature_scale");  assert_opengl();
+        ctx->uniform_refraction_k     = glGetUniformLocation(ctx->program, "refraction_k");     assert_opengl();
+        ctx->uniform_shading_scale    = glGetUniformLocation(ctx->program, "shading_scale");    assert_opengl();
+        ctx->uniform_sun_dir          = glGetUniformLocation(ctx->program, "sun_dir");          assert_opengl();
+        ctx->uniform_materials_scale  = glGetUniformLocation(ctx->program, "materials_scale");  assert_opengl();
 #undef make_and_set_uniform
 
         // And I set the other uniforms
@@ -621,6 +974,12 @@ bool horizonator_init( // output
         horizonator_set_zextents(ctx,
                                  HORIZONATOR_ZNEAR_DEFAULT, HORIZONATOR_ZFAR_DEFAULT,
                                  HORIZONATOR_ZNEAR_DEFAULT, HORIZONATOR_ZFAR_DEFAULT);
+        // Curvature correction is off by default: unchanged legacy behavior
+        horizonator_set_curvature(ctx, false, 0.13f);
+        // Slope shading is off by default: unchanged legacy behavior
+        horizonator_set_sun(ctx, false, 135.0f, 45.0f);
+        // Procedural materials are off by default: unchanged legacy behavior
+        horizonator_set_materials(ctx, false);
     }
 
     if(offscreen_width > 0)
@@ -682,19 +1041,61 @@ bool horizonator_init( // output
     result = true;
 
  done:
-    if(dem_context_inited && !result)
-        horizonator_dem_deinit(&ctx->dems);
+    if(!result)
+    {
+        if(landcover_context_inited)
+            horizonator_landcover_deinit(&ctx->landcover);
+        if(dem_context_inited)
+            horizonator_dem_deinit(&ctx->dems);
+    }
 
     return result;
 }
 
 void horizonator_deinit( horizonator_context_t* ctx )
 {
+    // All the glDelete*() calls below must happen BEFORE
+    // glutDestroyWindow(): that call tears down the GL context itself, and
+    // every one of these handles is only meaningful while that context is
+    // current. This used to be skipped entirely -- these handles were local
+    // variables inside horizonator_init(), never even saved to ctx, so
+    // there was no way to free them here. The assumption was that
+    // destroying the context this way frees everything created in it
+    // implicitly; on this project's llvmpipe/software-rendering setup that
+    // evidently doesn't fully hold (repeated horizonator_init()/_deinit()
+    // in one process grew memory unboundedly and OOM'd the machine), so
+    // this frees each object explicitly instead of relying on that
     if(ctx->use_glut && ctx->glut_window != 0)
     {
+        glDeleteVertexArrays(1, &ctx->vertex_array_id);
+        glDeleteBuffers(1, &ctx->vertex_buf_id);
+        glDeleteBuffers(1, &ctx->normal_buf_id);
+        glDeleteBuffers(1, &ctx->landcover_buf_id);
+        glDeleteBuffers(1, &ctx->index_buf_id);
+        if(ctx->texture_id != 0)
+            glDeleteTextures(1, &ctx->texture_id);
+        if(ctx->program != 0)
+            glDeleteProgram(ctx->program);
+
+        if(ctx->offscreen.inited)
+        {
+            glDeleteFramebuffers (1, &ctx->offscreen.frameBufID);
+            glDeleteRenderbuffers(1, &ctx->offscreen.renderBufID);
+            glDeleteRenderbuffers(1, &ctx->offscreen.depthBufID);
+        }
+
         glutDestroyWindow(ctx->glut_window);
         ctx->glut_window = 0;
     }
+
+    // Was leaked previously: the DEM files stay mmap-ed (and their pages
+    // resident, once touched by horizonator_dem_sample()) until this is
+    // called. This matters most for a process that calls
+    // horizonator_init()/horizonator_deinit() in a loop (e.g. to render
+    // several tiles one at a time): without this, memory use grows
+    // unboundedly across iterations
+    horizonator_dem_deinit(&ctx->dems);
+    horizonator_landcover_deinit(&ctx->landcover);
 }
 
 bool horizonator_move(horizonator_context_t* ctx,
@@ -889,6 +1290,65 @@ bool horizonator_set_zextents(horizonator_context_t* ctx,
     glUniform1f( ctx->uniform_zfar,        zfar);        assert_opengl();
     glUniform1f( ctx->uniform_znear_color, znear_color); assert_opengl();
     glUniform1f( ctx->uniform_zfar_color,  zfar_color);  assert_opengl();
+
+    return true;
+}
+
+bool horizonator_set_curvature(horizonator_context_t* ctx,
+                               bool curvature_enabled,
+                               float refraction_k)
+{
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
+    glUniform1f( ctx->uniform_curvature_scale, curvature_enabled ? 1.0f : 0.0f); assert_opengl();
+    glUniform1f( ctx->uniform_refraction_k,    refraction_k);                    assert_opengl();
+
+    return true;
+}
+
+bool horizonator_set_sun(horizonator_context_t* ctx,
+                         bool shading_enabled,
+                         float sun_az_deg,
+                         float sun_el_deg)
+{
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
+    // Same (east,north,height) convention as vertex.glsl: az=0 is North,
+    // az=90 is East (az_rad = atan(east,north) there)
+    const float az_rad = sun_az_deg * (float)M_PI/180.0f;
+    const float el_rad = sun_el_deg * (float)M_PI/180.0f;
+    const float cos_el = cos(el_rad);
+    const float east    = cos_el * sin(az_rad);
+    const float north   = cos_el * cos(az_rad);
+    const float height  = sin(el_rad);
+
+    glUniform1f( ctx->uniform_shading_scale, shading_enabled ? 1.0f : 0.0f); assert_opengl();
+    glUniform3f( ctx->uniform_sun_dir,       east, north, height);           assert_opengl();
+
+    return true;
+}
+
+bool horizonator_set_materials(horizonator_context_t* ctx,
+                               bool materials_enabled)
+{
+    if(ctx->use_glut)
+    {
+        if(ctx->glut_window == 0)
+            return false;
+        glutSetWindow(ctx->glut_window);
+    }
+
+    glUniform1f( ctx->uniform_materials_scale, materials_enabled ? 1.0f : 0.0f); assert_opengl();
 
     return true;
 }
@@ -1119,7 +1579,10 @@ bool horizonator_project( // output
                           double az_rad0,
                           double az_rad1,
                           int width,
-                          int height)
+                          int height,
+
+                          bool curvature_enabled,
+                          double refraction_k)
 {
     const float Rearth = 6371000.0;
 
@@ -1148,9 +1611,16 @@ bool horizonator_project( // output
 
     // The projection code is mostly lifted from vertex.glsl. Would be nice to
     // consolidate
-    const double h           = ele - ele_viewer;
     const double distance_ne = sqrt(distance_sq_ne);
-    *range                   = sqrt(distance_sq_ne + h*h);
+
+    // Same curvature-and-refraction correction as vertex.glsl. Must match,
+    // or this projection won't agree with the actual render
+    const double drop =
+        curvature_enabled ?
+        (1.0 - refraction_k) * distance_sq_ne / (2.0*Rearth) : 0.0;
+    const double h = (ele - ele_viewer) - drop;
+
+    *range = sqrt(distance_sq_ne + h*h);
 
     const double aspect = (double)width / (double)height;
     const double el_ndc = atan2(h, distance_ne) * aspect * az_ndc_per_rad;

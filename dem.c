@@ -260,12 +260,18 @@ void horizonator_dem_deinit( horizonator_dem_context_t* ctx )
         }
 }
 
-// Given coordinates index cells, in respect to the origin cell
-int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
-                   // Positive = towards East
-                   int i,
-                   // Positive = towards North
-                   int j)
+// SRTM marks cells with no data ("voids": shadowed steep terrain, water,
+// snow...) with this value. The 3" files we used to use are void-filled, but
+// the 1" ones are not, and have many (1-2% of some Alpine tiles)
+#define SRTM_VOID (-32768)
+
+// How far (cells) horizonator_dem_sample() looks along a row/column for a
+// valid value to fill a void with
+#define VOID_FILL_MAX_SEARCH_CELLS 256
+
+// Same as horizonator_dem_sample(), but returns SRTM_VOID as is
+static int16_t dem_sample_raw(const horizonator_dem_context_t* ctx,
+                              int i, int j)
 {
     if(i < 0 || j < 0) return -1;
 
@@ -290,7 +296,14 @@ int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
             cell_ij[i] = ctx->cells_per_deg;
         }
 
-        if( dem_ij[i] >= ctx->Ndems_ij[i] ) return -1;
+        // dem_ij[i] can go negative right here: if cell_ij[i] was exactly 0
+        // -- i.e. this is the very first row/column of the whole loaded
+        // grid, not just of one DEM tile -- the "borrow the overlap row
+        // from the previous DEM" adjustment two lines above decrements it
+        // from 0 to -1, but there IS no previous DEM to borrow from at the
+        // grid's own origin. Un-checked, indexing ctx->dems[][] with that
+        // -1 read out of bounds (undefined behavior; readily a segfault)
+        if( dem_ij[i] < 0 || dem_ij[i] >= ctx->Ndems_ij[i] ) return -1;
     }
 
     const unsigned char* dem = ctx->dems[dem_ij[0]][dem_ij[1]];
@@ -304,7 +317,40 @@ int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
         (ctx->cells_per_deg - cell_ij[1])*(ctx->cells_per_deg+1);
 
     // Each value is big-endian, so I flip the bytes
-    int16_t  z = (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
+    return (int16_t) ((dem[2*p] << 8) | dem[2*p + 1]);
+}
+
+// Given coordinates index cells, in respect to the origin cell
+int16_t horizonator_dem_sample(const horizonator_dem_context_t* ctx,
+                   // Positive = towards East
+                   int i,
+                   // Positive = towards North
+                   int j)
+{
+    int16_t z = dem_sample_raw(ctx, i, j);
+    if(z == SRTM_VOID)
+    {
+        // Fill the void with the nearest valid cell along the row/column
+        // (a void read as 0 would be a pit down to sea level in the mesh)
+        z = 0;
+        for(int k=1; k<=VOID_FILL_MAX_SEARCH_CELLS; k++)
+        {
+            const int16_t candidates[4] = {
+                dem_sample_raw(ctx, i+k, j),
+                dem_sample_raw(ctx, i-k, j),
+                dem_sample_raw(ctx, i, j+k),
+                dem_sample_raw(ctx, i, j-k) };
+            bool found = false;
+            for(int c=0; c<4; c++)
+                if(candidates[c] != SRTM_VOID && candidates[c] != -1)
+                {
+                    z = candidates[c];
+                    found = true;
+                    break;
+                }
+            if(found) break;
+        }
+    }
     return (z < 0) ? 0 : z;
 }
 
